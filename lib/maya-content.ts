@@ -98,7 +98,30 @@ Keep it simple, 2-3 sentences. Focus on what the buyer gets and the aesthetic. N
   throw new Error('Failed to generate pack description')
 }
 
-// Optional: Generate image using DALL-E (requires OpenAI DALL-E 3)
+export async function generatePhotoPack(
+  theme: string,
+  count: number
+): Promise<Array<{ url: string; description: string }>> {
+  const settings = [
+    'sunset beach', 'mountain trail', 'street café', 'forest path',
+    'rooftop terrace', 'lakeside dock', 'garden patio', 'harbor pier',
+    'hilltop view', 'village square', 'flower market', 'riverside bench',
+    'vineyard trail', 'coastal cliff', 'old town alley', 'waterfall overlook',
+  ]
+
+  const photos: Array<{ url: string; description: string }> = []
+
+  for (let i = 0; i < count; i++) {
+    const setting = settings[i % settings.length]
+    const prompt = await generateImagePrompt(theme, setting, 'natural daylight')
+    const url = await generateMayaImage(prompt)
+    const description = `${theme} — ${setting}`
+    photos.push({ url, description })
+  }
+
+  return photos
+}
+
 export async function generateMayaImage(
   prompt: string
 ): Promise<string> {

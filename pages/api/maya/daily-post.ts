@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { supabase } from '@/lib/supabase'
-import { generateMayaImage, generateMayaCaption } from '@/lib/maya'
+import { generateMayaImage, generateMayaCaption, generateImagePrompt } from '@/lib/maya-content'
 import axios from 'axios'
 
 const MAYA_BOT_TOKEN = process.env.MAYA_BOT_TOKEN || ''
@@ -36,19 +36,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Generate image
     console.log('Generating image...')
-    const imageUrl = await generateMayaImage(
-      random.name,
-      random.setting,
-      'calm and reflective'
-    )
+    const imagePrompt = await generateImagePrompt(random.name, random.setting, 'calm and reflective')
+    const imageUrl = await generateMayaImage(imagePrompt)
 
     // Generate caption
     console.log('Generating caption...')
-    const caption = await generateMayaCaption(
-      random.name,
-      random.setting,
-      'calm and reflective'
-    )
+    const caption = await generateMayaCaption(random.name, `${random.setting}, calm and reflective`)
 
     // Store in database
     const { data: post, error: dbError } = await supabase
