@@ -66,18 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 }
 
 async function handleStart(userId: number) {
-  const message = `✈️ **Welcome to Maya's Travel Notes**
-
-Hi! I'm Maya, and I'm sharing my journey through slow travel, quiet places, and moments worth remembering.
-
-📸 Every day, I post one photo and a reflection from wherever I am in the world.
-
-🎁 **Want more?**
-My premium photo collections include unseen angles, higher resolution images, and curated sets from my travels.
-
-👉 Check out my premium albums below.
-
-Thank you for being here. 🌍`
+  const message = `✈️ **Welcome to Maya's Travel Notes**\n\nHi! I'm Maya, and I'm sharing my journey through slow travel, quiet places, and moments worth remembering.\n\n📸 Every day, I post one photo and a reflection from wherever I am in the world.\n\n🎁 **Want more?**\nMy premium photo collections include unseen angles, higher resolution images, and curated sets from my travels.\n\n👉 Check out my premium albums below.\n\nThank you for being here. 🌍`
 
   await sendTelegramMessage(
     process.env.MAYA_BOT_TOKEN!,
@@ -87,15 +76,7 @@ Thank you for being here. 🌍`
 }
 
 async function handleHelp(userId: number) {
-  const message = `🌍 **Maya Bot Commands**
-
-📷 **/generate** - Generate and post one travel photo now
-📅 **/schedule [number]** - Schedule multiple posts (e.g., /schedule 5)
-📊 **/status** - Check current automation status
-🎁 **/premium** - View premium photo packs
-❓ **/help** - Show this help message
-
-Questions? Just send me a message!`
+  const message = `🌍 **Maya Bot Commands**\n\n📷 **/generate** - Generate and post one travel photo now\n📅 **/schedule [number]** - Schedule multiple posts (e.g., /schedule 5)\n📊 **/status** - Check current automation status\n🎁 **/premium** - View premium photo packs\n❓ **/help** - Show this help message\n\nQuestions? Just send me a message!`
 
   await sendTelegramMessage(
     process.env.MAYA_BOT_TOKEN!,
@@ -109,11 +90,7 @@ async function handleGenerate(userId: number) {
   await sendTelegramMessage(
     process.env.MAYA_BOT_TOKEN!,
     userId,
-    `📸 **Generating Travel Photo...**
-
-Creating a photorealistic travel moment for @pollianasela channel!
-
-⏳ This takes about 30 seconds...`
+    `📸 **Generating Travel Photo...**\n\nCreating a photorealistic travel moment for @pollianasela channel!\n\n⏳ This takes about 30 seconds...`
   )
 
   try {
@@ -123,33 +100,26 @@ Creating a photorealistic travel moment for @pollianasela channel!
     
     console.log('[Maya Bot] Executing recipe:', RECIPE_ID)
     
-    const response = await fetch('https://backend.composio.dev/api/v3/recipe/execute', {
+    const response = await fetch(`https://backend.composio.dev/api/v1/recipe/${RECIPE_ID}/execute`, {
       method: 'POST',
       headers: {
-        'X-API-Key': COMPOSIO_API_KEY!,
+        'x-api-key': COMPOSIO_API_KEY!,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        recipe_id: RECIPE_ID,
-        input_data: {},
+        input: {},
       }),
     })
 
     const result = await response.json()
     console.log('[Maya Bot] Recipe execution result:', JSON.stringify(result))
 
-    if (result.successful && result.data?.success) {
-      const output = result.data
+    if (result.data?.data?.success) {
+      const output = result.data.data
       await sendTelegramMessage(
         process.env.MAYA_BOT_TOKEN!,
         userId,
-        `✅ **Posted Successfully!**
-
-📍 Location: ${output.location || 'Unknown'}
-🎨 Composition: ${output.composition || 'N/A'}
-📷 Type: ${output.moment_type || 'N/A'}
-
-Check @pollianasela to see the post! 🌍✨`
+        `✅ **Posted Successfully!**\n\n📍 Location: ${output.location || 'Unknown'}\n🎨 Composition: ${output.composition || 'N/A'}\n📷 Type: ${output.moment_type || 'N/A'}\n\nCheck @pollianasela to see the post! 🌍✨`
       )
     } else {
       throw new Error(result.error?.message || 'Recipe execution failed')
@@ -159,11 +129,7 @@ Check @pollianasela to see the post! 🌍✨`
     await sendTelegramMessage(
       process.env.MAYA_BOT_TOKEN!,
       userId,
-      `❌ **Generation Failed**
-
-Something went wrong. Please try again in a moment or contact support.
-
-Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `❌ **Generation Failed**\n\nSomething went wrong. Please try again in a moment or contact support.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
   }
 }
@@ -172,11 +138,7 @@ async function handleSchedule(userId: number, text: string) {
   const parts = text.split(' ')
   const count = parseInt(parts[1]) || 5
 
-  const message = `📅 **Scheduling ${count} Posts**
-
-I'll generate and schedule ${count} travel photos to be posted over the next ${count} days.
-
-⏳ Setting up automation... (This feature uses the cron scheduling system)`
+  const message = `📅 **Scheduling ${count} Posts**\n\nI'll generate and schedule ${count} travel photos to be posted over the next ${count} days.\n\n⏳ Setting up automation... (This feature uses the cron scheduling system)`
 
   await sendTelegramMessage(
     process.env.MAYA_BOT_TOKEN!,
@@ -186,16 +148,7 @@ I'll generate and schedule ${count} travel photos to be posted over the next ${c
 }
 
 async function handleStatus(userId: number) {
-  const message = `📊 **Automation Status**
-
-✅ **Daily Posts:** Active
-📸 **Last Post:** 2 hours ago
-📦 **Photo Packs:** 3 available
-👥 **Channel Subscribers:** Growing organically
-
-🔔 Next post scheduled for tomorrow at 9 AM UTC
-
-Everything is running smoothly! 🌍`
+  const message = `📊 **Automation Status**\n\n✅ **Daily Posts:** Active\n📸 **Last Post:** 2 hours ago\n📦 **Photo Packs:** 3 available\n👥 **Channel Subscribers:** Growing organically\n\n🔔 Next post scheduled for tomorrow at 9 AM UTC\n\nEverything is running smoothly! 🌍`
 
   await sendTelegramMessage(
     process.env.MAYA_BOT_TOKEN!,
@@ -207,28 +160,7 @@ Everything is running smoothly! 🌍`
 async function handlePremium(userId: number) {
   const tributeUrl = process.env.MAYA_TRIBUTE_URL || 'https://tribute.to/your-maya-products'
   
-  const message = `📸 **Maya's Private Album**
-
-Get access to my exclusive photo collections:
-
-✨ High-resolution travel photos
-🌅 Unseen angles and moments
-🎨 Themed sets (cities, beaches, cafes, sunsets)
-📦 2-3 new packs every month
-
-**Premium Packs Available:**
-
-🔹 Monthly Subscription - $12/month
-   • All new photo packs
-   • Early access to content
-   • Behind-the-scenes shots
-
-🔹 One-Time Packs - $7 each
-   • Themed collections
-   • 15-25 curated photos
-   • Instant delivery
-
-👉 [View Premium Albums](${tributeUrl})`
+  const message = `📸 **Maya's Private Album**\n\nGet access to my exclusive photo collections:\n\n✨ High-resolution travel photos\n🌅 Unseen angles and moments\n🎨 Themed sets (cities, beaches, cafes, sunsets)\n📦 2-3 new packs every month\n\n**Premium Packs Available:**\n\n🔹 Monthly Subscription - $12/month\n   • All new photo packs\n   • Early access to content\n   • Behind-the-scenes shots\n\n🔹 One-Time Packs - $7 each\n   • Themed collections\n   • 15-25 curated photos\n   • Instant delivery\n\n👉 [View Premium Albums](${tributeUrl})`
 
   await sendTelegramMessage(
     process.env.MAYA_BOT_TOKEN!,
