@@ -20,15 +20,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const text = update.message.text || ''
 
     // Check entitlement
-    const { data: entitlement } = await supabase
+    const { data: entitlements, error: entitlementError } = await supabase
       .from('entitlements')
-      .select()
+      .select('*')
       .eq('telegram_user_id', userId)
       .eq('product_type', 'tools_access')
       .eq('status', 'active')
-      .single()
 
-    if (!entitlement) {
+    if (entitlementError || !entitlements || entitlements.length === 0) {
       await sendTelegramMessage(
         process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
         userId,
