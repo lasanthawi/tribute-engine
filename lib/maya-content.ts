@@ -97,3 +97,28 @@ Keep it simple, 2-3 sentences. Focus on what the buyer gets and the aesthetic. N
   
   throw new Error('Failed to generate pack description')
 }
+
+// Optional: Generate image using DALL-E (requires OpenAI DALL-E 3)
+export async function generateMayaImage(
+  prompt: string
+): Promise<string> {
+  try {
+    const response = await openai.images.generate({
+      model: 'dall-e-3',
+      prompt: prompt,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+    })
+
+    const imageUrl = response.data?.[0]?.url
+    if (imageUrl) {
+      return imageUrl
+    }
+    
+    throw new Error('No image URL in response')
+  } catch (error) {
+    console.error('Image generation error:', error)
+    throw new Error('Failed to generate image')
+  }
+}
