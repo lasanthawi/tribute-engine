@@ -28,8 +28,8 @@ Provide:
 
 Format as clear, actionable steps.`
 
-  const message = await openai.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4-turbo',
     max_tokens: 2000,
     messages: [
       {
@@ -39,9 +39,9 @@ Format as clear, actionable steps.`
     ],
   })
 
-  const textContent = message.content[0]
-  if (textContent.type === 'text') {
-    return textContent.text
+  const content = response.choices[0]?.message?.content
+  if (content) {
+    return content
   }
   
   throw new Error('Unexpected response format from OpenAI')
@@ -52,10 +52,10 @@ export async function generateToolOutput(command: string, context: string): Prom
   
 Context: ${context}
 
-Generate creative, actionable output suitable for use in Telegram.`
+Generate creative, actionable output suitable for use in Telegram. Keep it concise and practical.`
 
-  const message = await openai.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
+  const response = await openai.chat.completions.create({
+    model: 'gpt-3.5-turbo',
     max_tokens: 1500,
     messages: [
       {
@@ -65,9 +65,9 @@ Generate creative, actionable output suitable for use in Telegram.`
     ],
   })
 
-  const textContent = message.content[0]
-  if (textContent.type === 'text') {
-    return textContent.text
+  const content = response.choices[0]?.message?.content
+  if (content) {
+    return content
   }
   
   throw new Error('Unexpected response format from OpenAI')
