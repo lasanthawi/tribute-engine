@@ -105,17 +105,67 @@ Questions? Just send me a message!`
 }
 
 async function handleGenerate(userId: number) {
-  const message = `📸 **Generating Travel Photo...**
-
-I'm creating a new travel photo for you! This will be posted to the channel @pollianasela in a moment.
-
-⏳ Processing... (This feature connects to the image generation API)`
-
+  // Send immediate confirmation
   await sendTelegramMessage(
     process.env.MAYA_BOT_TOKEN!,
     userId,
-    message
+    `📸 **Generating Travel Photo...**
+
+Creating a photorealistic travel moment for @pollianasela channel!
+
+⏳ This takes about 30 seconds...`
   )
+
+  try {
+    // Execute Polliana Daily Travel Post Recipe
+    const COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY
+    const RECIPE_ID = 'rcp_xTlvCq1gSt4p' // Polliana Daily Travel Post recipe
+    
+    console.log('[Maya Bot] Executing recipe:', RECIPE_ID)
+    
+    const response = await fetch('https://backend.composio.dev/api/v3/recipe/execute', {
+      method: 'POST',
+      headers: {
+        'X-API-Key': COMPOSIO_API_KEY!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recipe_id: RECIPE_ID,
+        input_data: {},
+      }),
+    })
+
+    const result = await response.json()
+    console.log('[Maya Bot] Recipe execution result:', JSON.stringify(result))
+
+    if (result.successful && result.data?.success) {
+      const output = result.data
+      await sendTelegramMessage(
+        process.env.MAYA_BOT_TOKEN!,
+        userId,
+        `✅ **Posted Successfully!**
+
+📍 Location: ${output.location || 'Unknown'}
+🎨 Composition: ${output.composition || 'N/A'}
+📷 Type: ${output.moment_type || 'N/A'}
+
+Check @pollianasela to see the post! 🌍✨`
+      )
+    } else {
+      throw new Error(result.error?.message || 'Recipe execution failed')
+    }
+  } catch (error) {
+    console.error('[Maya Bot] Generation error:', error)
+    await sendTelegramMessage(
+      process.env.MAYA_BOT_TOKEN!,
+      userId,
+      `❌ **Generation Failed**
+
+Something went wrong. Please try again in a moment or contact support.
+
+Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
 }
 
 async function handleSchedule(userId: number, text: string) {
@@ -143,7 +193,7 @@ async function handleStatus(userId: number) {
 📦 **Photo Packs:** 3 available
 👥 **Channel Subscribers:** Growing organically
 
-🔄 Next post scheduled for tomorrow at 9 AM UTC
+🔔 Next post scheduled for tomorrow at 9 AM UTC
 
 Everything is running smoothly! 🌍`
 
