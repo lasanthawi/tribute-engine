@@ -28,7 +28,8 @@ export async function sendTelegramPhoto(
   botToken: string,
   chatId: number | string,
   photoUrl: string,
-  caption?: string
+  caption?: string,
+  replyMarkup?: any
 ) {
   try {
     const response = await axios.post(
@@ -38,6 +39,7 @@ export async function sendTelegramPhoto(
         photo: photoUrl,
         caption,
         parse_mode: 'Markdown',
+        reply_markup: replyMarkup,
       }
     )
     return response.data
