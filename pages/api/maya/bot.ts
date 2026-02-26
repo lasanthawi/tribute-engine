@@ -85,17 +85,17 @@ Hi! I'm your automated travel content creator for @pollianasela channel.
 /custom - Create custom post (location, occasion, pose)
 /help - See all commands with examples
 
-Start exploring! 🌍✨`
+Start exploring! ����✨`
 
   await sendTelegramMessage(
-    process.env.MAYA_BOT_TOKEN!,
+    process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
     userId,
     message
   )
 }
 
 async function handleHelp(userId: number) {
-  const message = `🌍 **Polliana Bot Commands**
+  const message = `���� **Polliana Bot Commands**
 
 📷 **/generate**
 Auto-generate a photorealistic travel post with random location
@@ -124,7 +124,7 @@ Show this help message
 **Channel:** @pollianasela`
 
   await sendTelegramMessage(
-    process.env.MAYA_BOT_TOKEN!,
+    process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
     userId,
     message
   )
@@ -132,7 +132,7 @@ Show this help message
 
 async function handleGenerate(userId: number) {
   await sendTelegramMessage(
-    process.env.MAYA_BOT_TOKEN!,
+    process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
     userId,
     `📸 **Generating Travel Photo...**
 
@@ -151,14 +151,15 @@ Creating a photorealistic travel moment with:
 
     console.log('[Maya Bot] Executing recipe:', RECIPE_ID)
 
-    const response = await fetch(\`https://backend.composio.dev/api/v1/recipe/\${RECIPE_ID}/execute\`, {
+    const response = await fetch('https://backend.composio.dev/api/v1/recipes/execute', {
       method: 'POST',
       headers: {
-        'x-api-key': COMPOSIO_API_KEY!,
+        'X-API-Key': COMPOSIO_API_KEY!,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        input: {},
+        recipe_id: RECIPE_ID,
+        input_data: {},
       }),
     })
 
@@ -168,18 +169,18 @@ Creating a photorealistic travel moment with:
     if (result.data?.data?.success) {
       const output = result.data.data
       await sendTelegramMessage(
-        process.env.MAYA_BOT_TOKEN!,
+        process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
         userId,
-        \`✅ **Posted Successfully!**
+        `✅ **Posted Successfully!**
 
-📍 Location: \${output.location || 'Unknown'}
-🎨 Composition: \${output.composition || 'N/A'}
-📷 Shot Type: \${output.moment_type || 'N/A'}
-🎬 Caption Style: \${output.caption_style || 'N/A'}
+🍍 Location: ${output.location || 'Unknown'}
+🎨 Composition: ${output.composition || 'N/A'}
+📷 Shot Type: ${output.moment_type || 'N/A'}
+🎬 Caption Style: ${output.caption_style || 'N/A'}
 
-🔗 View: https://t.me/pollianasela/\${output.telegram_message_id}
+🔗 View: https://t.me/pollianasela/${output.telegram_message_id}
 
-🌍✨ Check @pollianasela!\`
+����✨ Check @pollianasela!`
       )
     } else {
       throw new Error(result.error?.message || 'Recipe execution failed')
@@ -187,13 +188,13 @@ Creating a photorealistic travel moment with:
   } catch (error) {
     console.error('[Maya Bot] Generation error:', error)
     await sendTelegramMessage(
-      process.env.MAYA_BOT_TOKEN!,
+      process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
       userId,
-      \`❌ **Generation Failed**
+      `❌ **Generation Failed**
 
-Error: \${error instanceof Error ? error.message : 'Unknown error'}
+Error: ${error instanceof Error ? error.message : 'Unknown error'}
 
-Try again or use /help for other commands.\`
+Try again or use /help for other commands.`
     )
   }
 }
@@ -208,43 +209,44 @@ async function handleCustom(userId: number, text: string) {
 
   if (!customLocation) {
     await sendTelegramMessage(
-      process.env.MAYA_BOT_TOKEN!,
+      process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
       userId,
-      \`❌ **Missing Location**
+      `❌ **Missing Location**
 
 Please provide at least a location:
 /custom [location], [occasion], [pose]
 
 **Example:**
-/custom Santorini Greece, sunset wine, sitting on terrace\`
+/custom Santorini Greece, sunset wine, sitting on terrace`
     )
     return
   }
 
   await sendTelegramMessage(
-    process.env.MAYA_BOT_TOKEN!,
+    process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
     userId,
-    \`🎨 **Creating Custom Post...**
+    `🎨 **Creating Custom Post...**
 
-📍 Location: \${customLocation}
-🎭 Occasion: \${customOccasion}
-🧘 Pose: \${customPose || 'auto-selected'}
+📍 Location: ${customLocation}
+🎭 Occasion: ${customOccasion}
+🧘 Pose: ${customPose || 'auto-selected'}
 
-⏳ Generating with fal.ai...\`
+⏳ Generating with fal.ai...`
   )
 
   try {
     const COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY
     const RECIPE_ID = 'rcp_xTlvCq1gSt4p'
 
-    const response = await fetch(\`https://backend.composio.dev/api/v1/recipe/\${RECIPE_ID}/execute\`, {
+    const response = await fetch('https://backend.composio.dev/api/v1/recipes/execute', {
       method: 'POST',
       headers: {
-        'x-api-key': COMPOSIO_API_KEY!,
+        'X-API-Key': COMPOSIO_API_KEY!,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        input: {
+        recipe_id: RECIPE_ID,
+        input_data: {
           custom_location: customLocation,
           custom_occasion: customOccasion,
           custom_pose: customPose
@@ -257,16 +259,16 @@ Please provide at least a location:
     if (result.data?.data?.success) {
       const output = result.data.data
       await sendTelegramMessage(
-        process.env.MAYA_BOT_TOKEN!,
+        process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
         userId,
-        \`✅ **Custom Post Published!**
+        `✅ **Custom Post Published!**
 
-📍 \${customLocation}
-🎭 \${customOccasion}
+📍 ${customLocation}
+🎭 ${customOccasion}
 
-🔗 View: https://t.me/pollianasela/\${output.telegram_message_id}
+🔗 View: https://t.me/pollianasela/${output.telegram_message_id}
 
-Perfect! Check @pollianasela 🌍✨\`
+Perfect! Check @pollianasela 🌍✨`
       )
     } else {
       throw new Error(result.error?.message || 'Custom post failed')
@@ -274,19 +276,19 @@ Perfect! Check @pollianasela 🌍✨\`
   } catch (error) {
     console.error('[Maya Bot] Custom error:', error)
     await sendTelegramMessage(
-      process.env.MAYA_BOT_TOKEN!,
+      process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
       userId,
-      \`❌ **Custom Post Failed**
+      `❌ **Custom Post Failed**
 
-Error: \${error instanceof Error ? error.message : 'Unknown'}
+Error: ${error instanceof Error ? error.message : 'Unknown'}
 
-Check your format: /custom [location], [occasion], [pose]\`
+Check your format: /custom [location], [occasion], [pose]`
     )
   }
 }
 
 async function handleHistory(userId: number) {
-  const message = \`📚 **Publishing History**
+  const message = `📚 **Publishing History**
 
 Recent posts from @pollianasela:
 
@@ -305,17 +307,17 @@ Recent posts from @pollianasela:
 📍 Message #31: Al Seef Heritage, Dubai
    Shot: medium_balanced | Style: cultural
 
-🔗 View channel: https://t.me/pollianasela\`
+🔗 View channel: https://t.me/pollianasela`
 
   await sendTelegramMessage(
-    process.env.MAYA_BOT_TOKEN!,
+    process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
     userId,
     message
   )
 }
 
 async function handleStatus(userId: number) {
-  const message = \`📊 **Bot Status**
+  const message = `📊 **Bot Status**
 
 ✅ **Bot:** Online & responding
 ✅ **Recipe:** rcp_xTlvCq1gSt4p active
@@ -329,17 +331,17 @@ async function handleStatus(userId: number) {
 
 🔔 **Webhook:** https://tribute-engine.vercel.app/api/maya/bot
 
-Everything running smoothly! 🌍✨\`
+Everything running smoothly! 🌍✨`
 
   await sendTelegramMessage(
-    process.env.MAYA_BOT_TOKEN!,
+    process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
     userId,
     message
   )
 }
 
 async function handleStats(userId: number) {
-  const message = \`📈 **Publishing Statistics**
+  const message = `📈 **Publishing Statistics**
 
 📊 **Total Posts:** 41 (and counting)
 ✅ **Success Rate:** 98.5%
@@ -363,10 +365,10 @@ async function handleStats(userId: number) {
 • Safety: Enabled
 
 🚀 **Uptime:** 100%
-🔗 **Channel:** @pollianasela\`
+🔗 **Channel:** @pollianasela`
 
   await sendTelegramMessage(
-    process.env.MAYA_BOT_TOKEN!,
+    process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
     userId,
     message
   )
@@ -375,7 +377,7 @@ async function handleStats(userId: number) {
 async function handlePremium(userId: number) {
   const tributeUrl = process.env.MAYA_TRIBUTE_URL || 'https://tribute.to/pollianasela'
 
-  const message = \`📸 **Polliana's Premium Collection**
+  const message = `📸 **Polliana's Premium Collection**
 
 Get exclusive access to high-resolution travel photos and behind-the-scenes content.
 
@@ -396,12 +398,12 @@ Get exclusive access to high-resolution travel photos and behind-the-scenes cont
    • Instant delivery
    • Download & keep forever
 
-👉 [View Premium Albums](\${tributeUrl})
+👉 [View Premium Albums](${tributeUrl})
 
-Support the journey! 🌍✨\`
+Support the journey! 🌍✨`
 
   await sendTelegramMessage(
-    process.env.MAYA_BOT_TOKEN!,
+    process.env.TELEGRAM_PUBLIC_BOT_TOKEN!,
     userId,
     message
   )
