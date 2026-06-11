@@ -6,7 +6,8 @@ export async function sendTelegramMessage(
   botToken: string,
   chatId: number | string,
   text: string,
-  parseMode: 'Markdown' | 'HTML' = 'Markdown'
+  parseMode: 'Markdown' | 'HTML' = 'Markdown',
+  replyMarkup?: any
 ) {
   try {
     const response = await axios.post(
@@ -15,6 +16,7 @@ export async function sendTelegramMessage(
         chat_id: chatId,
         text,
         parse_mode: parseMode,
+        reply_markup: replyMarkup,
       }
     )
     return response.data
