@@ -38,6 +38,8 @@ export interface MeDto {
   tickets: number
   streak: number
   streakMultiplier: number
+  dailyBonusAwarded: boolean
+  dailyBonusAmount: number
 }
 
 export interface CallDto {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const MIN = 60_000
+const HOUR = 60 * MIN
 
 function formatRemaining(ms: number): string {
   if (ms <= 0) return '0:00'
@@ -12,7 +13,17 @@ function formatRemaining(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
-const RADIUS = 19
+/** Compact form that always fits inside the timer ring (max ~4 chars). */
+function formatRingValue(ms: number): string {
+  if (ms <= 0) return '0:00'
+  const totalSeconds = Math.floor(ms / 1000)
+  if (ms >= HOUR) return `${Math.floor(totalSeconds / 3600)}h`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+const RADIUS = 22
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 export default function RoundTimer({ target, start, label }: { target: string; start?: string; label: string }) {
@@ -42,18 +53,18 @@ export default function RoundTimer({ target, start, label }: { target: string; s
     <div className="round-timer">
       <div className="round-timer-label">{label}</div>
       <div className={`timer-ring ${urgent ? 'urgent' : ''}`}>
-        <svg viewBox="0 0 44 44">
-          <circle className="ring-track" cx="22" cy="22" r={RADIUS} />
+        <svg viewBox="0 0 52 52">
+          <circle className="ring-track" cx="26" cy="26" r={RADIUS} />
           <circle
             className="ring-fill"
-            cx="22"
-            cy="22"
+            cx="26"
+            cy="26"
             r={RADIUS}
             strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={CIRCUMFERENCE * (1 - progress)}
           />
         </svg>
-        <div className="timer-ring-value">{formatRemaining(remaining)}</div>
+        <div className="timer-ring-value">{formatRingValue(remaining)}</div>
       </div>
     </div>
   )

@@ -6,6 +6,7 @@ import PredictModal from '@/components/ui/PredictModal'
 import PointsCounter from '@/components/ui/PointsCounter'
 import LeagueBadge from '@/components/ui/LeagueBadge'
 import Confetti from '@/components/ui/Confetti'
+import VoteConfirm from '@/components/ui/VoteConfirm'
 import { api, MeDto, RoundDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 
@@ -15,6 +16,8 @@ export default function Home() {
   const [modal, setModal] = useState<{ round: RoundDto; side: 'UP' | 'DOWN' } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confetti, setConfetti] = useState(false)
+  const [dailyBonus, setDailyBonus] = useState<number | null>(null)
+  const [voteConfirm, setVoteConfirm] = useState<{ asset: 'BTC' | 'ETH' | 'TON'; side: 'UP' | 'DOWN' } | null>(null)
 
   const refresh = async () => {
     try {
@@ -30,6 +33,20 @@ export default function Home() {
     refresh()
   }, [])
 
+  useEffect(() => {
+    if (me?.dailyBonusAwarded) {
+      setDailyBonus(me.dailyBonusAmount)
+      hapticNotify('success')
+      setConfetti(true)
+      const dismiss = setTimeout(() => setDailyBonus(null), 3200)
+      const stopConfetti = setTimeout(() => setConfetti(false), 1600)
+      return () => {
+        clearTimeout(dismiss)
+        clearTimeout(stopConfetti)
+      }
+    }
+  }, [me?.dailyBonusAwarded, me?.dailyBonusAmount])
+
   const handlePredict = (round: RoundDto, side: 'UP' | 'DOWN') => {
     if (!me || me.tickets < 1) {
       haptic('heavy')
@@ -42,12 +59,18 @@ export default function Home() {
 
   const handleConfirm = async (side: 'UP' | 'DOWN', confidence: number) => {
     if (!modal) return
+    const asset = modal.round.asset
     await api.predict(modal.round.id, side, confidence)
     hapticNotify('success')
     setModal(null)
+    setVoteConfirm({ asset, side })
+    await refresh()
+  }
+
+  const handleVoteConfirmDone = () => {
+    setVoteConfirm(null)
     setConfetti(true)
     setTimeout(() => setConfetti(false), 1400)
-    await refresh()
   }
 
   const mainRounds = rounds?.filter((r) => r.kind === 'main_daily') ?? []
@@ -67,6 +90,13 @@ export default function Home() {
             <span className="brand-wordmark">VOTE LEAGUE</span>
           </div>
         </div>
+
+        {dailyBonus !== null && (
+          <div className="daily-bonus-toast">
+            <span className="daily-bonus-icon">🎁</span>
+            <span>Daily login bonus — <b>+{dailyBonus} pts</b></span>
+          </div>
+        )}
 
         <div className="hero">
           <div className="hero-row">
@@ -145,6 +175,10 @@ export default function Home() {
           onConfirm={handleConfirm}
           onClose={() => setModal(null)}
         />
+      )}
+
+      {voteConfirm && (
+        <VoteConfirm asset={voteConfirm.asset} side={voteConfirm.side} onDone={handleVoteConfirmDone} />
       )}
 
       {confetti && <Confetti />}
