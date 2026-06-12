@@ -1,11 +1,6 @@
 import RoundTimer from './RoundTimer'
+import CoinIcon from './CoinIcon'
 import { RoundDto } from '@/lib/api-client'
-
-const ASSET_ICON: Record<string, string> = {
-  BTC: '₿',
-  ETH: 'Ξ',
-  TON: '◆',
-}
 
 const ASSET_NAME: Record<string, string> = {
   BTC: 'Bitcoin',
@@ -30,7 +25,9 @@ export default function AssetCard({
     <div className="asset-card" data-asset={round.asset}>
       <div className="asset-card-head">
         <div className="asset-id">
-          <div className={`asset-icon ${round.asset}`}>{ASSET_ICON[round.asset]}</div>
+          <div className="asset-icon">
+            <CoinIcon asset={round.asset} size={34} />
+          </div>
           <div>
             <div className="asset-name">
               {ASSET_NAME[round.asset]}
