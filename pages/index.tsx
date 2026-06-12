@@ -6,6 +6,7 @@ import PredictModal from '@/components/ui/PredictModal'
 import PointsCounter from '@/components/ui/PointsCounter'
 import LeagueBadge from '@/components/ui/LeagueBadge'
 import Confetti from '@/components/ui/Confetti'
+import VoteConfirm from '@/components/ui/VoteConfirm'
 import { api, MeDto, RoundDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 
@@ -16,6 +17,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [confetti, setConfetti] = useState(false)
   const [dailyBonus, setDailyBonus] = useState<number | null>(null)
+  const [voteConfirm, setVoteConfirm] = useState<{ asset: 'BTC' | 'ETH' | 'TON'; side: 'UP' | 'DOWN' } | null>(null)
 
   const refresh = async () => {
     try {
@@ -57,12 +59,18 @@ export default function Home() {
 
   const handleConfirm = async (side: 'UP' | 'DOWN', confidence: number) => {
     if (!modal) return
+    const asset = modal.round.asset
     await api.predict(modal.round.id, side, confidence)
     hapticNotify('success')
     setModal(null)
+    setVoteConfirm({ asset, side })
+    await refresh()
+  }
+
+  const handleVoteConfirmDone = () => {
+    setVoteConfirm(null)
     setConfetti(true)
     setTimeout(() => setConfetti(false), 1400)
-    await refresh()
   }
 
   const mainRounds = rounds?.filter((r) => r.kind === 'main_daily') ?? []
@@ -167,6 +175,10 @@ export default function Home() {
           onConfirm={handleConfirm}
           onClose={() => setModal(null)}
         />
+      )}
+
+      {voteConfirm && (
+        <VoteConfirm asset={voteConfirm.asset} side={voteConfirm.side} onDone={handleVoteConfirmDone} />
       )}
 
       {confetti && <Confetti />}

@@ -32,7 +32,11 @@ export default function AssetCard({
             <div className={`asset-kind ${round.kind}`}>{isMain ? '⭐ Main Vote' : 'Hourly'}</div>
           </div>
         </div>
-        <RoundTimer target={round.lock_at} start={round.open_at} label="Locks in" />
+        {round.myPrediction ? (
+          <RoundTimer target={round.resolve_at} start={round.open_at} label="Results in" />
+        ) : (
+          <RoundTimer target={round.lock_at} start={round.open_at} label="Locks in" />
+        )}
       </div>
 
       <div className="reward-row">
