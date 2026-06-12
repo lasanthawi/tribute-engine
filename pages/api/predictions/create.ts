@@ -52,7 +52,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       side,
       confidence,
     })
-    if (insertErr) throw insertErr
+    if (insertErr) {
+      if (insertErr.code === '23505') {
+        return res.status(409).json({ error: 'You already predicted this round' })
+      }
+      throw insertErr
+    }
 
     await adjustTickets(userId, -1, 'prediction')
     if (confidence > 0) {

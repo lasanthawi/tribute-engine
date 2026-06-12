@@ -29,7 +29,7 @@ export default function AssetCard({
           <div className={`asset-icon ${round.asset}`}>{ASSET_ICON[round.asset]}</div>
           <div>
             <div className="asset-name">{ASSET_NAME[round.asset]}</div>
-            <div className={`asset-kind ${round.kind}`}>{isMain ? '⭐ Main Call' : 'Hourly'}</div>
+            <div className={`asset-kind ${round.kind}`}>{isMain ? '⭐ Main Vote' : 'Hourly'}</div>
           </div>
         </div>
         <RoundTimer target={round.lock_at} start={round.open_at} label="Locks in" />

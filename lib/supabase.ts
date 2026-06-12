@@ -28,7 +28,7 @@ export type LedgerEntryType =
   | 'referral_bonus'
   | 'referral_override'
   | 'refund'
-export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward'
+export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward' | 'refund'
 
 export interface Database {
   public: {

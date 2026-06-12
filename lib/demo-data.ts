@@ -16,6 +16,8 @@ export function demoMe(): MeDto {
     tickets: 3,
     streak: 4,
     streakMultiplier: 1.4,
+    dailyBonusAwarded: false,
+    dailyBonusAmount: 50,
   }
 }
 

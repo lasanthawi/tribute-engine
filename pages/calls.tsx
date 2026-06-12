@@ -130,8 +130,8 @@ export default function Calls() {
         {data !== null && (!list || list.length === 0) && (
           <div className="empty-state">
             {tab === 'pending'
-              ? 'No pending calls. Head to Home and make your first prediction!'
-              : 'No settled calls yet — check back after the next reveal.'}
+              ? 'No pending votes. Head to Home and cast your first vote!'
+              : 'No settled votes yet — check back after the next reveal.'}
           </div>
         )}
 

@@ -1049,6 +1049,32 @@ button {
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* ---------- Daily bonus toast ---------- */
+
+.daily-bonus-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(255, 213, 74, 0.18), rgba(255, 213, 74, 0.06));
+  border: 1px solid rgba(255, 213, 74, 0.35);
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 600;
+  animation: daily-bonus-in 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.daily-bonus-icon {
+  font-size: 18px;
+}
+
+@keyframes daily-bonus-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* ---------- Card entrance ---------- */
 
 .card-in {

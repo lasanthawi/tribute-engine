@@ -46,7 +46,7 @@ export default function PredictModal({
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-handle" />
         <h3 className="sheet-title">
-          {ASSET_NAME[round.asset]} · {round.kind === 'main_daily' ? 'Main Call' : 'Hourly Call'}
+          {ASSET_NAME[round.asset]} · {round.kind === 'main_daily' ? 'Main Vote' : 'Hourly Vote'}
         </h3>
         <p className="sheet-subtitle">Cast your vote. One tap, locked until resolve.</p>
 

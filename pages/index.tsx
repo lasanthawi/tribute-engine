@@ -15,6 +15,7 @@ export default function Home() {
   const [modal, setModal] = useState<{ round: RoundDto; side: 'UP' | 'DOWN' } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confetti, setConfetti] = useState(false)
+  const [dailyBonus, setDailyBonus] = useState<number | null>(null)
 
   const refresh = async () => {
     try {
@@ -29,6 +30,20 @@ export default function Home() {
   useEffect(() => {
     refresh()
   }, [])
+
+  useEffect(() => {
+    if (me?.dailyBonusAwarded) {
+      setDailyBonus(me.dailyBonusAmount)
+      hapticNotify('success')
+      setConfetti(true)
+      const dismiss = setTimeout(() => setDailyBonus(null), 3200)
+      const stopConfetti = setTimeout(() => setConfetti(false), 1600)
+      return () => {
+        clearTimeout(dismiss)
+        clearTimeout(stopConfetti)
+      }
+    }
+  }, [me?.dailyBonusAwarded, me?.dailyBonusAmount])
 
   const handlePredict = (round: RoundDto, side: 'UP' | 'DOWN') => {
     if (!me || me.tickets < 1) {
@@ -67,6 +82,13 @@ export default function Home() {
             <span className="brand-wordmark">VOTE LEAGUE</span>
           </div>
         </div>
+
+        {dailyBonus !== null && (
+          <div className="daily-bonus-toast">
+            <span className="daily-bonus-icon">🎁</span>
+            <span>Daily login bonus — <b>+{dailyBonus} pts</b></span>
+          </div>
+        )}
 
         <div className="hero">
           <div className="hero-row">
