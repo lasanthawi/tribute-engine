@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react'
 import Head from 'next/head'
 import BottomNav from '@/components/ui/BottomNav'
 import Logo from '@/components/ui/Logo'
+import CoinIcon from '@/components/ui/CoinIcon'
 import { api, CallDto } from '@/lib/api-client'
 import { getTelegramWebApp, haptic } from '@/lib/telegram-webapp'
-
-const ASSET_ICON: Record<string, string> = { BTC: '₿', ETH: 'Ξ', TON: '◆' }
 
 function formatPrice(n: number | null): string {
   if (n === null) return '—'
@@ -54,7 +53,9 @@ function CallCard({ call, referralLink }: { call: CallDto; referralLink: string 
   return (
     <div className="call-card">
       <div className="call-left">
-        <div className={`asset-icon ${round.asset}`}>{ASSET_ICON[round.asset]}</div>
+        <div className="asset-icon">
+          <CoinIcon asset={round.asset} size={32} />
+        </div>
         <div className="call-meta">
           <div className="call-title">
             {round.asset} <span className={`call-side ${call.side}`}>{call.side === 'UP' ? '▲' : '▼'} {call.side}</span>
