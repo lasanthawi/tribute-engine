@@ -1,6 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { supabase } from '@/lib/supabase'
+import { isDemoMode } from '@/lib/demo'
+import { demoLeaderboard } from '@/lib/demo-data'
 
 const LEADERBOARD_SIZE = 50
 
@@ -15,10 +17,12 @@ function startOfIsoWeekUtc(now: Date): Date {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
+  const period = req.query.period === 'weekly' ? 'weekly' : 'season'
+
+  if (isDemoMode()) return res.status(200).json(demoLeaderboard(period))
+
   const userId = await requireUser(req, res)
   if (userId === null) return
-
-  const period = req.query.period === 'weekly' ? 'weekly' : 'season'
 
   try {
     let since: string

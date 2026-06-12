@@ -34,12 +34,12 @@ export default function Leaderboard() {
   return (
     <>
       <Head>
-        <title>Leaderboard · CALLED IT</title>
+        <title>League Standings · VOTE LEAGUE</title>
       </Head>
       <div className="screen">
         <div className="topbar">
           <div className="brand">
-            <span className="brand-dot">🏆</span> Leaderboard
+            <span className="brand-dot">🏆</span> League Standings
           </div>
         </div>
 
@@ -61,7 +61,7 @@ export default function Leaderboard() {
         )}
 
         {data !== null && data.leaderboard.length === 0 && (
-          <div className="empty-state">No points on the board yet — be the first to call it 🎯</div>
+          <div className="empty-state">No points on the board yet — cast the first vote 🗳️</div>
         )}
 
         {data?.leaderboard.map((row) => (

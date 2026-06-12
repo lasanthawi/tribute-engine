@@ -1,9 +1,11 @@
-# CALLED IT 🎯
+# VOTE LEAGUE 🗳️
 
 A free, daily prediction game inside Telegram. Players spend free daily
-tickets calling **UP/DOWN** on BTC, ETH, and TON prices, earn points for
-correct calls, build streaks, and climb seasonal leaderboards — all
+tickets voting **UP/DOWN** on BTC, ETH, and TON prices, earn points for
+correct votes, build streaks, and climb seasonal league standings — all
 auto-settled via price oracles, no manual adjudication.
+
+Live at [voteleague.org](https://voteleague.org).
 
 This is the **Phase 1 MVP**: binary crypto rounds, points + ticket ledger,
 streaks, confidence staking, 1-level referrals with downline override,
@@ -17,6 +19,14 @@ weekly/season leaderboards, and a Telegram Mini App.
 - **Oracles**: Pyth (primary) + Binance (secondary), reconciled with 0.5% tolerance
 - **Telegram**: a minimal bot (`/start` only) that launches the Mini App
 - **Deployment**: Vercel, with cron jobs driving the round lifecycle
+
+## Demo mode (no backend required)
+
+If `SUPABASE_URL` isn't set, every API route serves realistic mock data
+(rounds, balances, calls history, leaderboard, referral stats) instead of
+hitting Supabase. This lets you run `yarn dev` and preview/iterate on every
+screen of the Mini App immediately, with no Supabase or Telegram setup.
+Demo mode turns itself off automatically once `SUPABASE_URL` is configured.
 
 ## Setup
 
@@ -45,9 +55,9 @@ algorithm.
 
 ## Mini App screens
 
-- **Home** — open rounds, tickets, streak, one-tap UP/DOWN
-- **My Calls** — pending + settled history, share-the-win
-- **Leaderboard** — weekly + season rankings
+- **Home** — open rounds, tickets, streak, league badge, one-tap UP/DOWN voting
+- **My Votes** — pending + settled history, share-the-win
+- **League Standings** — weekly + season rankings
 - **Invite** — referral link, activations, downline override earnings
 
 ## Schema-ready, Phase 2+

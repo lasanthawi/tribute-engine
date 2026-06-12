@@ -48,7 +48,7 @@ export default function PredictModal({
         <h3 className="sheet-title">
           {ASSET_NAME[round.asset]} · {round.kind === 'main_daily' ? 'Main Call' : 'Hourly Call'}
         </h3>
-        <p className="sheet-subtitle">Pick a side. One tap, locked until resolve.</p>
+        <p className="sheet-subtitle">Cast your vote. One tap, locked until resolve.</p>
 
         <div className="sheet-side-row">
           <button
@@ -97,7 +97,7 @@ export default function PredictModal({
         )}
 
         <button className={`btn-primary ${side === 'UP' ? 'up' : 'down'}`} onClick={handleConfirm} disabled={submitting}>
-          {submitting ? 'Locking in…' : `Call ${side} 🎯`}
+          {submitting ? 'Locking in…' : `Vote ${side} 🗳️`}
         </button>
       </div>
     </div>

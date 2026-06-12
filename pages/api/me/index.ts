@@ -3,9 +3,13 @@ import { requireUser } from '@/lib/api-auth'
 import { supabase } from '@/lib/supabase'
 import { getUserBalance } from '@/lib/ledger'
 import { getStreakMultiplier } from '@/lib/streak'
+import { isDemoMode } from '@/lib/demo'
+import { demoMe } from '@/lib/demo-data'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+
+  if (isDemoMode()) return res.status(200).json(demoMe())
 
   const userId = await requireUser(req, res)
   if (userId === null) return

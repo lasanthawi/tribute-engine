@@ -2,14 +2,12 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { supabase } from '@/lib/supabase'
 import { adjustTickets, creditPoints, getUserBalance } from '@/lib/ledger'
+import { isDemoMode } from '@/lib/demo'
 
 const MAX_CONFIDENCE_STAKE = 500
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-
-  const userId = await requireUser(req, res)
-  if (userId === null) return
 
   const { roundId, side, confidence = 0 } = req.body ?? {}
 
@@ -19,6 +17,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (typeof confidence !== 'number' || confidence < 0 || confidence > MAX_CONFIDENCE_STAKE) {
     return res.status(400).json({ error: `Confidence must be between 0 and ${MAX_CONFIDENCE_STAKE}` })
   }
+
+  if (isDemoMode()) return res.status(201).json({ ok: true })
+
+  const userId = await requireUser(req, res)
+  if (userId === null) return
 
   try {
     const { data: round, error: roundErr } = await supabase

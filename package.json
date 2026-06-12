@@ -1,7 +1,7 @@
 {
-  "name": "called-it",
+  "name": "vote-league",
   "version": "1.0.0",
-  "description": "CALLED IT — Telegram Mini App prediction game (binary crypto price calls, points, streaks, referrals)",
+  "description": "VOTE LEAGUE — Telegram Mini App prediction game (binary crypto price votes, points, streaks, referrals)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

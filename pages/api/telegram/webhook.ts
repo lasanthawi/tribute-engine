@@ -70,10 +70,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await sendTelegramMessage(
         BOT_TOKEN,
         message.chat.id,
-        '*CALLED IT* 🎯\n\nDaily UP/DOWN crypto calls. Free tickets, streaks, and a referral chain that pays you forever.\n\nTap below to play.',
+        '*VOTE LEAGUE* 🗳️\n\nDaily UP/DOWN crypto votes. Free tickets, streaks, and a referral chain that pays you forever. Cast your vote, climb the league.\n\nTap below to play.',
         'Markdown',
         {
-          inline_keyboard: [[{ text: '▶ Open CALLED IT', web_app: { url: MINI_APP_URL } }]],
+          inline_keyboard: [[{ text: '▶ Open VOTE LEAGUE', web_app: { url: MINI_APP_URL } }]],
         }
       )
     }

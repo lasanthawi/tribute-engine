@@ -32,18 +32,18 @@ export default function AssetCard({
             <div className={`asset-kind ${round.kind}`}>{isMain ? '⭐ Main Call' : 'Hourly'}</div>
           </div>
         </div>
-        <RoundTimer target={round.lock_at} label="Locks in" />
+        <RoundTimer target={round.lock_at} start={round.open_at} label="Locks in" />
       </div>
 
       <div className="reward-row">
-        Will {round.asset} be UP or DOWN at resolve? Correct call wins{' '}
+        Cast your vote: will {round.asset} be UP or DOWN? Correct call wins{' '}
         <b>{round.base_reward} pts</b>
         {isMain ? ' + streak bonus' : ''}.
       </div>
 
       {round.myPrediction ? (
         <div className={`locked-badge ${round.myPrediction.side === 'UP' ? 'up' : 'down'}`}>
-          🔒 You called {round.myPrediction.side}
+          🔒 You voted {round.myPrediction.side}
           {round.myPrediction.confidence > 0 ? ` · ${round.myPrediction.confidence} pts staked` : ''}
         </div>
       ) : (

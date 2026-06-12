@@ -39,7 +39,7 @@ function CallCard({ call, referralLink }: { call: CallDto; referralLink: string 
 
   const handleShare = () => {
     haptic('light')
-    const text = `I CALLED IT 🎯 ${round.asset} ${call.side} — and I was right! Think you can beat my streak?`
+    const text = `I voted ${call.side} on ${round.asset} on VOTE LEAGUE 🗳️ — and I called it right! Think you can beat my streak?`
     const tg = getTelegramWebApp()
     const url = referralLink || ''
     if (tg?.switchInlineQuery) {
@@ -101,12 +101,12 @@ export default function Calls() {
   return (
     <>
       <Head>
-        <title>My Calls · CALLED IT</title>
+        <title>My Votes · VOTE LEAGUE</title>
       </Head>
       <div className="screen">
         <div className="topbar">
           <div className="brand">
-            <span className="brand-dot">🎯</span> My Calls
+            <span className="brand-dot">🗳️</span> My Votes
           </div>
         </div>
 
