@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Head from 'next/head'
 import BottomNav from '@/components/ui/BottomNav'
+import Logo from '@/components/ui/Logo'
 import { api, LeaderboardDto } from '@/lib/api-client'
 
 function rankClass(rank: number): string {
@@ -39,7 +40,7 @@ export default function Leaderboard() {
       <div className="screen">
         <div className="topbar">
           <div className="brand">
-            <span className="brand-dot">🏆</span> League Standings
+            <span className="brand-dot"><Logo size={26} /></span> League Standings
           </div>
         </div>
 

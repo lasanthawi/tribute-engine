@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Head from 'next/head'
 import BottomNav from '@/components/ui/BottomNav'
+import Logo from '@/components/ui/Logo'
 import { api, ReferralInfoDto } from '@/lib/api-client'
 import { getTelegramWebApp, haptic, hapticNotify } from '@/lib/telegram-webapp'
 
@@ -48,12 +49,12 @@ export default function Invite() {
       <div className="screen">
         <div className="topbar">
           <div className="brand">
-            <span className="brand-dot">🔗</span> Invite
+            <span className="brand-dot"><Logo size={26} /></span> Invite
           </div>
         </div>
 
         <div className="invite-card">
-          <div className="invite-emoji">🗳️</div>
+          <div className="invite-emoji"><Logo size={48} /></div>
           <h2 className="invite-title">Recruit your league</h2>
           <p className="invite-subtitle">
             Earn <b style={{ color: 'var(--gold)' }}>500 pts</b> when your friend makes their first correct vote,

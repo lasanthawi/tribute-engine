@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Head from 'next/head'
 import BottomNav from '@/components/ui/BottomNav'
+import Logo from '@/components/ui/Logo'
 import { api, CallDto } from '@/lib/api-client'
 import { getTelegramWebApp, haptic } from '@/lib/telegram-webapp'
 
@@ -106,7 +107,7 @@ export default function Calls() {
       <div className="screen">
         <div className="topbar">
           <div className="brand">
-            <span className="brand-dot">🗳️</span> My Votes
+            <span className="brand-dot"><Logo size={26} /></span> My Votes
           </div>
         </div>
 
