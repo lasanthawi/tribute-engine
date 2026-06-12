@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Head from 'next/head'
 import BottomNav from '@/components/ui/BottomNav'
 import AssetCard from '@/components/ui/AssetCard'
@@ -8,8 +8,11 @@ import LeagueBadge from '@/components/ui/LeagueBadge'
 import Confetti from '@/components/ui/Confetti'
 import VoteConfirm from '@/components/ui/VoteConfirm'
 import Logo from '@/components/ui/Logo'
+import HeroPanel, { HeroPanelView } from '@/components/ui/HeroPanel'
 import { api, MeDto, RoundDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
+
+const PANEL_IDLE_MS = 3000
 
 export default function Home() {
   const [me, setMe] = useState<MeDto | null>(null)
@@ -19,6 +22,8 @@ export default function Home() {
   const [confetti, setConfetti] = useState(false)
   const [dailyBonus, setDailyBonus] = useState<number | null>(null)
   const [voteConfirm, setVoteConfirm] = useState<{ asset: 'BTC' | 'ETH' | 'TON'; side: 'UP' | 'DOWN' } | null>(null)
+  const [panelView, setPanelView] = useState<HeroPanelView>('countdown')
+  const panelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refresh = async () => {
     try {
@@ -74,6 +79,19 @@ export default function Home() {
     setTimeout(() => setConfetti(false), 1400)
   }
 
+  const showPanel = (view: HeroPanelView) => {
+    haptic('light')
+    setPanelView(view)
+    if (panelTimer.current) clearTimeout(panelTimer.current)
+    panelTimer.current = setTimeout(() => setPanelView('countdown'), PANEL_IDLE_MS)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (panelTimer.current) clearTimeout(panelTimer.current)
+    }
+  }, [])
+
   const mainRounds = rounds?.filter((r) => r.kind === 'main_daily') ?? []
   const hourlyRounds = rounds?.filter((r) => r.kind === 'hourly') ?? []
 
@@ -108,19 +126,33 @@ export default function Home() {
                 <span className="hero-points-label">points</span>
               </div>
             </div>
+            <div className="hero-panel">
+              <HeroPanel
+                view={panelView}
+                rounds={rounds}
+                tickets={me?.tickets ?? null}
+                streak={me?.streak ?? 0}
+                streakMultiplier={me?.streakMultiplier ?? 1}
+              />
+            </div>
           </div>
           <div className="stat-grid" style={{ marginTop: 14 }}>
-            <div className="stat-tile">
+            <div className="stat-tile" role="button" tabIndex={0} onClick={() => showPanel('tickets')}>
               <span className="stat-tile-icon">🎟️</span>
               <span className="stat-tile-value">{me?.tickets ?? '—'}</span>
               <span className="stat-tile-label">Tickets</span>
             </div>
-            <div className={`stat-tile ${isHot ? 'hot' : ''}`}>
+            <div
+              className={`stat-tile ${isHot ? 'hot' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => showPanel('boost')}
+            >
               <span className="stat-tile-icon">🔥</span>
               <span className="stat-tile-value">{me?.streak ?? 0}d</span>
               <span className="stat-tile-label">{me ? me.streakMultiplier.toFixed(1) : '1.0'}x boost</span>
             </div>
-            <div className="stat-tile">
+            <div className="stat-tile" role="button" tabIndex={0} onClick={() => showPanel('markets')}>
               <span className="stat-tile-icon">📊</span>
               <span className="stat-tile-value">{rounds?.length ?? '—'}</span>
               <span className="stat-tile-label">Live markets</span>
