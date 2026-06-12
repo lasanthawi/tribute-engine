@@ -344,11 +344,15 @@ button {
 }
 
 .hero-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  gap: 8px;
   position: relative;
+}
+
+.hero-info {
+  grid-column: 1 / span 2;
 }
 
 .hero-greeting {
@@ -375,6 +379,8 @@ button {
 /* ---------- Hero panel (top-right countdown / stat detail) ---------- */
 
 .hero-panel {
+  grid-column: 3;
+  justify-self: center;
   flex-shrink: 0;
   min-width: 84px;
   min-height: 84px;
