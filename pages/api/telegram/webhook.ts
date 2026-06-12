@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
 import { supabase } from '@/lib/supabase'
+import { adjustTickets, FREE_TICKETS_PER_DAY } from '@/lib/ledger'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const MINI_APP_URL = process.env.MINI_APP_URL || ''
@@ -26,6 +27,8 @@ async function upsertUser(telegramId: number, username?: string): Promise<{ id: 
     .select('id')
     .single()
   if (error) throw error
+
+  await adjustTickets(created.id, FREE_TICKETS_PER_DAY, 'daily_grant')
   return created
 }
 
