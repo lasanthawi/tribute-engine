@@ -6,8 +6,8 @@ export default function Document() {
       <Head>
         <script src="https://telegram.org/js/telegram-web-app.js" async />
         <meta name="theme-color" content="#0a0e17" />
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/icon.svg" />
+        <link rel="icon" href="/logo.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
       </Head>
       <body>
         <Main />
