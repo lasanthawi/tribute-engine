@@ -18,6 +18,14 @@ weekly/season leaderboards, and a Telegram Mini App.
 - **Telegram**: a minimal bot (`/start` only) that launches the Mini App
 - **Deployment**: Vercel, with cron jobs driving the round lifecycle
 
+## Demo mode (no backend required)
+
+If `SUPABASE_URL` isn't set, every API route serves realistic mock data
+(rounds, balances, calls history, leaderboard, referral stats) instead of
+hitting Supabase. This lets you run `yarn dev` and preview/iterate on every
+screen of the Mini App immediately, with no Supabase or Telegram setup.
+Demo mode turns itself off automatically once `SUPABASE_URL` is configured.
+
 ## Setup
 
 1. `yarn install`
