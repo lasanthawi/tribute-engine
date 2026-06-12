@@ -30,7 +30,7 @@ export default function Invite() {
   const handleShare = () => {
     if (!link) return
     haptic('medium')
-    const text = 'I CALLED IT 🎯 — daily crypto price predictions on Telegram. Free tickets, real points, real bragging rights. Beat me 👇'
+    const text = 'VOTE LEAGUE 🗳️ — daily crypto price votes on Telegram. Free tickets, real points, real bragging rights. Beat me 👇'
     const tg = getTelegramWebApp()
     if (tg?.switchInlineQuery) {
       tg.switchInlineQuery(text, ['users', 'groups'])
@@ -43,7 +43,7 @@ export default function Invite() {
   return (
     <>
       <Head>
-        <title>Invite · CALLED IT</title>
+        <title>Invite · VOTE LEAGUE</title>
       </Head>
       <div className="screen">
         <div className="topbar">
@@ -53,10 +53,10 @@ export default function Invite() {
         </div>
 
         <div className="invite-card">
-          <div className="invite-emoji">🎯</div>
-          <h2 className="invite-title">Recruit your squad</h2>
+          <div className="invite-emoji">🗳️</div>
+          <h2 className="invite-title">Recruit your league</h2>
           <p className="invite-subtitle">
-            Earn <b style={{ color: 'var(--gold)' }}>500 pts</b> when your friend makes their first correct call,
+            Earn <b style={{ color: 'var(--gold)' }}>500 pts</b> when your friend makes their first correct vote,
             then <b style={{ color: 'var(--gold)' }}>5%</b> of everything they earn — forever.
           </p>
 
@@ -92,7 +92,7 @@ export default function Invite() {
           <br />
           1. Share your link — friends join via your bot start link.
           <br />
-          2. Once they make their <b>first correct call</b>, your referral activates and you get{' '}
+          2. Once they make their <b>first correct vote</b>, your referral activates and you get{' '}
           <b>+500 pts</b>.
           <br />
           3. From then on, you earn <b>5% of every point</b> they earn — passively, forever.

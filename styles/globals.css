@@ -89,6 +89,80 @@ button {
   font-size: 18px;
 }
 
+.brand-wordmark {
+  background: linear-gradient(90deg, var(--accent), var(--gold), var(--up), var(--ton), var(--accent));
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: brand-shimmer 6s linear infinite;
+}
+
+@keyframes brand-shimmer {
+  to { background-position: 300% 0; }
+}
+
+/* ---------- Animated background orbs ---------- */
+
+.bg-orbs {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+}
+
+.orb-1 {
+  width: 280px;
+  height: 280px;
+  background: var(--accent);
+  opacity: 0.22;
+  top: -100px;
+  left: -80px;
+  animation: drift-1 24s ease-in-out infinite alternate;
+}
+
+.orb-2 {
+  width: 240px;
+  height: 240px;
+  background: var(--up);
+  opacity: 0.14;
+  top: 35%;
+  right: -100px;
+  animation: drift-2 28s ease-in-out infinite alternate;
+}
+
+.orb-3 {
+  width: 220px;
+  height: 220px;
+  background: var(--ton);
+  opacity: 0.14;
+  bottom: -80px;
+  left: 25%;
+  animation: drift-3 32s ease-in-out infinite alternate;
+}
+
+@keyframes drift-1 {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(50px, 70px) scale(1.15); }
+}
+
+@keyframes drift-2 {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(-60px, 40px) scale(1.1); }
+}
+
+@keyframes drift-3 {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(40px, -50px) scale(1.2); }
+}
+
 .section-title {
   font-size: 13px;
   font-weight: 700;
@@ -139,6 +213,72 @@ button {
   color: var(--down);
   background: linear-gradient(135deg, rgba(255, 159, 67, 0.15), rgba(255, 77, 106, 0.1));
   border-color: rgba(255, 159, 67, 0.3);
+}
+
+.pill-streak.hot {
+  animation: flame-glow 1.6s ease-in-out infinite;
+}
+
+.pill-streak.hot .pill-icon {
+  display: inline-block;
+  animation: flame-flicker 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes flame-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 159, 67, 0); }
+  50% { box-shadow: 0 0 16px 2px rgba(255, 159, 67, 0.45); }
+}
+
+@keyframes flame-flicker {
+  from { transform: scale(1) rotate(-6deg); }
+  to { transform: scale(1.18) rotate(6deg); }
+}
+
+/* ---------- League badge ---------- */
+
+.league-badge {
+  position: relative;
+}
+
+.league-badge-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.league-icon {
+  font-size: 16px;
+}
+
+.league-next {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.league-progress-track {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.league-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  background-size: 200% 100%;
+  animation: league-shimmer 2.5s linear infinite;
+}
+
+@keyframes league-shimmer {
+  to { background-position: 200% 0; }
 }
 
 /* ---------- Hero ---------- */
@@ -266,6 +406,53 @@ button {
 }
 
 .round-timer-value.urgent {
+  color: var(--down);
+}
+
+/* ---------- Round timer ring ---------- */
+
+.timer-ring {
+  position: relative;
+  width: 44px;
+  height: 44px;
+}
+
+.timer-ring svg {
+  width: 44px;
+  height: 44px;
+  transform: rotate(-90deg);
+}
+
+.ring-track {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 3;
+}
+
+.ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.timer-ring.urgent .ring-fill {
+  stroke: var(--down);
+}
+
+.timer-ring-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-ring.urgent .timer-ring-value {
   color: var(--down);
 }
 
@@ -860,6 +1047,46 @@ button {
 @keyframes pop {
   0% { transform: scale(0.4); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---------- Card entrance ---------- */
+
+.card-in {
+  animation: card-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Confetti ---------- */
+
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -10px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  opacity: 0.9;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.21, 0.94, 0.61, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes confetti-fall {
+  to {
+    transform: translateY(110vh) rotate(360deg);
+    opacity: 0;
+  }
 }
 
 /* ---------- Loading ---------- */

@@ -4,14 +4,17 @@ import BottomNav from '@/components/ui/BottomNav'
 import AssetCard from '@/components/ui/AssetCard'
 import PredictModal from '@/components/ui/PredictModal'
 import PointsCounter from '@/components/ui/PointsCounter'
+import LeagueBadge from '@/components/ui/LeagueBadge'
+import Confetti from '@/components/ui/Confetti'
 import { api, MeDto, RoundDto } from '@/lib/api-client'
-import { haptic } from '@/lib/telegram-webapp'
+import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 
 export default function Home() {
   const [me, setMe] = useState<MeDto | null>(null)
   const [rounds, setRounds] = useState<RoundDto[] | null>(null)
   const [modal, setModal] = useState<{ round: RoundDto; side: 'UP' | 'DOWN' } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [confetti, setConfetti] = useState(false)
 
   const refresh = async () => {
     try {
@@ -40,22 +43,28 @@ export default function Home() {
   const handleConfirm = async (side: 'UP' | 'DOWN', confidence: number) => {
     if (!modal) return
     await api.predict(modal.round.id, side, confidence)
+    hapticNotify('success')
     setModal(null)
+    setConfetti(true)
+    setTimeout(() => setConfetti(false), 1400)
     await refresh()
   }
 
   const mainRounds = rounds?.filter((r) => r.kind === 'main_daily') ?? []
   const hourlyRounds = rounds?.filter((r) => r.kind === 'hourly') ?? []
 
+  const isHot = (me?.streak ?? 0) >= 3
+
   return (
     <>
       <Head>
-        <title>CALLED IT</title>
+        <title>VOTE LEAGUE</title>
       </Head>
       <div className="screen">
         <div className="topbar">
           <div className="brand">
-            <span className="brand-dot">🎯</span> CALLED IT
+            <span className="brand-dot">🗳️</span>
+            <span className="brand-wordmark">VOTE LEAGUE</span>
           </div>
         </div>
 
@@ -73,11 +82,16 @@ export default function Home() {
             <span className="pill pill-tickets">
               <span className="pill-icon">🎟️</span> {me?.tickets ?? '—'} tickets
             </span>
-            <span className="pill pill-streak">
+            <span className={`pill pill-streak ${isHot ? 'hot' : ''}`}>
               <span className="pill-icon">🔥</span> {me?.streak ?? 0}d ·{' '}
               {me ? me.streakMultiplier.toFixed(1) : '1.0'}x
             </span>
           </div>
+          {me && (
+            <div style={{ marginTop: 14 }}>
+              <LeagueBadge points={me.points} />
+            </div>
+          )}
         </div>
 
         {error && (
@@ -86,7 +100,7 @@ export default function Home() {
 
         {rounds === null && (
           <>
-            <div className="section-title">Loading rounds…</div>
+            <div className="section-title">Loading votes…</div>
             <div className="skeleton" style={{ height: 140, marginBottom: 12 }} />
             <div className="skeleton" style={{ height: 140, marginBottom: 12 }} />
           </>
@@ -94,27 +108,31 @@ export default function Home() {
 
         {mainRounds.length > 0 && (
           <>
-            <div className="section-title">⭐ Main Call</div>
-            {mainRounds.map((r) => (
-              <AssetCard key={r.id} round={r} onPredict={handlePredict} />
+            <div className="section-title">⭐ Main Vote</div>
+            {mainRounds.map((r, i) => (
+              <div key={r.id} className="card-in" style={{ animationDelay: `${i * 70}ms` }}>
+                <AssetCard round={r} onPredict={handlePredict} />
+              </div>
             ))}
           </>
         )}
 
         {hourlyRounds.length > 0 && (
           <>
-            <div className="section-title">Hourly Calls</div>
-            {hourlyRounds.map((r) => (
-              <AssetCard key={r.id} round={r} onPredict={handlePredict} />
+            <div className="section-title">Hourly Votes</div>
+            {hourlyRounds.map((r, i) => (
+              <div key={r.id} className="card-in" style={{ animationDelay: `${(mainRounds.length + i) * 70}ms` }}>
+                <AssetCard round={r} onPredict={handlePredict} />
+              </div>
             ))}
           </>
         )}
 
         {rounds !== null && rounds.length === 0 && (
           <div className="empty-state">
-            No rounds open right now.
+            No votes open right now.
             <br />
-            New calls drop every hour — check back soon 🎯
+            New votes drop every hour — check back soon 🗳️
           </div>
         )}
       </div>
@@ -128,6 +146,8 @@ export default function Home() {
           onClose={() => setModal(null)}
         />
       )}
+
+      {confetti && <Confetti />}
 
       <BottomNav />
     </>

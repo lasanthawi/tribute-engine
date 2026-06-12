@@ -1,9 +1,11 @@
-# CALLED IT 🎯
+# VOTE LEAGUE 🗳️
 
 A free, daily prediction game inside Telegram. Players spend free daily
-tickets calling **UP/DOWN** on BTC, ETH, and TON prices, earn points for
-correct calls, build streaks, and climb seasonal leaderboards — all
+tickets voting **UP/DOWN** on BTC, ETH, and TON prices, earn points for
+correct votes, build streaks, and climb seasonal league standings — all
 auto-settled via price oracles, no manual adjudication.
+
+Live at [voteleague.org](https://voteleague.org).
 
 This is the **Phase 1 MVP**: binary crypto rounds, points + ticket ledger,
 streaks, confidence staking, 1-level referrals with downline override,
@@ -53,9 +55,9 @@ algorithm.
 
 ## Mini App screens
 
-- **Home** — open rounds, tickets, streak, one-tap UP/DOWN
-- **My Calls** — pending + settled history, share-the-win
-- **Leaderboard** — weekly + season rankings
+- **Home** — open rounds, tickets, streak, league badge, one-tap UP/DOWN voting
+- **My Votes** — pending + settled history, share-the-win
+- **League Standings** — weekly + season rankings
 - **Invite** — referral link, activations, downline override earnings
 
 ## Schema-ready, Phase 2+

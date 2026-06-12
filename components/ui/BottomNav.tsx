@@ -3,8 +3,8 @@ import { useRouter } from 'next/router'
 
 const TABS = [
   { href: '/', icon: '🏠', label: 'Home' },
-  { href: '/calls', icon: '🎯', label: 'My Calls' },
-  { href: '/leaderboard', icon: '🏆', label: 'Ranks' },
+  { href: '/calls', icon: '🗳️', label: 'My Votes' },
+  { href: '/leaderboard', icon: '🏆', label: 'League' },
   { href: '/invite', icon: '🔗', label: 'Invite' },
 ]
 

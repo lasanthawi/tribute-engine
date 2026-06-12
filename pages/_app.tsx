@@ -10,5 +10,14 @@ export default function App({ Component, pageProps }: AppProps) {
     tg?.setHeaderColor?.('#0a0e17')
   }, [])
 
-  return <Component {...pageProps} />
+  return (
+    <>
+      <div className="bg-orbs" aria-hidden>
+        <div className="orb orb-1" />
+        <div className="orb orb-2" />
+        <div className="orb orb-3" />
+      </div>
+      <Component {...pageProps} />
+    </>
+  )
 }
