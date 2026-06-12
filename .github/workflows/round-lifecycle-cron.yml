@@ -1,0 +1,25 @@
+name: Round lifecycle cron
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Round scheduler
+        run: curl -fsS -X GET -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://tribute-engine.vercel.app/api/cron/round-scheduler
+
+      - name: Round opener
+        run: curl -fsS -X GET -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://tribute-engine.vercel.app/api/cron/round-opener
+
+      - name: Round locker
+        run: curl -fsS -X GET -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://tribute-engine.vercel.app/api/cron/round-locker
+
+      - name: Round settler
+        run: curl -fsS -X GET -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://tribute-engine.vercel.app/api/cron/round-settler
+
+      - name: Daily ticket grant
+        run: curl -fsS -X GET -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://tribute-engine.vercel.app/api/cron/daily-ticket-grant
