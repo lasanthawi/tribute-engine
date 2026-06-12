@@ -28,6 +28,7 @@ export interface RoundDto {
   resolve_at: string
   base_reward: number
   myPrediction: { side: 'UP' | 'DOWN'; confidence: number } | null
+  sentiment: { up: number; down: number; total: number }
 }
 
 export interface MeDto {

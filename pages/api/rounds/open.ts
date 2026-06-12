@@ -22,22 +22,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const roundIds = (rounds ?? []).map((r) => r.id)
     let myPredictions: Record<number, { side: string; confidence: number }> = {}
+    const sentiment: Record<number, { up: number; down: number; total: number }> = {}
 
     if (roundIds.length > 0) {
       const { data: predictions, error: predErr } = await supabase
         .from('predictions')
-        .select('round_id, side, confidence')
-        .eq('user_id', userId)
+        .select('round_id, user_id, side, confidence')
         .in('round_id', roundIds)
       if (predErr) throw predErr
 
-      myPredictions = Object.fromEntries(
-        (predictions ?? []).map((p) => [p.round_id, { side: p.side, confidence: p.confidence }])
-      )
+      for (const p of predictions ?? []) {
+        if (p.user_id === userId) {
+          myPredictions[p.round_id] = { side: p.side, confidence: p.confidence }
+        }
+        const s = sentiment[p.round_id] ?? { up: 0, down: 0, total: 0 }
+        if (p.side === 'UP') s.up += 1
+        else s.down += 1
+        s.total += 1
+        sentiment[p.round_id] = s
+      }
     }
 
     res.status(200).json({
-      rounds: (rounds ?? []).map((r) => ({ ...r, myPrediction: myPredictions[r.id] ?? null })),
+      rounds: (rounds ?? []).map((r) => ({
+        ...r,
+        myPrediction: myPredictions[r.id] ?? null,
+        sentiment: sentiment[r.id] ?? { up: 0, down: 0, total: 0 },
+      })),
     })
   } catch (error) {
     console.error('rounds/open error:', error)

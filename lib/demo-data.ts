@@ -33,6 +33,7 @@ export function demoRounds(): RoundDto[] {
       resolve_at: iso(7 * HOUR),
       base_reward: 200,
       myPrediction: null,
+      sentiment: { up: 184, down: 121, total: 305 },
     },
     {
       id: 2,
@@ -44,6 +45,7 @@ export function demoRounds(): RoundDto[] {
       resolve_at: iso(34 * MIN),
       base_reward: 100,
       myPrediction: { side: 'UP', confidence: 150 },
+      sentiment: { up: 58, down: 47, total: 105 },
     },
     {
       id: 3,
@@ -55,6 +57,7 @@ export function demoRounds(): RoundDto[] {
       resolve_at: iso(55 * MIN),
       base_reward: 100,
       myPrediction: null,
+      sentiment: { up: 33, down: 51, total: 84 },
     },
     {
       id: 4,
@@ -66,6 +69,7 @@ export function demoRounds(): RoundDto[] {
       resolve_at: iso(70 * MIN),
       base_reward: 100,
       myPrediction: null,
+      sentiment: { up: 19, down: 17, total: 36 },
     },
   ]
 }

@@ -158,7 +158,9 @@ export default function Home() {
 
         {hourlyRounds.length > 0 && (
           <>
-            <div className="section-title">Hourly Votes</div>
+            <div className="section-title section-title-live">
+              <span className="live-dot" /> Hourly Votes
+            </div>
             {hourlyRounds.map((r, i) => (
               <div key={r.id} className="card-in" style={{ animationDelay: `${(mainRounds.length + i) * 70}ms` }}>
                 <AssetCard round={r} onPredict={handlePredict} />

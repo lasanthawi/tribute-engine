@@ -21,6 +21,10 @@ export default function AssetCard({
   onPredict: (round: RoundDto, side: 'UP' | 'DOWN') => void
 }) {
   const isMain = round.kind === 'main_daily'
+  const { up, down, total } = round.sentiment
+  const upPct = total > 0 ? Math.round((up / total) * 100) : 50
+  const downPct = 100 - upPct
+  const isTrending = total >= 100
 
   return (
     <div className="asset-card" data-asset={round.asset}>
@@ -28,7 +32,10 @@ export default function AssetCard({
         <div className="asset-id">
           <div className={`asset-icon ${round.asset}`}>{ASSET_ICON[round.asset]}</div>
           <div>
-            <div className="asset-name">{ASSET_NAME[round.asset]}</div>
+            <div className="asset-name">
+              {ASSET_NAME[round.asset]}
+              {isTrending && <span className="trending-badge">🔥 Trending</span>}
+            </div>
             <div className={`asset-kind ${round.kind}`}>{isMain ? '⭐ Main Vote' : 'Hourly'}</div>
           </div>
         </div>
@@ -44,6 +51,20 @@ export default function AssetCard({
         <b>{round.base_reward} pts</b>
         {isMain ? ' + streak bonus' : ''}.
       </div>
+
+      {total > 0 && (
+        <div className="sentiment">
+          <div className="sentiment-bar">
+            <div className="sentiment-fill up" style={{ width: `${upPct}%` }} />
+            <div className="sentiment-fill down" style={{ width: `${downPct}%` }} />
+          </div>
+          <div className="sentiment-labels">
+            <span className="sentiment-label up">▲ {upPct}%</span>
+            <span className="sentiment-total">{total.toLocaleString()} votes</span>
+            <span className="sentiment-label down">{downPct}% ▼</span>
+          </div>
+        </div>
+      )}
 
       {round.myPrediction ? (
         <div className={`locked-badge ${round.myPrediction.side === 'UP' ? 'up' : 'down'}`}>
