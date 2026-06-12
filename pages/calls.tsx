@@ -3,6 +3,7 @@ import Head from 'next/head'
 import BottomNav from '@/components/ui/BottomNav'
 import Logo from '@/components/ui/Logo'
 import CoinIcon from '@/components/ui/CoinIcon'
+import Tabs from '@/components/ui/Tabs'
 import { api, CallDto } from '@/lib/api-client'
 import { getTelegramWebApp, haptic } from '@/lib/telegram-webapp'
 
@@ -50,8 +51,10 @@ function CallCard({ call, referralLink }: { call: CallDto; referralLink: string 
     }
   }
 
+  const resultClass = isPending ? '' : call.isCorrect === true ? 'win' : call.isCorrect === false ? 'loss' : ''
+
   return (
-    <div className="call-card">
+    <div className={`call-card ${resultClass}`}>
       <div className="call-left">
         <div className="asset-icon">
           <CoinIcon asset={round.asset} size={32} />
@@ -69,7 +72,7 @@ function CallCard({ call, referralLink }: { call: CallDto; referralLink: string 
         </div>
       </div>
       <div className="call-result">
-        <span className="outcome-badge">{badge}</span>
+        <span className={`outcome-badge ${isPending ? 'pending' : ''}`}>{badge}</span>
         {isPending ? (
           <span className="call-sub">{resultLabel}</span>
         ) : (
@@ -112,14 +115,14 @@ export default function Calls() {
           </div>
         </div>
 
-        <div className="tab-row">
-          <button className={`tab-btn ${tab === 'pending' ? 'active' : ''}`} onClick={() => setTab('pending')}>
-            Pending {data ? `(${data.pending.length})` : ''}
-          </button>
-          <button className={`tab-btn ${tab === 'settled' ? 'active' : ''}`} onClick={() => setTab('settled')}>
-            Settled {data ? `(${data.settled.length})` : ''}
-          </button>
-        </div>
+        <Tabs
+          tabs={[
+            { key: 'pending', label: `Pending ${data ? `(${data.pending.length})` : ''}` },
+            { key: 'settled', label: `Settled ${data ? `(${data.settled.length})` : ''}` },
+          ]}
+          active={tab}
+          onChange={(k) => setTab(k as 'pending' | 'settled')}
+        />
 
         {data === null && (
           <>

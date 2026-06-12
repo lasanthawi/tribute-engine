@@ -559,10 +559,19 @@ button {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: transform 0.2s ease;
 }
 
 .asset-icon svg {
   display: block;
+}
+
+.asset-card[data-asset="BTC"] .asset-icon { box-shadow: 0 4px 16px rgba(247, 147, 26, 0.3); border-radius: 50%; }
+.asset-card[data-asset="ETH"] .asset-icon { box-shadow: 0 4px 16px rgba(167, 139, 250, 0.3); border-radius: 50%; }
+.asset-card[data-asset="TON"] .asset-icon { box-shadow: 0 4px 16px rgba(41, 182, 246, 0.3); border-radius: 50%; }
+
+.asset-card:active .asset-icon {
+  transform: scale(1.08) rotate(-4deg);
 }
 
 .asset-name {
@@ -924,6 +933,7 @@ button {
   border-radius: 3px;
   background: var(--border);
   outline: none;
+  transition: background 0.05s linear;
 }
 
 .confidence-slider::-webkit-slider-thumb {
@@ -934,6 +944,7 @@ button {
   background: var(--accent);
   box-shadow: 0 0 0 6px var(--accent-glow);
   cursor: pointer;
+  transition: box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .confidence-slider::-moz-range-thumb {
@@ -944,6 +955,64 @@ button {
   background: var(--accent);
   box-shadow: 0 0 0 6px var(--accent-glow);
   cursor: pointer;
+  transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.confidence-slider.up::-webkit-slider-thumb { background: var(--up); box-shadow: 0 0 0 6px var(--up-glow); }
+.confidence-slider.down::-webkit-slider-thumb { background: var(--down); box-shadow: 0 0 0 6px var(--down-glow); }
+.confidence-slider.up::-moz-range-thumb { background: var(--up); box-shadow: 0 0 0 6px var(--up-glow); }
+.confidence-slider.down::-moz-range-thumb { background: var(--down); box-shadow: 0 0 0 6px var(--down-glow); }
+
+/* ---------- Payout preview chips ---------- */
+
+.payout-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.payout-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.payout-chip-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.payout-chip-value {
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+
+.payout-chip.win {
+  background: linear-gradient(135deg, rgba(33, 208, 122, 0.14), transparent);
+  border-color: rgba(33, 208, 122, 0.35);
+}
+
+.payout-chip.win .payout-chip-value {
+  color: var(--up);
+}
+
+.payout-chip.lose {
+  background: linear-gradient(135deg, rgba(255, 77, 106, 0.1), transparent);
+  border-color: rgba(255, 77, 106, 0.3);
+}
+
+.payout-chip.lose .payout-chip-value {
+  color: var(--down);
 }
 
 /* ---------- Buttons ---------- */
@@ -1020,16 +1089,45 @@ button {
   color: var(--text-faint);
   padding: 4px;
   border-radius: var(--radius-sm);
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, transform 0.08s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-item:active {
+  transform: scale(0.92);
 }
 
 .nav-item.active {
-  color: var(--text);
+  color: var(--accent);
 }
 
 .nav-icon {
   font-size: 20px;
   line-height: 1;
+  position: relative;
+}
+
+.nav-item.active .nav-icon {
+  animation: nav-bounce 0.4s cubic-bezier(0.22, 1.5, 0.36, 1);
+}
+
+.nav-item.active .nav-icon::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateX(-50%);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+@keyframes nav-bounce {
+  0% { transform: scale(1) translateY(0); }
+  40% { transform: scale(1.25) translateY(-3px); }
+  100% { transform: scale(1) translateY(0); }
 }
 
 /* ---------- Calls list ---------- */
@@ -1043,6 +1141,16 @@ button {
   border-radius: var(--radius-md);
   padding: 14px;
   margin-bottom: 10px;
+  transition: border-color 0.2s ease;
+}
+
+.call-card.win {
+  border-color: rgba(33, 208, 122, 0.3);
+  background: linear-gradient(135deg, rgba(33, 208, 122, 0.07), var(--bg-card));
+}
+
+.call-card.loss {
+  border-color: rgba(255, 77, 106, 0.22);
 }
 
 .call-left {
@@ -1090,6 +1198,16 @@ button {
   line-height: 1;
 }
 
+.outcome-badge.pending {
+  display: inline-block;
+  animation: pending-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pending-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
 .points-delta {
   font-size: 13px;
   font-weight: 800;
@@ -1116,6 +1234,103 @@ button {
   color: var(--text-dim);
   font-size: 14px;
   padding: 48px 16px;
+  line-height: 1.6;
+}
+
+.empty-emoji {
+  font-size: 40px;
+  margin-bottom: 10px;
+  animation: hero-panel-pop 0.4s cubic-bezier(0.22, 1.5, 0.36, 1);
+}
+
+/* ---------- Podium ---------- */
+
+.podium {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.podium-spot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 8px 12px;
+  position: relative;
+  overflow: hidden;
+  animation: podium-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.podium-spot.rank-2 { order: 1; animation-delay: 0.15s; }
+.podium-spot.rank-1 { order: 2; padding-top: 22px; animation-delay: 0.05s; }
+.podium-spot.rank-3 { order: 3; animation-delay: 0.25s; }
+
+.podium-spot.rank-1 {
+  border-color: rgba(255, 213, 74, 0.4);
+  background: linear-gradient(135deg, rgba(255, 213, 74, 0.16), var(--bg-card));
+  box-shadow: 0 8px 24px rgba(255, 213, 74, 0.12);
+}
+
+.podium-spot.me {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+@keyframes podium-rise {
+  from { opacity: 0; transform: translateY(24px) scale(0.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.podium-medal {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.podium-spot.rank-1 .podium-medal {
+  font-size: 32px;
+  filter: drop-shadow(0 2px 8px rgba(255, 213, 74, 0.55));
+  animation: flame-flicker 2.2s ease-in-out infinite alternate;
+}
+
+.podium-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #3f3a8c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.podium-spot.rank-1 .podium-avatar {
+  width: 46px;
+  height: 46px;
+  font-size: 16px;
+  box-shadow: 0 0 0 3px rgba(255, 213, 74, 0.35);
+}
+
+.podium-name {
+  font-size: 12px;
+  font-weight: 700;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podium-points {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Tabs ---------- */
@@ -1128,9 +1343,24 @@ button {
   border-radius: var(--radius-pill);
   padding: 4px;
   margin-bottom: 16px;
+  position: relative;
+}
+
+.tab-indicator {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  bottom: 4px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--accent), #5145c4);
+  box-shadow: 0 4px 14px var(--accent-glow);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 0;
 }
 
 .tab-btn {
+  position: relative;
+  z-index: 1;
   border: none;
   background: transparent;
   border-radius: var(--radius-pill);
@@ -1139,10 +1369,11 @@ button {
   font-size: 13px;
   color: var(--text-dim);
   cursor: pointer;
+  transition: color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .tab-btn.active {
-  background: var(--accent);
   color: #fff;
 }
 

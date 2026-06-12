@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { RoundDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
+import PointsCounter from './PointsCounter'
 
 const ASSET_NAME: Record<string, string> = {
   BTC: 'Bitcoin',
@@ -12,12 +13,14 @@ export default function PredictModal({
   round,
   initialSide,
   maxStake,
+  streakMultiplier = 1,
   onConfirm,
   onClose,
 }: {
   round: RoundDto
   initialSide: 'UP' | 'DOWN'
   maxStake: number
+  streakMultiplier?: number
   onConfirm: (side: 'UP' | 'DOWN', confidence: number) => Promise<void>
   onClose: () => void
 }) {
@@ -27,6 +30,9 @@ export default function PredictModal({
   const [error, setError] = useState<string | null>(null)
 
   const cap = Math.min(500, maxStake)
+  const isMain = round.kind === 'main_daily'
+  const winAmount = Math.round(round.base_reward * (isMain ? streakMultiplier : 1)) + confidence * 2
+  const fillPct = cap > 0 ? (confidence / cap) * 100 : 0
 
   const handleConfirm = async () => {
     setSubmitting(true)
@@ -46,7 +52,7 @@ export default function PredictModal({
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-handle" />
         <h3 className="sheet-title">
-          {ASSET_NAME[round.asset]} · {round.kind === 'main_daily' ? 'Main Vote' : 'Hourly Vote'}
+          {ASSET_NAME[round.asset]} · {isMain ? 'Main Vote' : 'Hourly Vote'}
         </h3>
         <p className="sheet-subtitle">Cast your vote. One tap, locked until resolve.</p>
 
@@ -80,15 +86,34 @@ export default function PredictModal({
           </div>
           <input
             type="range"
-            className="confidence-slider"
+            className={`confidence-slider ${side === 'UP' ? 'up' : 'down'}`}
             min={0}
             max={cap}
             step={10}
             value={confidence}
-            onChange={(e) => setConfidence(Number(e.target.value))}
+            onChange={(e) => {
+              haptic('light')
+              setConfidence(Number(e.target.value))
+            }}
+            style={{
+              background: `linear-gradient(90deg, var(${side === 'UP' ? '--up' : '--down'}) ${fillPct}%, var(--border) ${fillPct}%)`,
+            }}
           />
           <div className="confidence-label-row" style={{ marginTop: 6, fontSize: 11 }}>
             <span>Stake more, win 2x back if right (max {cap})</span>
+          </div>
+        </div>
+
+        <div className="payout-row">
+          <div className="payout-chip win">
+            <span className="payout-chip-label">✓ If you call it</span>
+            <span className="payout-chip-value">
+              +<PointsCounter value={winAmount} duration={300} /> pts
+            </span>
+          </div>
+          <div className="payout-chip lose">
+            <span className="payout-chip-label">✗ If you miss</span>
+            <span className="payout-chip-value">−{confidence} pts</span>
           </div>
         </div>
 

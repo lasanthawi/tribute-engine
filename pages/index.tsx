@@ -215,6 +215,7 @@ export default function Home() {
           round={modal.round}
           initialSide={modal.side}
           maxStake={me?.points ?? 0}
+          streakMultiplier={me?.streakMultiplier ?? 1}
           onConfirm={handleConfirm}
           onClose={() => setModal(null)}
         />
