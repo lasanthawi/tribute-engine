@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { supabase } from './supabase'
+import { adjustTickets, FREE_TICKETS_PER_DAY } from './ledger'
 
 export interface TelegramWebAppUser {
   id: number
@@ -64,6 +65,8 @@ export async function getOrCreateUser(tgUser: TelegramWebAppUser): Promise<{ id:
     .select('id')
     .single()
   if (error) throw error
+
+  await adjustTickets(created.id, FREE_TICKETS_PER_DAY, 'daily_grant')
   return created
 }
 

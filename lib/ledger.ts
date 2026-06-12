@@ -44,6 +44,7 @@ export async function hasTickets(userId: number, amount = 1): Promise<boolean> {
 }
 
 const DAILY_LOGIN_BONUS = 50
+export const FREE_TICKETS_PER_DAY = 5
 
 /**
  * Grants the one-time-per-UTC-day login bonus. Returns true if granted just

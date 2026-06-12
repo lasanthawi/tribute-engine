@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { rejectUnauthorizedCron } from '@/lib/cron-auth'
 import { supabase } from '@/lib/supabase'
-
-const FREE_TICKETS_PER_DAY = 5
+import { FREE_TICKETS_PER_DAY } from '@/lib/ledger'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (rejectUnauthorizedCron(req, res)) return
