@@ -119,7 +119,7 @@ export default function Home() {
 
         <div className="hero">
           <div className="hero-row">
-            <div>
+            <div className="hero-info">
               <p className="hero-greeting">{me?.username ? `Welcome back, ${me.username}` : 'Welcome'}</p>
               <div className="hero-points">
                 <span>{me ? <PointsCounter value={me.points} /> : '—'}</span>
