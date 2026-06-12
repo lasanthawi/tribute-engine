@@ -23,7 +23,7 @@ export default function AssetCard({
   const isMain = round.kind === 'main_daily'
 
   return (
-    <div className="asset-card">
+    <div className="asset-card" data-asset={round.asset}>
       <div className="asset-card-head">
         <div className="asset-id">
           <div className={`asset-icon ${round.asset}`}>{ASSET_ICON[round.asset]}</div>

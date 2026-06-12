@@ -7,6 +7,7 @@ import PointsCounter from '@/components/ui/PointsCounter'
 import LeagueBadge from '@/components/ui/LeagueBadge'
 import Confetti from '@/components/ui/Confetti'
 import VoteConfirm from '@/components/ui/VoteConfirm'
+import Logo from '@/components/ui/Logo'
 import { api, MeDto, RoundDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 
@@ -86,7 +87,7 @@ export default function Home() {
       <div className="screen">
         <div className="topbar">
           <div className="brand">
-            <span className="brand-dot">🗳️</span>
+            <span className="brand-dot"><Logo size={26} /></span>
             <span className="brand-wordmark">VOTE LEAGUE</span>
           </div>
         </div>
@@ -108,14 +109,22 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <div className="stat-row" style={{ marginTop: 14 }}>
-            <span className="pill pill-tickets">
-              <span className="pill-icon">🎟️</span> {me?.tickets ?? '—'} tickets
-            </span>
-            <span className={`pill pill-streak ${isHot ? 'hot' : ''}`}>
-              <span className="pill-icon">🔥</span> {me?.streak ?? 0}d ·{' '}
-              {me ? me.streakMultiplier.toFixed(1) : '1.0'}x
-            </span>
+          <div className="stat-grid" style={{ marginTop: 14 }}>
+            <div className="stat-tile">
+              <span className="stat-tile-icon">🎟️</span>
+              <span className="stat-tile-value">{me?.tickets ?? '—'}</span>
+              <span className="stat-tile-label">Tickets</span>
+            </div>
+            <div className={`stat-tile ${isHot ? 'hot' : ''}`}>
+              <span className="stat-tile-icon">🔥</span>
+              <span className="stat-tile-value">{me?.streak ?? 0}d</span>
+              <span className="stat-tile-label">{me ? me.streakMultiplier.toFixed(1) : '1.0'}x boost</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-tile-icon">📊</span>
+              <span className="stat-tile-value">{rounds?.length ?? '—'}</span>
+              <span className="stat-tile-label">Live markets</span>
+            </div>
           </div>
           {me && (
             <div style={{ marginTop: 14 }}>

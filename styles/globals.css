@@ -87,6 +87,13 @@ button {
 
 .brand-dot {
   font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.vl-logo {
+  display: block;
+  filter: drop-shadow(0 2px 6px var(--accent-glow));
 }
 
 .brand-wordmark {
@@ -176,50 +183,56 @@ button {
   margin-top: 0;
 }
 
-/* ---------- Stat pills ---------- */
+/* ---------- Stat grid ---------- */
 
-.stat-row {
-  display: flex;
-  gap: 10px;
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  position: relative;
 }
 
-.pill {
-  display: inline-flex;
+.stat-tile {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  background: var(--bg-card);
+  gap: 2px;
+  background: rgba(10, 14, 23, 0.4);
   border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  padding: 8px 14px;
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.stat-tile-icon {
+  font-size: 18px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.stat-tile-value {
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+
+.stat-tile-label {
+  font-size: 10.5px;
   font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   white-space: nowrap;
 }
 
-.pill-icon {
-  font-size: 15px;
-  line-height: 1;
-}
-
-.pill-points {
-  color: var(--gold);
-}
-
-.pill-tickets {
-  color: #6fd3ff;
-}
-
-.pill-streak {
-  color: var(--down);
-  background: linear-gradient(135deg, rgba(255, 159, 67, 0.15), rgba(255, 77, 106, 0.1));
-  border-color: rgba(255, 159, 67, 0.3);
-}
-
-.pill-streak.hot {
+.stat-tile.hot {
+  border-color: rgba(255, 159, 67, 0.4);
+  background: linear-gradient(135deg, rgba(255, 159, 67, 0.15), rgba(255, 77, 106, 0.08));
   animation: flame-glow 1.6s ease-in-out infinite;
 }
 
-.pill-streak.hot .pill-icon {
+.stat-tile.hot .stat-tile-icon {
   display: inline-block;
   animation: flame-flicker 0.6s ease-in-out infinite alternate;
 }
@@ -339,7 +352,22 @@ button {
   padding: 16px;
   margin-bottom: 12px;
   box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
 }
+
+.asset-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.asset-card[data-asset="BTC"]::before { background: linear-gradient(90deg, var(--btc), #ffc873); }
+.asset-card[data-asset="ETH"]::before { background: linear-gradient(90deg, var(--eth), #d6c8ff); }
+.asset-card[data-asset="TON"]::before { background: linear-gradient(90deg, var(--ton), #8be4ff); }
 
 .asset-card-head {
   display: flex;
@@ -366,9 +394,9 @@ button {
   color: #0a0e17;
 }
 
-.asset-icon.BTC { background: linear-gradient(135deg, var(--btc), #ffc873); }
-.asset-icon.ETH { background: linear-gradient(135deg, var(--eth), #d6c8ff); }
-.asset-icon.TON { background: linear-gradient(135deg, var(--ton), #8be4ff); }
+.asset-icon.BTC { background: linear-gradient(135deg, var(--btc), #ffc873); box-shadow: 0 4px 16px rgba(247, 147, 26, 0.35); }
+.asset-icon.ETH { background: linear-gradient(135deg, var(--eth), #d6c8ff); box-shadow: 0 4px 16px rgba(167, 139, 250, 0.35); }
+.asset-icon.TON { background: linear-gradient(135deg, var(--ton), #8be4ff); box-shadow: 0 4px 16px rgba(41, 182, 246, 0.35); }
 
 .asset-name {
   font-weight: 800;
@@ -968,6 +996,8 @@ button {
 .invite-emoji {
   font-size: 40px;
   margin-bottom: 8px;
+  display: flex;
+  justify-content: center;
 }
 
 .invite-title {
