@@ -12,6 +12,27 @@ function formatPrice(n: number | null): string {
   return n >= 100 ? n.toFixed(2) : n.toFixed(4)
 }
 
+/** Soft, live-updating countdown to a pending call's resolution time. */
+function PendingCountdown({ target }: { target: string }) {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const remaining = new Date(target).getTime() - now
+  if (remaining <= 0) return <span className="call-countdown">Resolving…</span>
+
+  const totalSeconds = Math.floor(remaining / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const text = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}:${seconds.toString().padStart(2, '0')}`
+
+  return <span className="call-countdown">⏱ {text}</span>
+}
+
 function CallCard({ call, referralLink }: { call: CallDto; referralLink: string | null }) {
   const round = call.round
   const isPending = !round || (round.state !== 'SETTLED' && round.state !== 'VOIDED')
@@ -72,11 +93,19 @@ function CallCard({ call, referralLink }: { call: CallDto; referralLink: string 
         </div>
       </div>
       <div className="call-result">
-        <span className={`outcome-badge ${isPending ? 'pending' : ''}`}>{badge}</span>
         {isPending ? (
-          <span className="call-sub">{resultLabel}</span>
+          <>
+            <div className="call-pending-row">
+              <span className="outcome-badge pending">{badge}</span>
+              <span className="call-sub">{resultLabel}</span>
+            </div>
+            {round?.resolve_at && <PendingCountdown target={round.resolve_at} />}
+          </>
         ) : (
-          <span className={`points-delta ${deltaClass}`}>{deltaText} pts</span>
+          <>
+            <span className="outcome-badge">{badge}</span>
+            <span className={`points-delta ${deltaClass}`}>{deltaText} pts</span>
+          </>
         )}
         {call.isCorrect === true && (
           <button className="share-btn" onClick={handleShare}>

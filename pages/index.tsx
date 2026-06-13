@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import Head from 'next/head'
+import Link from 'next/link'
 import BottomNav from '@/components/ui/BottomNav'
 import AssetCard from '@/components/ui/AssetCard'
+import CoinIcon from '@/components/ui/CoinIcon'
 import PredictModal from '@/components/ui/PredictModal'
 import PointsCounter from '@/components/ui/PointsCounter'
 import LeagueBadge from '@/components/ui/LeagueBadge'
@@ -9,10 +11,12 @@ import Confetti from '@/components/ui/Confetti'
 import VoteConfirm from '@/components/ui/VoteConfirm'
 import Logo from '@/components/ui/Logo'
 import HeroPanel, { HeroPanelView } from '@/components/ui/HeroPanel'
-import { api, MeDto, RoundDto } from '@/lib/api-client'
+import { api, CallDto, MeDto, RoundDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 
 const PANEL_IDLE_MS = 3000
+const ASSETS = ['BTC', 'ETH', 'TON'] as const
+type AssetFilter = 'ALL' | (typeof ASSETS)[number]
 
 export default function Home() {
   const [me, setMe] = useState<MeDto | null>(null)
@@ -23,6 +27,8 @@ export default function Home() {
   const [dailyBonus, setDailyBonus] = useState<number | null>(null)
   const [voteConfirm, setVoteConfirm] = useState<{ asset: 'BTC' | 'ETH' | 'TON'; side: 'UP' | 'DOWN' } | null>(null)
   const [panelView, setPanelView] = useState<HeroPanelView>('countdown')
+  const [assetFilter, setAssetFilter] = useState<AssetFilter>('ALL')
+  const [recentCalls, setRecentCalls] = useState<CallDto[] | null>(null)
   const panelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refresh = async () => {
@@ -32,6 +38,12 @@ export default function Home() {
       setRounds(roundsData.rounds)
     } catch (e: any) {
       setError(e.message || 'Failed to load')
+    }
+    try {
+      const callsData = await api.getCalls()
+      setRecentCalls(callsData.settled.slice(0, 5))
+    } catch {
+      setRecentCalls([])
     }
   }
 
@@ -92,8 +104,19 @@ export default function Home() {
     }
   }, [])
 
-  const mainRounds = rounds?.filter((r) => r.kind === 'main_daily') ?? []
-  const hourlyRounds = rounds?.filter((r) => r.kind === 'hourly') ?? []
+  const allRounds = rounds ?? []
+  const filteredRounds = assetFilter === 'ALL' ? allRounds : allRounds.filter((r) => r.asset === assetFilter)
+  const mainRounds = filteredRounds.filter((r) => r.kind === 'main_daily')
+  const hourlyRounds = filteredRounds.filter((r) => r.kind === 'hourly')
+
+  const trending = ASSETS.map((asset) => {
+    const assetRounds = allRounds.filter((r) => r.asset === asset)
+    const best = assetRounds.reduce<RoundDto | null>((acc, r) => {
+      if (!acc || r.sentiment.total > acc.sentiment.total) return r
+      return acc
+    }, null)
+    return { asset, round: best, count: assetRounds.length }
+  }).filter((t) => t.round !== null) as { asset: (typeof ASSETS)[number]; round: RoundDto; count: number }[]
 
   const isHot = (me?.streak ?? 0) >= 3
 
@@ -169,6 +192,90 @@ export default function Home() {
           <p style={{ color: 'var(--down)', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{error}</p>
         )}
 
+        {recentCalls !== null && recentCalls.length > 0 && (
+          <Link href="/calls" className="activity-strip">
+            <span className="activity-label">Recent results</span>
+            <div className="activity-icons">
+              {recentCalls.map((c) => {
+                const cls = c.round.outcome === 'VOID' ? 'void' : c.isCorrect ? 'win' : 'loss'
+                const icon = c.round.outcome === 'VOID' ? '⟳' : c.isCorrect ? '✅' : '❌'
+                return (
+                  <span key={c.id} className={`activity-icon ${cls}`}>
+                    {icon}
+                  </span>
+                )
+              })}
+            </div>
+            <span className="activity-arrow">My Votes →</span>
+          </Link>
+        )}
+
+        <Link href="/invite" className="promo-banner">
+          <span className="promo-icon">🎁</span>
+          <span className="promo-text">
+            <span className="promo-title">Invite friends, earn points</span>
+            <span className="promo-sub">Get a 5% bonus on every point your friends earn</span>
+          </span>
+          <span className="promo-arrow">→</span>
+        </Link>
+
+        {trending.length > 0 && (
+          <>
+            <div className="section-title">📈 Trending Markets</div>
+            <div className="scroll-row">
+              {trending.map(({ asset, round, count }) => {
+                const { up, down, total } = round.sentiment
+                const upPct = total > 0 ? Math.round((up / total) * 100) : 50
+                return (
+                  <div
+                    key={asset}
+                    className="trend-card"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      haptic('light')
+                      setAssetFilter(asset)
+                    }}
+                  >
+                    <div className="trend-card-head">
+                      <CoinIcon asset={asset} size={22} />
+                      <span className="trend-card-asset">{asset}</span>
+                      {count > 1 && <span className="trend-card-count">{count} markets</span>}
+                    </div>
+                    <div className="trend-card-odds">
+                      <span className="trend-card-up">▲ {upPct}%</span>
+                      <span className="trend-card-down">{100 - upPct}% ▼</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {rounds !== null && rounds.length > 0 && (
+          <div className="chip-row">
+            {(['ALL', ...ASSETS] as AssetFilter[]).map((f) => {
+              const count = f === 'ALL' ? allRounds.length : allRounds.filter((r) => r.asset === f).length
+              return (
+                <div
+                  key={f}
+                  className={`chip ${assetFilter === f ? 'active' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    haptic('light')
+                    setAssetFilter(f)
+                  }}
+                >
+                  {f === 'ALL' ? '🌐 All' : f}
+                  <span className="chip-count">{count}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         {rounds === null && (
           <>
             <div className="section-title">Loading votes…</div>
@@ -206,6 +313,14 @@ export default function Home() {
             No votes open right now.
             <br />
             New votes drop every hour — check back soon 🗳️
+          </div>
+        )}
+
+        {rounds !== null && rounds.length > 0 && filteredRounds.length === 0 && (
+          <div className="empty-state">
+            No {assetFilter} votes open right now.
+            <br />
+            Try another asset or check back soon 🗳️
           </div>
         )}
       </div>

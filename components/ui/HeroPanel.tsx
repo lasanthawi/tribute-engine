@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { RoundDto } from '@/lib/api-client'
+import CoinIcon from './CoinIcon'
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -19,6 +20,8 @@ interface NextEvent {
   target: string
   start: string
   label: string
+  asset: 'BTC' | 'ETH' | 'TON'
+  kind: 'hourly' | 'main_daily'
 }
 
 function getNextEvent(rounds: RoundDto[] | null): NextEvent | null {
@@ -26,8 +29,8 @@ function getNextEvent(rounds: RoundDto[] | null): NextEvent | null {
   let best: (NextEvent & { time: number }) | null = null
   for (const r of rounds) {
     const candidate: NextEvent = r.myPrediction
-      ? { target: r.resolve_at, start: r.lock_at, label: 'Result in' }
-      : { target: r.lock_at, start: r.open_at, label: 'Locks in' }
+      ? { target: r.resolve_at, start: r.lock_at, label: 'Result in', asset: r.asset, kind: r.kind }
+      : { target: r.lock_at, start: r.open_at, label: 'Locks in', asset: r.asset, kind: r.kind }
     const time = new Date(candidate.target).getTime()
     if (time > Date.now() && (!best || time < best.time)) {
       best = { ...candidate, time }
@@ -64,6 +67,11 @@ function CountdownView({ rounds }: { rounds: RoundDto[] | null }) {
 
   return (
     <div className={`hero-countdown ${urgent ? 'urgent' : ''}`}>
+      <div className="hero-countdown-asset">
+        <CoinIcon asset={event.asset} size={16} />
+        <span>{event.asset}</span>
+        <span className="hero-countdown-kind">{event.kind === 'main_daily' ? 'Main' : 'Hourly'}</span>
+      </div>
       <svg viewBox="0 0 64 64">
         <circle className="ring-track" cx="32" cy="32" r={RADIUS} />
         <circle

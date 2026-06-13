@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
 import { supabase } from '@/lib/supabase'
 import { adjustTickets, FREE_TICKETS_PER_DAY } from '@/lib/ledger'
+import { createPendingReferral } from '@/lib/referral'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const MINI_APP_URL = process.env.MINI_APP_URL || ''
@@ -32,23 +33,6 @@ async function upsertUser(telegramId: number, username?: string): Promise<{ id: 
   return created
 }
 
-async function maybeCreateReferral(refereeId: number, referrerTelegramId: number) {
-  const { data: referrer } = await supabase
-    .from('users')
-    .select('id')
-    .eq('telegram_id', referrerTelegramId)
-    .maybeSingle()
-  if (!referrer || referrer.id === refereeId) return
-
-  const { data: existing } = await supabase
-    .from('referrals')
-    .select('id')
-    .eq('referee_id', refereeId)
-    .maybeSingle()
-  if (existing) return
-
-  await supabase.from('referrals').insert({ referrer_id: referrer.id, referee_id: refereeId, status: 'pending' })
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(200).json({ ok: true })
@@ -66,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (payload?.startsWith('ref_')) {
         const referrerTelegramId = Number(payload.slice(4))
         if (!Number.isNaN(referrerTelegramId)) {
-          await maybeCreateReferral(user.id, referrerTelegramId)
+          await createPendingReferral(user.id, referrerTelegramId)
         }
       }
 

@@ -5,6 +5,31 @@ const REFERRAL_ACTIVATION_BONUS = 500
 const DOWNLINE_OVERRIDE_RATE = 0.05
 
 /**
+ * Creates a pending referral for a newly-created user, if `referrerTelegramId`
+ * resolves to a real (different) user and no referral already exists for the
+ * referee. No-op otherwise. Called from both the bot /start flow and the Mini
+ * App's initData `start_param`, so referral attribution works regardless of
+ * which entry point the invitee used.
+ */
+export async function createPendingReferral(refereeId: number, referrerTelegramId: number) {
+  const { data: referrer } = await supabase
+    .from('users')
+    .select('id')
+    .eq('telegram_id', referrerTelegramId)
+    .maybeSingle()
+  if (!referrer || referrer.id === refereeId) return
+
+  const { data: existing } = await supabase
+    .from('referrals')
+    .select('id')
+    .eq('referee_id', refereeId)
+    .maybeSingle()
+  if (existing) return
+
+  await supabase.from('referrals').insert({ referrer_id: referrer.id, referee_id: refereeId, status: 'pending' })
+}
+
+/**
  * On a referee's FIRST correct call, activate the referral and pay the
  * referrer a one-time bonus. No-op if there's no pending referral.
  * Returns true if a referral was activated.
