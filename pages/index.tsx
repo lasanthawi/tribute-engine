@@ -334,11 +334,17 @@ export default function Home() {
             </div>
             <div className="scroll-row">
               {games.map((g) => (
-                <Link key={g.id} href="/games" className="game-teaser">
-                  <span className="game-teaser-icon">{g.icon}</span>
+                <Link key={g.slug} href="/games" className="game-teaser">
+                  {g.coverImageUrl ? (
+                    <span className="game-teaser-cover">
+                      <img src={g.coverImageUrl} alt={g.title} />
+                    </span>
+                  ) : (
+                    <span className="game-teaser-icon">{g.icon}</span>
+                  )}
                   <span className="game-teaser-title">{g.title}</span>
                   <span className="game-teaser-sub">
-                    {g.id === 'gomoku'
+                    {g.slug === 'gomoku'
                       ? 'AI + live rooms'
                       : g.remainingPlays > 0
                       ? `${g.remainingPlays} play${g.remainingPlays === 1 ? '' : 's'} left`

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { GameTemplate, GameStatus, TapCatchConfig, SpinWheelConfig, GomokuConfig } from './game-templates'
 
 // Falls back to placeholder values in demo mode (no Supabase project configured yet)
 // so the client can be constructed without crashing at import time.
@@ -41,7 +42,6 @@ export type CoinEntryType =
   | 'refund'
   | 'quest_reward'
   | 'minigame_reward'
-export type MinigameType = 'tap' | 'spin'
 export type GomokuMark = 'X' | 'O'
 export type GomokuStatus = 'waiting' | 'active' | 'settled' | 'cancelled'
 export type PerkType = 'confidence_boost' | 'streak_freeze'
@@ -383,7 +383,7 @@ export interface Database {
         Row: {
           id: number
           user_id: number
-          game_type: MinigameType
+          game_slug: string
           played_date: string
           score: number | null
           reward_points: number
@@ -394,7 +394,7 @@ export interface Database {
         }
         Insert: Partial<Omit<Database['public']['Tables']['minigame_plays']['Row'], 'id'>> & {
           user_id: number
-          game_type: MinigameType
+          game_slug: string
           played_date: string
         }
         Update: Partial<Database['public']['Tables']['minigame_plays']['Row']>
@@ -445,6 +445,40 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['gomoku_moves']['Row']>
         Relationships: []
+      }
+      games: {
+        Row: {
+          id: number
+          slug: string
+          template: GameTemplate
+          title: string
+          description: string
+          icon: string
+          config: TapCatchConfig | SpinWheelConfig | GomokuConfig
+          cover_image_url: string | null
+          status: GameStatus
+          max_plays_per_day: number
+          version: number
+          parent_id: number | null
+          created_at: string
+          published_at: string | null
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['games']['Row'], 'id'>> & {
+          slug: string
+          template: GameTemplate
+          title: string
+          description: string
+          config: TapCatchConfig | SpinWheelConfig | GomokuConfig
+        }
+        Update: Partial<Database['public']['Tables']['games']['Row']>
+        Relationships: [
+          {
+            foreignKeyName: 'games_parent_id_fkey'
+            columns: ['parent_id']
+            referencedRelation: 'games'
+            referencedColumns: ['id']
+          }
+        ]
       }
     }
     Views: {
