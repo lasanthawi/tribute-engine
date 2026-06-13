@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
-import { creditPoints } from './ledger'
+import { creditPoints, creditCoins } from './ledger'
+import { REFERRAL_COIN_BONUS } from './coins'
 
 const REFERRAL_ACTIVATION_BONUS = 500
 const DOWNLINE_OVERRIDE_RATE = 0.05
@@ -52,6 +53,7 @@ export async function activateReferralIfPending(refereeId: number): Promise<bool
   await creditPoints(referral.referrer_id, REFERRAL_ACTIVATION_BONUS, 'referral_bonus', {
     refUser: refereeId,
   })
+  await creditCoins(referral.referrer_id, REFERRAL_COIN_BONUS, 'referral_bonus')
   return true
 }
 

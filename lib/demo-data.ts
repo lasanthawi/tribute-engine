@@ -1,4 +1,5 @@
-import type { CallDto, LeaderboardDto, MeDto, ReferralInfoDto, RoundDto } from './api-client'
+import type { CallDto, CoinPackageDto, LeaderboardDto, MeDto, ReferralInfoDto, RoundDto } from './api-client'
+import { COIN_PACKAGES } from './coins'
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -14,11 +15,18 @@ export function demoMe(): MeDto {
     username: 'satoshi_fan',
     points: 2480,
     tickets: 3,
+    coins: 320,
     streak: 4,
     streakMultiplier: 1.4,
     dailyBonusAwarded: false,
     dailyBonusAmount: 50,
+    confidenceBoosts: 1,
+    streakFreezes: 0,
   }
+}
+
+export function demoCoinPackages(): CoinPackageDto[] {
+  return COIN_PACKAGES
 }
 
 export function demoRounds(): RoundDto[] {

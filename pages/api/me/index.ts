@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { supabase } from '@/lib/supabase'
-import { getUserBalance, claimDailyLoginBonus, DAILY_LOGIN_BONUS } from '@/lib/ledger'
+import { getUserBalance, claimDailyLoginBonus, DAILY_LOGIN_BONUS, getPerkBalance } from '@/lib/ledger'
 import { getStreakMultiplier } from '@/lib/streak'
 import { isDemoMode } from '@/lib/demo'
 import { demoMe } from '@/lib/demo-data'
@@ -24,6 +24,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const dailyBonusAwarded = await claimDailyLoginBonus(userId)
     const balance = await getUserBalance(userId)
+    const confidenceBoosts = await getPerkBalance(userId, 'confidence_boost')
+    const streakFreezes = await getPerkBalance(userId, 'streak_freeze')
 
     res.status(200).json({
       id: user.id,
@@ -31,10 +33,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       username: user.username,
       points: balance.points,
       tickets: balance.tickets,
+      coins: balance.coins,
       streak: user.streak_count,
       streakMultiplier: getStreakMultiplier(user.streak_count),
       dailyBonusAwarded,
       dailyBonusAmount: DAILY_LOGIN_BONUS,
+      confidenceBoosts,
+      streakFreezes,
     })
   } catch (error) {
     console.error('me/index error:', error)

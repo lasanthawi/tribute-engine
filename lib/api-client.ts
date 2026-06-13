@@ -37,11 +37,24 @@ export interface MeDto {
   username: string | null
   points: number
   tickets: number
+  coins: number
   streak: number
   streakMultiplier: number
   dailyBonusAwarded: boolean
   dailyBonusAmount: number
+  confidenceBoosts: number
+  streakFreezes: number
 }
+
+export interface CoinPackageDto {
+  id: string
+  coins: number
+  stars: number
+  label: string
+  bonus?: string
+}
+
+export type RedeemOption = 'points' | 'ticket' | 'confidence_boost' | 'streak_freeze'
 
 export interface CallDto {
   id: number
@@ -95,5 +108,16 @@ export const api = {
     request<{ ok: true }>('/api/predictions/create', {
       method: 'POST',
       body: JSON.stringify({ roundId, side, confidence }),
+    }),
+  getCoinPackages: () => request<{ packages: CoinPackageDto[] }>('/api/coins/packages'),
+  createCoinInvoice: (packageId: string) =>
+    request<{ url: string | null }>('/api/coins/invoice', {
+      method: 'POST',
+      body: JSON.stringify({ packageId }),
+    }),
+  redeemCoins: (option: RedeemOption, coins?: number) =>
+    request<{ ok: true; pointsAwarded?: number }>('/api/coins/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ option, coins }),
     }),
 }

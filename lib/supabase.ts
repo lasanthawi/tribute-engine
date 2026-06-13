@@ -28,7 +28,11 @@ export type LedgerEntryType =
   | 'referral_bonus'
   | 'referral_override'
   | 'refund'
-export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward' | 'refund'
+  | 'coin_redeem'
+export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward' | 'refund' | 'coin_redeem'
+export type CoinEntryType = 'purchase' | 'referral_bonus' | 'redeem_points' | 'redeem_ticket' | 'redeem_perk' | 'refund'
+export type PerkType = 'confidence_boost' | 'streak_freeze'
+export type PerkReason = 'redeem' | 'consume' | 'refund'
 
 export interface Database {
   public: {
@@ -195,6 +199,59 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['ticket_ledger']['Row']>
         Relationships: []
       }
+      coins_ledger: {
+        Row: {
+          id: number
+          user_id: number
+          delta: number
+          entry_type: CoinEntryType
+          created_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['coins_ledger']['Row'], 'id'>> & {
+          user_id: number
+          delta: number
+          entry_type: CoinEntryType
+        }
+        Update: Partial<Database['public']['Tables']['coins_ledger']['Row']>
+        Relationships: []
+      }
+      perks_ledger: {
+        Row: {
+          id: number
+          user_id: number
+          perk_type: PerkType
+          delta: number
+          reason: PerkReason
+          ref_round: number | null
+          created_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['perks_ledger']['Row'], 'id'>> & {
+          user_id: number
+          perk_type: PerkType
+          delta: number
+          reason: PerkReason
+        }
+        Update: Partial<Database['public']['Tables']['perks_ledger']['Row']>
+        Relationships: []
+      }
+      coin_purchases: {
+        Row: {
+          id: number
+          user_id: number
+          telegram_charge_id: string
+          stars_amount: number
+          coins_amount: number
+          created_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['coin_purchases']['Row'], 'id'>> & {
+          user_id: number
+          telegram_charge_id: string
+          stars_amount: number
+          coins_amount: number
+        }
+        Update: Partial<Database['public']['Tables']['coin_purchases']['Row']>
+        Relationships: []
+      }
     }
     Views: {
       user_balances: {
@@ -202,6 +259,7 @@ export interface Database {
           user_id: number
           points: number
           tickets: number
+          coins: number
         }
         Relationships: []
       }

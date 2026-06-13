@@ -38,6 +38,7 @@ export interface TelegramWebApp {
   }
   openTelegramLink?: (url: string) => void
   switchInlineQuery?: (query: string, types?: string[]) => void
+  openInvoice?: (url: string, callback: (status: 'paid' | 'cancelled' | 'failed' | 'pending') => void) => void
 }
 
 declare global {
@@ -71,4 +72,16 @@ export function hapticNotify(type: 'error' | 'success' | 'warning') {
 
 export function getInitData(): string {
   return getTelegramWebApp()?.initData ?? ''
+}
+
+/** Opens a Telegram Stars invoice; resolves with the final payment status. */
+export function openInvoice(url: string): Promise<'paid' | 'cancelled' | 'failed' | 'pending'> {
+  return new Promise((resolve) => {
+    const tg = getTelegramWebApp()
+    if (!tg?.openInvoice) {
+      resolve('failed')
+      return
+    }
+    tg.openInvoice(url, (status) => resolve(status))
+  })
 }
