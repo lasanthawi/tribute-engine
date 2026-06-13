@@ -11,7 +11,9 @@ import Confetti from '@/components/ui/Confetti'
 import VoteConfirm from '@/components/ui/VoteConfirm'
 import Logo from '@/components/ui/Logo'
 import HeroPanel, { HeroPanelView } from '@/components/ui/HeroPanel'
-import { api, CallDto, MeDto, RoundDto } from '@/lib/api-client'
+import SentimentWidget from '@/components/ui/SentimentWidget'
+import QuestCard from '@/components/ui/QuestCard'
+import { api, CallDto, MeDto, QuestDto, RoundDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 
 const PANEL_IDLE_MS = 3000
@@ -29,6 +31,7 @@ export default function Home() {
   const [panelView, setPanelView] = useState<HeroPanelView>('countdown')
   const [assetFilter, setAssetFilter] = useState<AssetFilter>('ALL')
   const [recentCalls, setRecentCalls] = useState<CallDto[] | null>(null)
+  const [quests, setQuests] = useState<QuestDto[] | null>(null)
   const panelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refresh = async () => {
@@ -47,8 +50,18 @@ export default function Home() {
     }
   }
 
+  const refreshQuests = async () => {
+    try {
+      const data = await api.getQuests()
+      setQuests(data.quests)
+    } catch {
+      setQuests([])
+    }
+  }
+
   useEffect(() => {
     refresh()
+    refreshQuests()
   }, [])
 
   useEffect(() => {
@@ -143,7 +156,10 @@ export default function Home() {
         <div className="hero">
           <div className="hero-row">
             <div className="hero-info">
-              <p className="hero-greeting">{me?.username ? `Welcome back, ${me.username}` : 'Welcome'}</p>
+              <Link href="/profile" className="hero-greeting-link">
+                <span className="hero-greeting">{me?.username ? `Welcome back, ${me.username}` : 'Welcome'}</span>
+                <span className="hero-greeting-arrow">›</span>
+              </Link>
               <div className="hero-points">
                 <span>{me ? <PointsCounter value={me.points} /> : '—'}</span>
                 <span className="hero-points-label">points</span>
@@ -219,6 +235,8 @@ export default function Home() {
           <span className="promo-arrow">→</span>
         </Link>
 
+        <SentimentWidget />
+
         {trending.length > 0 && (
           <>
             <div className="section-title">📈 Trending Markets</div>
@@ -249,6 +267,24 @@ export default function Home() {
                   </div>
                 )
               })}
+            </div>
+          </>
+        )}
+
+        {quests !== null && quests.length > 0 && (
+          <>
+            <div className="section-title">
+              🎯 Quests
+              <Link href="/quests" className="section-title-link">
+                View all →
+              </Link>
+            </div>
+            <div className="scroll-row">
+              {quests.slice(0, 3).map((q) => (
+                <div key={q.id} className="quest-teaser">
+                  <QuestCard quest={q} compact onClaimed={refreshQuests} />
+                </div>
+              ))}
             </div>
           </>
         )}

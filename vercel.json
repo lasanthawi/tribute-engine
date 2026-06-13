@@ -4,6 +4,7 @@
     { "path": "/api/cron/round-opener", "schedule": "* * * * *" },
     { "path": "/api/cron/round-locker", "schedule": "* * * * *" },
     { "path": "/api/cron/round-settler", "schedule": "* * * * *" },
-    { "path": "/api/cron/daily-ticket-grant", "schedule": "0 0 * * *" }
+    { "path": "/api/cron/daily-ticket-grant", "schedule": "0 0 * * *" },
+    { "path": "/api/cron/streak-reminder", "schedule": "0 18 * * *" }
   ]
 }

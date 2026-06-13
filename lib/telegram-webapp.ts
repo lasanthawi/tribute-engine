@@ -37,6 +37,7 @@ export interface TelegramWebApp {
     offClick: (cb: () => void) => void
   }
   openTelegramLink?: (url: string) => void
+  openLink?: (url: string, options?: { try_instant_view?: boolean }) => void
   switchInlineQuery?: (query: string, types?: string[]) => void
   openInvoice?: (url: string, callback: (status: 'paid' | 'cancelled' | 'failed' | 'pending') => void) => void
 }
@@ -72,6 +73,16 @@ export function hapticNotify(type: 'error' | 'success' | 'warning') {
 
 export function getInitData(): string {
   return getTelegramWebApp()?.initData ?? ''
+}
+
+/** Opens an external URL via Telegram's link handler, falling back to window.open. */
+export function openExternalLink(url: string): void {
+  const tg = getTelegramWebApp()
+  if (tg?.openLink) {
+    tg.openLink(url)
+  } else if (typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 }
 
 /** Opens a Telegram Stars invoice; resolves with the final payment status. */

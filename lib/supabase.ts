@@ -29,10 +29,28 @@ export type LedgerEntryType =
   | 'referral_override'
   | 'refund'
   | 'coin_redeem'
-export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward' | 'refund' | 'coin_redeem'
-export type CoinEntryType = 'purchase' | 'referral_bonus' | 'redeem_points' | 'redeem_ticket' | 'redeem_perk' | 'refund'
+  | 'quest_reward'
+export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward' | 'refund' | 'coin_redeem' | 'quest_reward'
+export type CoinEntryType =
+  | 'purchase'
+  | 'referral_bonus'
+  | 'redeem_points'
+  | 'redeem_ticket'
+  | 'redeem_perk'
+  | 'refund'
+  | 'quest_reward'
 export type PerkType = 'confidence_boost' | 'streak_freeze'
-export type PerkReason = 'redeem' | 'consume' | 'refund'
+export type PerkReason = 'redeem' | 'consume' | 'refund' | 'quest_reward'
+export type QuestType = 'daily' | 'weekly'
+export type QuestGoalType = 'vote_count' | 'correct_count' | 'asset_vote' | 'streak_maintain' | 'login'
+export type QuestRewardType = 'points' | 'coins' | 'tickets' | 'perk'
+export type AchievementCriteriaType =
+  | 'first_vote'
+  | 'first_win'
+  | 'streak_reached'
+  | 'total_correct'
+  | 'perfect_day'
+  | 'league_tier'
 
 export interface Database {
   public: {
@@ -47,6 +65,8 @@ export interface Database {
           last_seen_at: string | null
           streak_count: number
           streak_last_day: string | null
+          best_streak: number
+          notifications_enabled: boolean
         }
         Insert: Partial<Omit<Database['public']['Tables']['users']['Row'], 'id'>> & {
           telegram_id: number
@@ -251,6 +271,108 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['coin_purchases']['Row']>
         Relationships: []
+      }
+      quest_definitions: {
+        Row: {
+          id: number
+          code: string
+          title: string
+          description: string
+          type: QuestType
+          goal_type: QuestGoalType
+          goal_asset: Asset | null
+          goal_target: number
+          reward_type: QuestRewardType
+          reward_amount: number
+          reward_perk_type: PerkType | null
+          reward_type_2: QuestRewardType | null
+          reward_amount_2: number | null
+          reward_perk_type_2: PerkType | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['quest_definitions']['Row'], 'id'>> & {
+          code: string
+          title: string
+          description: string
+          type: QuestType
+          goal_type: QuestGoalType
+          goal_target: number
+          reward_type: QuestRewardType
+          reward_amount: number
+        }
+        Update: Partial<Database['public']['Tables']['quest_definitions']['Row']>
+        Relationships: []
+      }
+      user_quest_progress: {
+        Row: {
+          id: number
+          user_id: number
+          quest_definition_id: number
+          period_key: string
+          progress: number
+          completed_at: string | null
+          claimed_at: string | null
+          created_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['user_quest_progress']['Row'], 'id'>> & {
+          user_id: number
+          quest_definition_id: number
+          period_key: string
+        }
+        Update: Partial<Database['public']['Tables']['user_quest_progress']['Row']>
+        Relationships: [
+          {
+            foreignKeyName: 'user_quest_progress_quest_definition_id_fkey'
+            columns: ['quest_definition_id']
+            referencedRelation: 'quest_definitions'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      achievement_definitions: {
+        Row: {
+          id: number
+          code: string
+          title: string
+          description: string
+          icon: string
+          criteria_type: AchievementCriteriaType
+          criteria_value: number | null
+          criteria_text: string | null
+          sort_order: number
+          created_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['achievement_definitions']['Row'], 'id'>> & {
+          code: string
+          title: string
+          description: string
+          icon: string
+          criteria_type: AchievementCriteriaType
+        }
+        Update: Partial<Database['public']['Tables']['achievement_definitions']['Row']>
+        Relationships: []
+      }
+      user_achievements: {
+        Row: {
+          id: number
+          user_id: number
+          achievement_definition_id: number
+          unlocked_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['user_achievements']['Row'], 'id'>> & {
+          user_id: number
+          achievement_definition_id: number
+        }
+        Update: Partial<Database['public']['Tables']['user_achievements']['Row']>
+        Relationships: [
+          {
+            foreignKeyName: 'user_achievements_achievement_definition_id_fkey'
+            columns: ['achievement_definition_id']
+            referencedRelation: 'achievement_definitions'
+            referencedColumns: ['id']
+          }
+        ]
       }
     }
     Views: {

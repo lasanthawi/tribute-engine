@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { adjustTickets, creditPoints, getUserBalance, getPerkBalance, consumePerk } from '@/lib/ledger'
 import { isDemoMode } from '@/lib/demo'
 import { CONFIDENCE_BOOST_MAX_STAKE } from '@/lib/coins'
+import { recordQuestProgress } from '@/lib/quests'
+import { checkAndUnlockAchievements } from '@/lib/achievements'
 
 const MAX_CONFIDENCE_STAKE = 500
 
@@ -27,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { data: round, error: roundErr } = await supabase
       .from('rounds')
-      .select('id, state')
+      .select('id, state, asset')
       .eq('id', roundId)
       .maybeSingle()
     if (roundErr) throw roundErr
@@ -76,6 +78,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (confidence > 0) {
       await creditPoints(userId, -confidence, 'stake', { refRound: roundId })
     }
+
+    await recordQuestProgress(userId, 'vote_count', 1)
+    await recordQuestProgress(userId, 'asset_vote', 1, { asset: round.asset })
+    await checkAndUnlockAchievements(userId, { event: 'vote_cast' })
 
     res.status(201).json({ ok: true })
   } catch (error) {
