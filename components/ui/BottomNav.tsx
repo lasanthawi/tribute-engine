@@ -7,6 +7,7 @@ const TABS = [
   { href: '/leaderboard', icon: '🏆', label: 'League' },
   { href: '/wallet', icon: '🪙', label: 'Wallet' },
   { href: '/invite', icon: '🔗', label: 'Invite' },
+  { href: '/games', icon: '🎮', label: 'Games' },
 ]
 
 export default function BottomNav() {

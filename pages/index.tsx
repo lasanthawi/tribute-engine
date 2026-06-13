@@ -13,7 +13,7 @@ import Logo from '@/components/ui/Logo'
 import HeroPanel, { HeroPanelView } from '@/components/ui/HeroPanel'
 import SentimentWidget from '@/components/ui/SentimentWidget'
 import QuestCard from '@/components/ui/QuestCard'
-import { api, CallDto, MeDto, QuestDto, RoundDto } from '@/lib/api-client'
+import { api, CallDto, GameDto, MeDto, QuestDto, RoundDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 
 const PANEL_IDLE_MS = 3000
@@ -32,6 +32,7 @@ export default function Home() {
   const [assetFilter, setAssetFilter] = useState<AssetFilter>('ALL')
   const [recentCalls, setRecentCalls] = useState<CallDto[] | null>(null)
   const [quests, setQuests] = useState<QuestDto[] | null>(null)
+  const [games, setGames] = useState<GameDto[] | null>(null)
   const panelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refresh = async () => {
@@ -59,9 +60,19 @@ export default function Home() {
     }
   }
 
+  const refreshGames = async () => {
+    try {
+      const data = await api.getGames()
+      setGames(data.games)
+    } catch {
+      setGames([])
+    }
+  }
+
   useEffect(() => {
     refresh()
     refreshQuests()
+    refreshGames()
   }, [])
 
   useEffect(() => {
@@ -284,6 +295,30 @@ export default function Home() {
                 <div key={q.id} className="quest-teaser">
                   <QuestCard quest={q} compact onClaimed={refreshQuests} />
                 </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {games !== null && games.length > 0 && (
+          <>
+            <div className="section-title">
+              🎮 Games
+              <Link href="/games" className="section-title-link">
+                Play →
+              </Link>
+            </div>
+            <div className="scroll-row">
+              {games.map((g) => (
+                <Link key={g.id} href="/games" className="game-teaser">
+                  <span className="game-teaser-icon">{g.icon}</span>
+                  <span className="game-teaser-title">{g.title}</span>
+                  <span className="game-teaser-sub">
+                    {g.remainingPlays > 0
+                      ? `${g.remainingPlays} play${g.remainingPlays === 1 ? '' : 's'} left`
+                      : 'Come back tomorrow'}
+                  </span>
+                </Link>
               ))}
             </div>
           </>

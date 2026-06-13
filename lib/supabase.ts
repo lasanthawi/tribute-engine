@@ -30,7 +30,8 @@ export type LedgerEntryType =
   | 'refund'
   | 'coin_redeem'
   | 'quest_reward'
-export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward' | 'refund' | 'coin_redeem' | 'quest_reward' | 'winback_bonus'
+  | 'minigame_reward'
+export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward' | 'refund' | 'coin_redeem' | 'quest_reward' | 'winback_bonus' | 'minigame_reward'
 export type CoinEntryType =
   | 'purchase'
   | 'referral_bonus'
@@ -39,6 +40,8 @@ export type CoinEntryType =
   | 'redeem_perk'
   | 'refund'
   | 'quest_reward'
+  | 'minigame_reward'
+export type MinigameType = 'tap' | 'spin'
 export type PerkType = 'confidence_boost' | 'streak_freeze'
 export type PerkReason = 'redeem' | 'consume' | 'refund' | 'quest_reward'
 export type QuestType = 'daily' | 'weekly'
@@ -373,6 +376,27 @@ export interface Database {
             referencedColumns: ['id']
           }
         ]
+      }
+      minigame_plays: {
+        Row: {
+          id: number
+          user_id: number
+          game_type: MinigameType
+          played_date: string
+          score: number | null
+          reward_points: number
+          reward_tickets: number
+          reward_coins: number
+          reward_label: string | null
+          created_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['minigame_plays']['Row'], 'id'>> & {
+          user_id: number
+          game_type: MinigameType
+          played_date: string
+        }
+        Update: Partial<Database['public']['Tables']['minigame_plays']['Row']>
+        Relationships: []
       }
     }
     Views: {

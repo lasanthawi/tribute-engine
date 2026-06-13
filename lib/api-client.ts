@@ -140,6 +140,28 @@ export interface AchievementDto {
   target: number | null
 }
 
+export interface GameDto {
+  id: 'tap' | 'spin'
+  title: string
+  description: string
+  icon: string
+  remainingPlays: number
+  maxPlaysPerDay: number
+}
+
+export interface TapPlayResultDto {
+  rewardPoints: number
+  remainingPlays: number
+}
+
+export interface SpinResultDto {
+  segmentIndex: number
+  rewardPoints: number
+  rewardTickets: number
+  rewardCoins: number
+  remainingPlays: number
+}
+
 export interface ProfileDto {
   username: string | null
   totalVotes: number
@@ -188,4 +210,11 @@ export const api = {
       body: JSON.stringify({ questId }),
     }),
   getProfile: () => request<ProfileDto>('/api/profile'),
+  getGames: () => request<{ games: GameDto[] }>('/api/games'),
+  playTapGame: (score: number) =>
+    request<TapPlayResultDto>('/api/games/tap/play', {
+      method: 'POST',
+      body: JSON.stringify({ score }),
+    }),
+  spinWheel: () => request<SpinResultDto>('/api/games/spin', { method: 'POST' }),
 }

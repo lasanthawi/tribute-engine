@@ -1,6 +1,7 @@
 import type {
   CallDto,
   CoinPackageDto,
+  GameDto,
   LeaderboardDto,
   MeDto,
   ProfileDto,
@@ -33,6 +34,29 @@ export function demoMe(): MeDto {
     dailyBonusAmount: 50,
     confidenceBoosts: 1,
     streakFreezes: 0,
+  }
+}
+
+export function demoGames(): { games: GameDto[] } {
+  return {
+    games: [
+      {
+        id: 'tap',
+        title: 'Coin Catcher',
+        description: 'Tap falling BTC/ETH/TON coins for 30 seconds',
+        icon: '🪙',
+        remainingPlays: 2,
+        maxPlaysPerDay: 3,
+      },
+      {
+        id: 'spin',
+        title: 'Daily Spin',
+        description: 'One free spin every day for bonus rewards',
+        icon: '🎡',
+        remainingPlays: 1,
+        maxPlaysPerDay: 1,
+      },
+    ],
   }
 }
 
