@@ -1,5 +1,16 @@
-import type { CallDto, CoinPackageDto, LeaderboardDto, MeDto, ReferralInfoDto, RoundDto } from './api-client'
+import type {
+  CallDto,
+  CoinPackageDto,
+  LeaderboardDto,
+  MeDto,
+  ProfileDto,
+  QuestDto,
+  ReferralInfoDto,
+  RoundDto,
+  SentimentDto,
+} from './api-client'
 import { COIN_PACKAGES } from './coins'
+import { getLeagueProgress } from './league'
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -190,6 +201,155 @@ export function demoLeaderboard(period: 'weekly' | 'season'): LeaderboardDto {
     period,
     leaderboard,
     me: { rank: me.rank, userId: me.userId, username: me.username, points: me.points, isMe: true },
+  }
+}
+
+export function demoSentiment(): SentimentDto {
+  return {
+    fearGreed: { score: 64, label: 'Greed', updatedAt: iso(-2 * HOUR) },
+    headlines: [
+      {
+        id: 'demo-1',
+        title: 'Bitcoin holds above key support as ETF inflows continue',
+        url: 'https://example.com/news/1',
+        source: 'CryptoDaily',
+        sentiment: 'positive',
+        publishedAt: iso(-30 * MIN),
+      },
+      {
+        id: 'demo-2',
+        title: 'Ethereum gas fees spike amid network congestion',
+        url: 'https://example.com/news/2',
+        source: 'CoinDesk',
+        sentiment: 'negative',
+        publishedAt: iso(-90 * MIN),
+      },
+      {
+        id: 'demo-3',
+        title: 'TON ecosystem sees growing developer activity',
+        url: 'https://example.com/news/3',
+        source: 'The Block',
+        sentiment: 'neutral',
+        publishedAt: iso(-3 * HOUR),
+      },
+    ],
+  }
+}
+
+export function demoQuests(): { quests: QuestDto[] } {
+  return {
+    quests: [
+      {
+        id: 1,
+        code: 'daily_vote_3',
+        title: 'Triple Vote',
+        description: 'Cast 3 votes today',
+        type: 'daily',
+        progress: 2,
+        target: 3,
+        rewardType: 'coins',
+        rewardAmount: 10,
+        rewardPerkType: null,
+        rewardType2: null,
+        rewardAmount2: null,
+        rewardPerkType2: null,
+        completed: false,
+        claimed: false,
+      },
+      {
+        id: 2,
+        code: 'daily_correct_1',
+        title: 'Sharp Eye',
+        description: 'Get 1 correct call today',
+        type: 'daily',
+        progress: 1,
+        target: 1,
+        rewardType: 'coins',
+        rewardAmount: 5,
+        rewardPerkType: null,
+        rewardType2: null,
+        rewardAmount2: null,
+        rewardPerkType2: null,
+        completed: true,
+        claimed: false,
+      },
+      {
+        id: 3,
+        code: 'weekly_vote_15',
+        title: 'Vote Machine',
+        description: 'Cast 15 votes this week',
+        type: 'weekly',
+        progress: 9,
+        target: 15,
+        rewardType: 'tickets',
+        rewardAmount: 1,
+        rewardPerkType: null,
+        rewardType2: 'coins',
+        rewardAmount2: 50,
+        rewardPerkType2: null,
+        completed: false,
+        claimed: false,
+      },
+      {
+        id: 4,
+        code: 'weekly_streak',
+        title: 'Hot Streak',
+        description: 'Maintain your streak all week',
+        type: 'weekly',
+        progress: 7,
+        target: 7,
+        rewardType: 'perk',
+        rewardAmount: 1,
+        rewardPerkType: 'confidence_boost',
+        rewardType2: null,
+        rewardAmount2: null,
+        rewardPerkType2: null,
+        completed: true,
+        claimed: true,
+      },
+    ],
+  }
+}
+
+export function demoProfile(): ProfileDto {
+  const points = 2480
+  const progress = getLeagueProgress(points)
+  return {
+    username: 'satoshi_fan',
+    totalVotes: 87,
+    totalCorrect: 52,
+    accuracy: Math.round((52 / 87) * 100),
+    bestStreak: 9,
+    currentStreak: 4,
+    points,
+    league: {
+      current: { name: progress.current.name, icon: progress.current.icon, color: progress.current.color },
+      next: progress.next
+        ? {
+            name: progress.next.name,
+            icon: progress.next.icon,
+            color: progress.next.color,
+            minPoints: progress.next.minPoints,
+          }
+        : null,
+      progress: progress.progress,
+      remaining: progress.remaining,
+    },
+    achievements: [
+      { code: 'first_call', title: 'First Call', description: 'Cast your first vote', icon: '🎯', unlocked: true, unlockedAt: iso(-20 * 24 * HOUR), progress: null, target: null },
+      { code: 'first_win', title: 'First Win', description: 'Get your first correct call', icon: '🏆', unlocked: true, unlockedAt: iso(-19 * 24 * HOUR), progress: null, target: null },
+      { code: 'streak_3', title: 'Warming Up', description: 'Reach a 3-day streak', icon: '🔥', unlocked: true, unlockedAt: iso(-10 * 24 * HOUR), progress: null, target: null },
+      { code: 'streak_7', title: 'On Fire', description: 'Reach a 7-day streak', icon: '🔥', unlocked: false, unlockedAt: null, progress: 4, target: 7 },
+      { code: 'streak_30', title: 'Unstoppable', description: 'Reach a 30-day streak', icon: '🔥', unlocked: false, unlockedAt: null, progress: 4, target: 30 },
+      { code: 'correct_10', title: 'Sharp Shooter', description: 'Get 10 correct calls', icon: '🎯', unlocked: true, unlockedAt: iso(-15 * 24 * HOUR), progress: null, target: null },
+      { code: 'correct_50', title: 'Master Predictor', description: 'Get 50 correct calls', icon: '🧠', unlocked: true, unlockedAt: iso(-2 * 24 * HOUR), progress: null, target: null },
+      { code: 'correct_100', title: 'Oracle', description: 'Get 100 correct calls', icon: '🔮', unlocked: false, unlockedAt: null, progress: 52, target: 100 },
+      { code: 'perfect_day', title: 'Perfect Day', description: 'Get 3+ correct calls in a single day', icon: '⭐', unlocked: true, unlockedAt: iso(-5 * 24 * HOUR), progress: null, target: null },
+      { code: 'league_silver', title: 'Silver League', description: 'Reach the Silver league', icon: '🥈', unlocked: false, unlockedAt: null, progress: points, target: 5000 },
+      { code: 'league_gold', title: 'Gold League', description: 'Reach the Gold league', icon: '🥇', unlocked: false, unlockedAt: null, progress: points, target: 15000 },
+      { code: 'league_platinum', title: 'Platinum League', description: 'Reach the Platinum league', icon: '💎', unlocked: false, unlockedAt: null, progress: points, target: 40000 },
+      { code: 'league_diamond', title: 'Diamond League', description: 'Reach the Diamond league', icon: '💠', unlocked: false, unlockedAt: null, progress: points, target: 100000 },
+    ],
   }
 }
 

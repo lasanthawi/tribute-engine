@@ -1,9 +1,11 @@
 import { supabase, Asset, RoundState, Database } from './supabase'
 import { getReconciledPrice } from './oracle'
-import { creditPoints, adjustTickets } from './ledger'
+import { creditPoints, adjustTickets, getUserBalance } from './ledger'
 import { getStreakMultiplier, updateStreakAfterSettlement } from './streak'
 import { activateReferralIfPending, applyDownlineOverride } from './referral'
 import { sendTelegramMessage } from './telegram'
+import { recordQuestProgress } from './quests'
+import { checkAndUnlockAchievements } from './achievements'
 
 type Round = Database['public']['Tables']['rounds']['Row']
 type Prediction = Database['public']['Tables']['predictions']['Row']
@@ -113,15 +115,16 @@ export async function scheduleUpcomingRounds(now: Date = new Date()): Promise<vo
 }
 
 /** SCHEDULED -> OPEN once open_at has passed. */
-export async function openDueRounds(now: Date = new Date()): Promise<{ opened: number }> {
+export async function openDueRounds(now: Date = new Date()): Promise<{ opened: number; openedMainDaily: Round[] }> {
   const { data, error } = await supabase
     .from('rounds')
     .update({ state: 'OPEN' as RoundState })
     .eq('state', 'SCHEDULED')
     .lte('open_at', now.toISOString())
-    .select('id')
+    .select('*')
   if (error) throw error
-  return { opened: data?.length ?? 0 }
+  const rounds = (data ?? []) as Round[]
+  return { opened: rounds.length, openedMainDaily: rounds.filter((r) => r.kind === 'main_daily') }
 }
 
 /** Refunds confidence stakes + tickets and marks a round VOIDED. Streak is preserved. */
@@ -254,6 +257,26 @@ export async function settleDueRounds(now: Date = new Date()): Promise<{ settled
         .from('predictions')
         .update({ is_correct: correct, points_earned: pointsEarned })
         .eq('id', pred.id)
+
+      if (correct) {
+        await recordQuestProgress(pred.user_id, 'correct_count', 1)
+        await recordQuestProgress(pred.user_id, 'streak_maintain', 1)
+      } else {
+        await recordQuestProgress(pred.user_id, 'streak_maintain', 0, { reset: true })
+      }
+
+      const { data: updatedUser } = await supabase
+        .from('users')
+        .select('streak_count')
+        .eq('id', pred.user_id)
+        .single()
+      const { points } = await getUserBalance(pred.user_id)
+      await checkAndUnlockAchievements(pred.user_id, {
+        event: 'settlement',
+        correct,
+        streakCount: updatedUser?.streak_count ?? 0,
+        points,
+      })
 
       if (user?.telegram_id) {
         await notifyUser(user.telegram_id, settlementMessage(round, pred, correct, outcome, pointsEarned))

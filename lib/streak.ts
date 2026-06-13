@@ -36,7 +36,7 @@ export async function updateStreakAfterSettlement(
 ): Promise<void> {
   const { data: user, error } = await supabase
     .from('users')
-    .select('streak_count, streak_last_day')
+    .select('streak_count, streak_last_day, best_streak')
     .eq('id', userId)
     .single()
   if (error) throw error
@@ -57,6 +57,10 @@ export async function updateStreakAfterSettlement(
   if (user.streak_last_day === today) return // already counted today
 
   const newCount = user.streak_last_day && isYesterday(user.streak_last_day, today) ? user.streak_count + 1 : 1
+  const bestStreak = Math.max(user.best_streak ?? 0, newCount)
 
-  await supabase.from('users').update({ streak_count: newCount, streak_last_day: today }).eq('id', userId)
+  await supabase
+    .from('users')
+    .update({ streak_count: newCount, streak_last_day: today, best_streak: bestStreak })
+    .eq('id', userId)
 }

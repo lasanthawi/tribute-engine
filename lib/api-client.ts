@@ -97,6 +97,66 @@ export interface ReferralInfoDto {
   overrideEarned: number
 }
 
+export interface NewsHeadlineDto {
+  id: string
+  title: string
+  url: string
+  source: string
+  sentiment: 'positive' | 'negative' | 'neutral'
+  publishedAt: string
+}
+
+export interface SentimentDto {
+  fearGreed: { score: number; label: string; updatedAt: string } | null
+  headlines: NewsHeadlineDto[]
+}
+
+export interface QuestDto {
+  id: number
+  code: string
+  title: string
+  description: string
+  type: 'daily' | 'weekly'
+  progress: number
+  target: number
+  rewardType: 'points' | 'coins' | 'tickets' | 'perk'
+  rewardAmount: number
+  rewardPerkType: 'confidence_boost' | 'streak_freeze' | null
+  rewardType2: 'points' | 'coins' | 'tickets' | 'perk' | null
+  rewardAmount2: number | null
+  rewardPerkType2: 'confidence_boost' | 'streak_freeze' | null
+  completed: boolean
+  claimed: boolean
+}
+
+export interface AchievementDto {
+  code: string
+  title: string
+  description: string
+  icon: string
+  unlocked: boolean
+  unlockedAt: string | null
+  progress: number | null
+  target: number | null
+}
+
+export interface ProfileDto {
+  username: string | null
+  totalVotes: number
+  totalCorrect: number
+  accuracy: number
+  bestStreak: number
+  currentStreak: number
+  points: number
+  league: {
+    current: { name: string; icon: string; color: string }
+    next: { name: string; icon: string; color: string; minPoints: number } | null
+    progress: number
+    remaining: number
+  }
+  achievements: AchievementDto[]
+}
+
 export const api = {
   getMe: () => request<MeDto>('/api/me'),
   getOpenRounds: () => request<{ rounds: RoundDto[] }>('/api/rounds/open'),
@@ -120,4 +180,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ option, coins }),
     }),
+  getSentiment: () => request<SentimentDto>('/api/sentiment'),
+  getQuests: () => request<{ quests: QuestDto[] }>('/api/quests'),
+  claimQuest: (questId: number) =>
+    request<{ ok: true }>('/api/quests/claim', {
+      method: 'POST',
+      body: JSON.stringify({ questId }),
+    }),
+  getProfile: () => request<ProfileDto>('/api/profile'),
 }

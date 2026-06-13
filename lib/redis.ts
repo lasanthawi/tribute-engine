@@ -60,3 +60,21 @@ export async function consumeQueue(name: string) {
     return null
   }
 }
+
+export async function cacheGet(key: string): Promise<string | null> {
+  try {
+    const result = await redisRequest(['GET', key])
+    return result?.[0] ?? null
+  } catch (error) {
+    console.error('Cache get error:', error)
+    return null
+  }
+}
+
+export async function cacheSet(key: string, value: string, ttlSeconds: number): Promise<void> {
+  try {
+    await redisRequest(['SET', key, value, 'EX', ttlSeconds.toString()])
+  } catch (error) {
+    console.error('Cache set error:', error)
+  }
+}
