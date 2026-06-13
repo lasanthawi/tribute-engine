@@ -30,7 +30,7 @@ function PendingCountdown({ target }: { target: string }) {
   const seconds = totalSeconds % 60
   const text = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}:${seconds.toString().padStart(2, '0')}`
 
-  return <span className="call-countdown">⏱ {text}</span>
+  return <span className="call-countdown">{text}</span>
 }
 
 function CallCard({ call, referralLink }: { call: CallDto; referralLink: string | null }) {
