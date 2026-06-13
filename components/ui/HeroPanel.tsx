@@ -67,11 +67,6 @@ function CountdownView({ rounds }: { rounds: RoundDto[] | null }) {
 
   return (
     <div className={`hero-countdown ${urgent ? 'urgent' : ''}`}>
-      <div className="hero-countdown-asset">
-        <CoinIcon asset={event.asset} size={16} />
-        <span>{event.asset}</span>
-        <span className="hero-countdown-kind">{event.kind === 'main_daily' ? 'Main' : 'Hourly'}</span>
-      </div>
       <div className="hero-countdown-ring">
         <svg viewBox="0 0 64 64">
           <circle className="ring-track" cx="32" cy="32" r={RADIUS} />
@@ -88,7 +83,12 @@ function CountdownView({ rounds }: { rounds: RoundDto[] | null }) {
           <div className="hero-countdown-value">{formatRingValue(remaining)}</div>
         </div>
       </div>
-      <div className="hero-countdown-label">{event.label}</div>
+      <div className="hero-countdown-label">
+        <CoinIcon asset={event.asset} size={11} />
+        <span className="hero-countdown-asset-name">{event.asset}</span>
+        <span className="hero-countdown-sep">·</span>
+        <span>{event.label}</span>
+      </div>
     </div>
   )
 }
