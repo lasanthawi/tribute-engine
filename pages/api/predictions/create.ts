@@ -6,6 +6,7 @@ import { isDemoMode } from '@/lib/demo'
 import { CONFIDENCE_BOOST_MAX_STAKE } from '@/lib/coins'
 import { recordQuestProgress } from '@/lib/quests'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
+import { sendMilestoneCelebration, sendQuestCompletedCelebration } from '@/lib/marketing'
 
 const MAX_CONFIDENCE_STAKE = 500
 
@@ -79,9 +80,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await creditPoints(userId, -confidence, 'stake', { refRound: roundId })
     }
 
-    await recordQuestProgress(userId, 'vote_count', 1)
-    await recordQuestProgress(userId, 'asset_vote', 1, { asset: round.asset })
-    await checkAndUnlockAchievements(userId, { event: 'vote_cast' })
+    const completedQuests = [
+      ...(await recordQuestProgress(userId, 'vote_count', 1)),
+      ...(await recordQuestProgress(userId, 'asset_vote', 1, { asset: round.asset })),
+    ]
+    const newlyUnlocked = await checkAndUnlockAchievements(userId, { event: 'vote_cast' })
+
+    if (completedQuests.length > 0 || newlyUnlocked.length > 0) {
+      const { data: user } = await supabase.from('users').select('telegram_id').eq('id', userId).single()
+      if (user?.telegram_id) {
+        for (const achievement of newlyUnlocked) {
+          await sendMilestoneCelebration(user.telegram_id, achievement)
+        }
+        for (const quest of completedQuests) {
+          await sendQuestCompletedCelebration(user.telegram_id, quest.title)
+        }
+      }
+    }
 
     res.status(201).json({ ok: true })
   } catch (error) {
