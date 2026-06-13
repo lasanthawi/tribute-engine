@@ -16,7 +16,7 @@ export default function VoteConfirm({
   onDone: () => void
 }) {
   useEffect(() => {
-    const timer = setTimeout(onDone, 1500)
+    const timer = setTimeout(onDone, 1600)
     return () => clearTimeout(timer)
   }, [onDone])
 
@@ -25,8 +25,10 @@ export default function VoteConfirm({
       <div className={`vote-confirm-card ${side === 'UP' ? 'up' : 'down'}`}>
         <div className="vote-confirm-icon">
           <svg viewBox="0 0 52 52">
+            <circle className="vote-confirm-ring-bg" cx="26" cy="26" r="23" />
             <circle className="vote-confirm-ring" cx="26" cy="26" r="23" />
-            <path className="vote-confirm-check" d="M14 27 L22.5 35.5 L39 18" />
+            <circle className="vote-confirm-fill" cx="26" cy="26" r="18" />
+            <path className="vote-confirm-check" d="M15.5 27 L22.5 34 L37.5 18" />
           </svg>
         </div>
         <div className="vote-confirm-title">Vote locked in 🔒</div>

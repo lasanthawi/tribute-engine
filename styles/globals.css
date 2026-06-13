@@ -833,7 +833,11 @@ button {
 }
 
 .round-timer {
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
 }
 
 .round-timer-label {
@@ -1871,13 +1875,13 @@ button {
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   pointer-events: none;
-  animation: vc-backdrop 1.5s ease forwards;
+  animation: vc-backdrop 1.6s ease forwards;
 }
 
 @keyframes vc-backdrop {
   0% { opacity: 0; }
-  12% { opacity: 1; }
-  82% { opacity: 1; }
+  10% { opacity: 1; }
+  85% { opacity: 1; }
   100% { opacity: 0; }
 }
 
@@ -1885,80 +1889,97 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 28px 36px;
+  gap: 12px;
+  padding: 30px 38px;
   border-radius: var(--radius-lg);
   background: var(--bg-card);
   border: 1px solid var(--border);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-  animation: vc-card 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: vc-card 1.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @keyframes vc-card {
-  0% { transform: scale(0.6); opacity: 0; }
-  14% { transform: scale(1.08); opacity: 1; }
-  24% { transform: scale(1); }
-  82% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.94); opacity: 0; }
+  0% { transform: scale(0.7); opacity: 0; }
+  18% { transform: scale(1.06); opacity: 1; }
+  28% { transform: scale(1); }
+  85% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.96); opacity: 0; }
 }
 
 .vote-confirm-icon {
-  width: 64px;
-  height: 64px;
+  width: 68px;
+  height: 68px;
 }
 
 .vote-confirm-icon svg {
-  width: 64px;
-  height: 64px;
-  transform: rotate(-90deg);
+  width: 68px;
+  height: 68px;
   overflow: visible;
 }
 
-.vote-confirm-ring {
+.vote-confirm-ring-bg {
   fill: none;
   stroke: var(--border);
   stroke-width: 3;
 }
 
-.vote-confirm-card.up .vote-confirm-ring,
-.vote-confirm-card.up .vote-confirm-check {
-  stroke: var(--up);
-}
-
-.vote-confirm-card.down .vote-confirm-ring,
-.vote-confirm-card.down .vote-confirm-check {
-  stroke: var(--down);
-}
-
 .vote-confirm-ring {
+  fill: none;
+  stroke-width: 3.5;
+  stroke-linecap: round;
   stroke-dasharray: 144.5;
   stroke-dashoffset: 144.5;
-  animation: vc-ring 0.5s ease-out 0.12s forwards;
+  transform: rotate(-90deg);
+  transform-origin: 26px 26px;
+  animation: vc-ring 0.5s ease-out 0.15s forwards;
 }
 
 @keyframes vc-ring {
   to { stroke-dashoffset: 0; }
 }
 
+.vote-confirm-fill {
+  transform: scale(0);
+  transform-origin: 26px 26px;
+  animation: vc-fill 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.55s forwards;
+}
+
+@keyframes vc-fill {
+  to { transform: scale(1); }
+}
+
 .vote-confirm-check {
   fill: none;
+  stroke: var(--bg-card);
   stroke-width: 4.5;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 34;
   stroke-dashoffset: 34;
-  animation: vc-check 0.35s ease-out 0.55s forwards;
+  animation: vc-check 0.3s ease-out 0.72s forwards;
 }
 
 @keyframes vc-check {
   to { stroke-dashoffset: 0; }
 }
 
+.vote-confirm-card.up .vote-confirm-ring,
+.vote-confirm-card.up .vote-confirm-fill {
+  stroke: var(--up);
+  fill: var(--up);
+}
+
+.vote-confirm-card.down .vote-confirm-ring,
+.vote-confirm-card.down .vote-confirm-fill {
+  stroke: var(--down);
+  fill: var(--down);
+}
+
 .vote-confirm-title {
   font-size: 16px;
   font-weight: 800;
   opacity: 0;
-  animation: vc-text 0.4s ease-out 0.75s forwards;
+  animation: vc-text 0.4s ease-out 0.85s forwards;
 }
 
 .vote-confirm-sub {
@@ -1966,7 +1987,7 @@ button {
   color: var(--text-dim);
   font-weight: 600;
   opacity: 0;
-  animation: vc-text 0.4s ease-out 0.85s forwards;
+  animation: vc-text 0.4s ease-out 0.95s forwards;
 }
 
 @keyframes vc-text {
