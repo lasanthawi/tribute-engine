@@ -72,19 +72,21 @@ function CountdownView({ rounds }: { rounds: RoundDto[] | null }) {
         <span>{event.asset}</span>
         <span className="hero-countdown-kind">{event.kind === 'main_daily' ? 'Main' : 'Hourly'}</span>
       </div>
-      <svg viewBox="0 0 64 64">
-        <circle className="ring-track" cx="32" cy="32" r={RADIUS} />
-        <circle
-          className="ring-fill"
-          cx="32"
-          cy="32"
-          r={RADIUS}
-          strokeDasharray={CIRCUMFERENCE}
-          strokeDashoffset={CIRCUMFERENCE * (1 - progress)}
-        />
-      </svg>
-      <div className="hero-countdown-center">
-        <div className="hero-countdown-value">{formatRingValue(remaining)}</div>
+      <div className="hero-countdown-ring">
+        <svg viewBox="0 0 64 64">
+          <circle className="ring-track" cx="32" cy="32" r={RADIUS} />
+          <circle
+            className="ring-fill"
+            cx="32"
+            cy="32"
+            r={RADIUS}
+            strokeDasharray={CIRCUMFERENCE}
+            strokeDashoffset={CIRCUMFERENCE * (1 - progress)}
+          />
+        </svg>
+        <div className="hero-countdown-center">
+          <div className="hero-countdown-value">{formatRingValue(remaining)}</div>
+        </div>
       </div>
       <div className="hero-countdown-label">{event.label}</div>
     </div>
