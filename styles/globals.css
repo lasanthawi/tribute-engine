@@ -617,18 +617,24 @@ button {
   gap: 4px;
 }
 
-.hero-countdown svg {
+.hero-countdown-ring {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.hero-countdown-ring svg {
   width: 64px;
   height: 64px;
   transform: rotate(-90deg);
   overflow: visible;
 }
 
-.hero-countdown .ring-track {
+.hero-countdown-ring .ring-track {
   stroke-width: 5;
 }
 
-.hero-countdown .ring-fill {
+.hero-countdown-ring .ring-fill {
   stroke-width: 5;
   stroke: var(--accent);
 }
@@ -643,10 +649,7 @@ button {
 
 .hero-countdown-center {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 64px;
-  height: 64px;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
