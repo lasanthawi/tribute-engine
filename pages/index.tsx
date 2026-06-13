@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import BottomNav from '@/components/ui/BottomNav'
 import AssetCard from '@/components/ui/AssetCard'
 import CoinIcon from '@/components/ui/CoinIcon'
@@ -21,6 +22,7 @@ const ASSETS = ['BTC', 'ETH', 'TON'] as const
 type AssetFilter = 'ALL' | (typeof ASSETS)[number]
 
 export default function Home() {
+  const router = useRouter()
   const [me, setMe] = useState<MeDto | null>(null)
   const [rounds, setRounds] = useState<RoundDto[] | null>(null)
   const [modal, setModal] = useState<{ round: RoundDto; side: 'UP' | 'DOWN' } | null>(null)
@@ -33,6 +35,7 @@ export default function Home() {
   const [recentCalls, setRecentCalls] = useState<CallDto[] | null>(null)
   const [quests, setQuests] = useState<QuestDto[] | null>(null)
   const [games, setGames] = useState<GameDto[] | null>(null)
+  const [gomokuChallengeCode, setGomokuChallengeCode] = useState<string | null>(null)
   const panelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refresh = async () => {
@@ -74,6 +77,16 @@ export default function Home() {
     refreshQuests()
     refreshGames()
   }, [])
+
+  useEffect(() => {
+    const code =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('gomoku')?.trim().toUpperCase() ?? ''
+        : typeof router.query.gomoku === 'string'
+        ? router.query.gomoku.trim().toUpperCase()
+        : ''
+    setGomokuChallengeCode(code || null)
+  }, [router.asPath, router.query.gomoku])
 
   useEffect(() => {
     if (me?.dailyBonusAwarded) {
@@ -162,6 +175,17 @@ export default function Home() {
             <span className="daily-bonus-icon">🎁</span>
             <span>Daily login bonus — <b>+{dailyBonus} pts</b></span>
           </div>
+        )}
+
+        {gomokuChallengeCode && (
+          <Link href={`/games?gomoku=${encodeURIComponent(gomokuChallengeCode)}`} className="gomoku-home-alert">
+            <span className="gomoku-home-alert-badge">GX</span>
+            <span className="gomoku-home-alert-text">
+              <span className="gomoku-home-alert-title">Live Gomoku challenge</span>
+              <span className="gomoku-home-alert-sub">Room {gomokuChallengeCode} is waiting. Tap to join.</span>
+            </span>
+            <span className="gomoku-home-alert-action">Join</span>
+          </Link>
         )}
 
         <div className="hero">
@@ -314,7 +338,9 @@ export default function Home() {
                   <span className="game-teaser-icon">{g.icon}</span>
                   <span className="game-teaser-title">{g.title}</span>
                   <span className="game-teaser-sub">
-                    {g.remainingPlays > 0
+                    {g.id === 'gomoku'
+                      ? 'AI + live rooms'
+                      : g.remainingPlays > 0
                       ? `${g.remainingPlays} play${g.remainingPlays === 1 ? '' : 's'} left`
                       : 'Come back tomorrow'}
                   </span>

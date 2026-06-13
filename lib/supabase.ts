@@ -42,6 +42,8 @@ export type CoinEntryType =
   | 'quest_reward'
   | 'minigame_reward'
 export type MinigameType = 'tap' | 'spin'
+export type GomokuMark = 'X' | 'O'
+export type GomokuStatus = 'waiting' | 'active' | 'settled' | 'cancelled'
 export type PerkType = 'confidence_boost' | 'streak_freeze'
 export type PerkReason = 'redeem' | 'consume' | 'refund' | 'quest_reward'
 export type QuestType = 'daily' | 'weekly'
@@ -396,6 +398,52 @@ export interface Database {
           played_date: string
         }
         Update: Partial<Database['public']['Tables']['minigame_plays']['Row']>
+        Relationships: []
+      }
+      gomoku_matches: {
+        Row: {
+          id: number
+          share_code: string
+          status: GomokuStatus
+          creator_id: number
+          opponent_id: number | null
+          x_user_id: number
+          o_user_id: number | null
+          current_turn: GomokuMark
+          winner_mark: GomokuMark | 'draw' | null
+          winning_cells: Array<[number, number]>
+          created_at: string
+          updated_at: string
+          completed_at: string | null
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['gomoku_matches']['Row'], 'id'>> & {
+          share_code: string
+          creator_id: number
+          x_user_id: number
+        }
+        Update: Partial<Database['public']['Tables']['gomoku_matches']['Row']>
+        Relationships: []
+      }
+      gomoku_moves: {
+        Row: {
+          id: number
+          match_id: number
+          user_id: number
+          mark: GomokuMark
+          row_index: number
+          col_index: number
+          move_number: number
+          created_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['gomoku_moves']['Row'], 'id'>> & {
+          match_id: number
+          user_id: number
+          mark: GomokuMark
+          row_index: number
+          col_index: number
+          move_number: number
+        }
+        Update: Partial<Database['public']['Tables']['gomoku_moves']['Row']>
         Relationships: []
       }
     }

@@ -140,8 +140,10 @@ export interface AchievementDto {
   target: number | null
 }
 
+export type GameId = 'tap' | 'spin' | 'gomoku'
+
 export interface GameDto {
-  id: 'tap' | 'spin'
+  id: GameId
   title: string
   description: string
   icon: string
@@ -160,6 +162,25 @@ export interface SpinResultDto {
   rewardTickets: number
   rewardCoins: number
   remainingPlays: number
+}
+
+export type GomokuMarkDto = 'X' | 'O'
+export type GomokuStatusDto = 'waiting' | 'active' | 'settled' | 'cancelled'
+
+export interface GomokuMatchDto {
+  id: number
+  shareCode: string
+  status: GomokuStatusDto
+  board: Array<Array<GomokuMarkDto | null>>
+  currentTurn: GomokuMarkDto
+  myMark: GomokuMarkDto | null
+  winnerMark: GomokuMarkDto | 'draw' | null
+  winningCells: Array<[number, number]>
+  moveCount: number
+  players: {
+    X: { id: number; label: string } | null
+    O: { id: number; label: string } | null
+  }
 }
 
 export interface ProfileDto {
@@ -217,4 +238,18 @@ export const api = {
       body: JSON.stringify({ score }),
     }),
   spinWheel: () => request<SpinResultDto>('/api/games/spin', { method: 'POST' }),
+  createGomokuMatch: () =>
+    request<{ match: GomokuMatchDto }>('/api/games/gomoku/create', { method: 'POST' }),
+  joinGomokuMatch: (shareCode: string) =>
+    request<{ match: GomokuMatchDto }>('/api/games/gomoku/join', {
+      method: 'POST',
+      body: JSON.stringify({ shareCode }),
+    }),
+  getGomokuMatch: (matchId: number) =>
+    request<{ match: GomokuMatchDto }>(`/api/games/gomoku/match?id=${matchId}`),
+  playGomokuMove: (matchId: number, row: number, col: number) =>
+    request<{ match: GomokuMatchDto }>('/api/games/gomoku/move', {
+      method: 'POST',
+      body: JSON.stringify({ matchId, row, col }),
+    }),
 }

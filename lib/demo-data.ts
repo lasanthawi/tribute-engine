@@ -56,6 +56,14 @@ export function demoGames(): { games: GameDto[] } {
         remainingPlays: 1,
         maxPlaysPerDay: 1,
       },
+      {
+        id: 'gomoku',
+        title: 'Gomoku Blitz',
+        description: '8x8 connect-5 vs computer or a live remote player',
+        icon: 'GX',
+        remainingPlays: 1,
+        maxPlaysPerDay: 1,
+      },
     ],
   }
 }

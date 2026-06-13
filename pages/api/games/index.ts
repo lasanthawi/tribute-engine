@@ -36,6 +36,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         remainingPlays: spinRemaining,
         maxPlaysPerDay: SPIN_WHEEL_MAX_PLAYS_PER_DAY,
       },
+      {
+        id: 'gomoku',
+        title: 'Gomoku Blitz',
+        description: '8x8 connect-5 vs computer or a live remote player',
+        icon: 'GX',
+        remainingPlays: 1,
+        maxPlaysPerDay: 1,
+      },
     ]
 
     res.status(200).json({ games })

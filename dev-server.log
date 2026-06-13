@@ -1,0 +1,229 @@
+yarn run v1.22.22
+warning package.json: No license field
+$ next dev
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 3.1s
+ ○ Compiling /_error ...
+ ✓ Compiled /games in 17.1s (361 modules)
+ GET /_next/static/webpack/d445cd14686db1c5.webpack.hot-update.json 404 in 17470ms
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /games?gomoku=ABCD12 200 in 17339ms
+ GET /games?gomoku=ABCD12 200 in 29ms
+ ○ Compiling / ...
+ ✓ Compiled / in 923ms (389 modules)
+ GET /?gomoku=ABCD12 200 in 1088ms
+ GET /?gomoku=ABCD12 200 in 44ms
+ GET /?gomoku=ABCD12 200 in 62ms
+ GET /games?gomoku=ABCD12 200 in 90ms
+ ✓ Compiled in 1213ms (387 modules)
+ GET /?gomoku=ABCD12 200 in 305ms
+ ✓ Compiled in 1481ms (375 modules)
+ GET /?gomoku=ABCD12 200 in 195ms
+ ○ Compiling /games ...
+ ✓ Compiled /games in 1252ms (387 modules)
+ GET /games?gomoku=ABCD12 200 in 1418ms
+ GET /games?gomoku=ABCD12 200 in 100ms
+ ○ Compiling /api/games ...
+ ✓ Compiled /api/games in 8s (171 modules)
+ GET /api/games 304 in 11156ms
+ ○ Compiling /api/games/gomoku/create ...
+ ✓ Compiled / in 4.6s (418 modules)
+ POST /api/games/gomoku/create 400 in 4701ms
+ GET /?gomoku=ABCD12 200 in 4224ms
+ ○ Compiling /api/rounds/open ...
+ ✓ Compiled /api/rounds/open in 1236ms (180 modules)
+ ✓ Compiled (188 modules)
+ GET /api/quests 304 in 5491ms
+ GET /api/me 304 in 5500ms
+ GET /api/games 304 in 5490ms
+ GET /api/sentiment 200 in 5502ms
+ GET /api/rounds/open 200 in 5499ms
+ ○ Compiling /api/me/calls ...
+ ✓ Compiled /api/me/calls in 1716ms (190 modules)
+ GET /api/me/calls 200 in 1853ms
+ GET /api/games 304 in 17ms
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\pages\api\sentiment.js'
+    at Object.readFileSync (node:fs:439:20)
+    at defaultLoadImpl (node:internal/modules/cjs/loader:1141:17)
+    at loadSource (node:internal/modules/cjs/loader:1831:20)
+    at Object..js (node:internal/modules/cjs/loader:1929:44)
+    at Module.load (node:internal/modules/cjs/loader:1525:32)
+    at Module._load (node:internal/modules/cjs/loader:1327:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1548:12)
+    at mod.require (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at NodeModuleLoader.load (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\node-module-loader.js:15:84)
+    at RouteModuleLoader.load (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\route-module-loader.js:14:37)
+    at DevServer.runApi (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js:595:67)
+    at DevServer.handleApiRequest (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js:771:21) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\.next\\server\\pages\\api\\sentiment.js'
+}
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\pages\api\rounds\open.js'
+    at Object.readFileSync (node:fs:439:20)
+    at defaultLoadImpl (node:internal/modules/cjs/loader:1141:17)
+    at loadSource (node:internal/modules/cjs/loader:1831:20)
+    at Object..js (node:internal/modules/cjs/loader:1929:44)
+    at Module.load (node:internal/modules/cjs/loader:1525:32)
+    at Module._load (node:internal/modules/cjs/loader:1327:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1548:12)
+    at mod.require (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at NodeModuleLoader.load (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\node-module-loader.js:15:84)
+    at RouteModuleLoader.load (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\route-module-loader.js:14:37)
+    at DevServer.runApi (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js:595:67)
+    at DevServer.handleApiRequest (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js:771:21) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\.next\\server\\pages\\api\\rounds\\open.js'
+}
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\pages\api\quests.js'
+    at Object.readFileSync (node:fs:439:20)
+    at defaultLoadImpl (node:internal/modules/cjs/loader:1141:17)
+    at loadSource (node:internal/modules/cjs/loader:1831:20)
+    at Object..js (node:internal/modules/cjs/loader:1929:44)
+    at Module.load (node:internal/modules/cjs/loader:1525:32)
+    at Module._load (node:internal/modules/cjs/loader:1327:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1548:12)
+    at mod.require (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at NodeModuleLoader.load (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\node-module-loader.js:15:84)
+    at RouteModuleLoader.load (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\route-module-loader.js:14:37)
+    at DevServer.runApi (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js:595:67)
+    at DevServer.handleApiRequest (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js:771:21) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\.next\\server\\pages\\api\\quests.js'
+}
+ GET /api/games 304 in 262ms
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\pages\api\me.js'
+    at Object.readFileSync (node:fs:439:20)
+    at defaultLoadImpl (node:internal/modules/cjs/loader:1141:17)
+    at loadSource (node:internal/modules/cjs/loader:1831:20)
+    at Object..js (node:internal/modules/cjs/loader:1929:44)
+    at Module.load (node:internal/modules/cjs/loader:1525:32)
+    at Module._load (node:internal/modules/cjs/loader:1327:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1548:12)
+    at mod.require (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at NodeModuleLoader.load (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\node-module-loader.js:15:84)
+    at RouteModuleLoader.load (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\route-module-loader.js:14:37)
+    at DevServer.runApi (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js:595:67)
+    at DevServer.handleApiRequest (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js:771:21) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\.next\\server\\pages\\api\\me.js'
+}
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 3.7s (429 modules)
+ GET /api/sentiment 500 in 4767ms
+ GET /api/rounds/open 500 in 4739ms
+ GET /api/quests 500 in 4734ms
+ GET /api/me 500 in 4715ms
+ ✓ Compiled /api/me/calls in 433ms (187 modules)
+ GET /api/me/calls 200 in 692ms
+ ○ Compiling /calls ...
+ ✓ Compiled /calls in 2.5s (437 modules)
+ ✓ Compiled /api/referral/info in 464ms (192 modules)
+ ⨯ Error: Cannot find module './chunks/vendor-chunks/next.js'
+Require stack:
+- C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\webpack-api-runtime.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\pages\api\me\calls.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\node-module-loader.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\route-module-loader.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\dev\next-dev-server.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\lib\start-server.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1448:15)
+    at C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1234:25)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1548:12)
+    at mod.require (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at o.f.require (C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\webpack-api-runtime.js:1:1888)
+    at C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\webpack-api-runtime.js:1:1361
+    at Array.reduce (<anonymous>)
+    at o.e (C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\webpack-api-runtime.js:1:1340)
+    at Array.map (<anonymous>) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\.next\\server\\webpack-api-runtime.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\.next\\server\\pages\\api\\me\\calls.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\future\\helpers\\module-loader\\node-module-loader.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\future\\helpers\\module-loader\\route-module-loader.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\next-server.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\dev\\next-dev-server.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\next.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\lib\\start-server.js'
+  ]
+}
+ GET /api/me/calls 200 in 751ms
+ GET /api/referral/info 500 in 837ms
+ ○ Compiling /wallet ...
+ ✓ Compiled /wallet in 2.8s (445 modules)
+ GET /api/me 200 in 32ms
+ ○ Compiling /api/coins/packages ...
+ ✓ Compiled /api/coins/packages in 926ms (197 modules)
+ ⨯ Error: Cannot find module './chunks/vendor-chunks/next.js'
+Require stack:
+- C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\webpack-api-runtime.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\pages\api\coins\packages.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\node-module-loader.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\future\helpers\module-loader\route-module-loader.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next-server.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\dev\next-dev-server.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\next.js
+- C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\lib\start-server.js
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1448:15)
+    at C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1059:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1064:22)
+    at Module._load (node:internal/modules/cjs/loader:1234:25)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1548:12)
+    at mod.require (C:\Users\deepa\Documents\GitHub\tribute-engine\node_modules\next\dist\server\require-hook.js:65:28)
+    at require (node:internal/modules/helpers:152:16)
+    at o.f.require (C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\webpack-api-runtime.js:1:1888)
+    at C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\webpack-api-runtime.js:1:1361
+    at Array.reduce (<anonymous>)
+    at o.e (C:\Users\deepa\Documents\GitHub\tribute-engine\.next\server\webpack-api-runtime.js:1:1340)
+    at Array.map (<anonymous>) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\.next\\server\\webpack-api-runtime.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\.next\\server\\pages\\api\\coins\\packages.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\future\\helpers\\module-loader\\node-module-loader.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\future\\helpers\\module-loader\\route-module-loader.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\next-server.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\dev\\next-dev-server.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\next.js',
+    'C:\\Users\\deepa\\Documents\\GitHub\\tribute-engine\\node_modules\\next\\dist\\server\\lib\\start-server.js'
+  ]
+}
+ GET /api/coins/packages 500 in 1018ms
+ GET /api/games 304 in 38ms
+error Command failed with exit code 4294967295.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.
+[?25h

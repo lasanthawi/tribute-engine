@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 import BottomNav from '@/components/ui/BottomNav'
 import TapGame from '@/components/minigames/TapGame'
 import SpinWheel from '@/components/minigames/SpinWheel'
-import { api, GameDto, TapPlayResultDto, SpinResultDto } from '@/lib/api-client'
+import GomokuGame from '@/components/minigames/GomokuGame'
+import { api, GameDto, GameId, TapPlayResultDto, SpinResultDto } from '@/lib/api-client'
 
 export default function Games() {
+  const router = useRouter()
   const [games, setGames] = useState<GameDto[] | null>(null)
-  const [activeGame, setActiveGame] = useState<'tap' | 'spin' | null>(null)
+  const [activeGame, setActiveGame] = useState<GameId | null>(null)
+  const [gomokuJoinCode, setGomokuJoinCode] = useState<string | undefined>()
 
   const refresh = async () => {
     try {
@@ -21,6 +25,18 @@ export default function Games() {
   useEffect(() => {
     refresh()
   }, [])
+
+  useEffect(() => {
+    const code =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('gomoku')?.trim().toUpperCase() ?? ''
+        : typeof router.query.gomoku === 'string'
+        ? router.query.gomoku.trim().toUpperCase()
+        : ''
+    if (!code) return
+    setGomokuJoinCode(code)
+    setActiveGame('gomoku')
+  }, [router.asPath, router.query.gomoku])
 
   const spinGame = (games ?? []).find((g) => g.id === 'spin')
 
@@ -63,13 +79,15 @@ export default function Games() {
               </div>
               <div className="game-card-footer">
                 <span className="game-card-plays">
-                  {g.remainingPlays > 0
+                  {g.id === 'gomoku'
+                    ? 'Computer + live remote rooms'
+                    : g.remainingPlays > 0
                     ? `${g.remainingPlays}/${g.maxPlaysPerDay} plays left today`
                     : 'Come back tomorrow'}
                 </span>
                 <button
                   className="game-play-btn"
-                  disabled={g.remainingPlays <= 0}
+                  disabled={g.id !== 'gomoku' && g.remainingPlays <= 0}
                   onClick={() => setActiveGame(g.id)}
                 >
                   Play
@@ -98,6 +116,16 @@ export default function Games() {
             </button>
           </div>
         </div>
+      )}
+
+      {activeGame === 'gomoku' && (
+        <GomokuGame
+          initialJoinCode={gomokuJoinCode}
+          onClose={() => {
+            setActiveGame(null)
+            setGomokuJoinCode(undefined)
+          }}
+        />
       )}
 
       <BottomNav />
