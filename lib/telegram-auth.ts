@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { supabase } from './supabase'
 import { adjustTickets, FREE_TICKETS_PER_DAY } from './ledger'
+import { createPendingReferral } from './referral'
 
 export interface TelegramWebAppUser {
   id: number
@@ -9,11 +10,17 @@ export interface TelegramWebAppUser {
   last_name?: string
 }
 
+export interface VerifiedInitData {
+  user: TelegramWebAppUser
+  /** The `ref_<telegramId>` payload, if the Mini App was launched via a referral link. */
+  startParam?: string
+}
+
 /**
  * Validates Telegram Mini App `initData` per
  * https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
  */
-export function verifyInitData(initData: string, botToken: string): TelegramWebAppUser | null {
+export function verifyInitData(initData: string, botToken: string): VerifiedInitData | null {
   try {
     const params = new URLSearchParams(initData)
     const hash = params.get('hash')
@@ -32,7 +39,7 @@ export function verifyInitData(initData: string, botToken: string): TelegramWebA
 
     const userJson = params.get('user')
     if (!userJson) return null
-    return JSON.parse(userJson) as TelegramWebAppUser
+    return { user: JSON.parse(userJson) as TelegramWebAppUser, startParam: params.get('start_param') ?? undefined }
   } catch (error) {
     console.error('initData verification failed:', error)
     return null
@@ -40,7 +47,7 @@ export function verifyInitData(initData: string, botToken: string): TelegramWebA
 }
 
 /** Looks up the internal user row for a Telegram user, creating it if needed. */
-export async function getOrCreateUser(tgUser: TelegramWebAppUser): Promise<{ id: number }> {
+export async function getOrCreateUser(tgUser: TelegramWebAppUser, startParam?: string): Promise<{ id: number }> {
   const { data: existing } = await supabase
     .from('users')
     .select('id')
@@ -67,6 +74,14 @@ export async function getOrCreateUser(tgUser: TelegramWebAppUser): Promise<{ id:
   if (error) throw error
 
   await adjustTickets(created.id, FREE_TICKETS_PER_DAY, 'daily_grant')
+
+  if (startParam?.startsWith('ref_')) {
+    const referrerTelegramId = Number(startParam.slice(4))
+    if (!Number.isNaN(referrerTelegramId)) {
+      await createPendingReferral(created.id, referrerTelegramId)
+    }
+  }
+
   return created
 }
 
@@ -78,9 +93,9 @@ export async function authenticateRequest(initData: string | undefined): Promise
   const botToken = process.env.TELEGRAM_BOT_TOKEN
   if (!initData || !botToken) return null
 
-  const tgUser = verifyInitData(initData, botToken)
-  if (!tgUser) return null
+  const verified = verifyInitData(initData, botToken)
+  if (!verified) return null
 
-  const user = await getOrCreateUser(tgUser)
+  const user = await getOrCreateUser(verified.user, verified.startParam)
   return user.id
 }
