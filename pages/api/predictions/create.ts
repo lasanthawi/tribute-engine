@@ -1,8 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { supabase } from '@/lib/supabase'
-import { adjustTickets, creditPoints, getUserBalance } from '@/lib/ledger'
+import { adjustTickets, creditPoints, getUserBalance, getPerkBalance, consumePerk } from '@/lib/ledger'
 import { isDemoMode } from '@/lib/demo'
+import { CONFIDENCE_BOOST_MAX_STAKE } from '@/lib/coins'
 
 const MAX_CONFIDENCE_STAKE = 500
 
@@ -14,8 +15,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (typeof roundId !== 'number' || (side !== 'UP' && side !== 'DOWN')) {
     return res.status(400).json({ error: 'Invalid request' })
   }
-  if (typeof confidence !== 'number' || confidence < 0 || confidence > MAX_CONFIDENCE_STAKE) {
-    return res.status(400).json({ error: `Confidence must be between 0 and ${MAX_CONFIDENCE_STAKE}` })
+  if (typeof confidence !== 'number' || confidence < 0 || confidence > CONFIDENCE_BOOST_MAX_STAKE) {
+    return res.status(400).json({ error: `Confidence must be between 0 and ${CONFIDENCE_BOOST_MAX_STAKE}` })
   }
 
   if (isDemoMode()) return res.status(201).json({ ok: true })
@@ -46,6 +47,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (balance.tickets < 1) return res.status(400).json({ error: 'No tickets remaining' })
     if (confidence > balance.points) return res.status(400).json({ error: 'Not enough points to stake' })
 
+    let usedConfidenceBoost = false
+    if (confidence > MAX_CONFIDENCE_STAKE) {
+      const boosts = await getPerkBalance(userId, 'confidence_boost')
+      if (boosts <= 0) {
+        return res.status(400).json({ error: `Confidence must be between 0 and ${MAX_CONFIDENCE_STAKE} (use a confidence boost to stake more)` })
+      }
+      usedConfidenceBoost = true
+    }
+
     const { error: insertErr } = await supabase.from('predictions').insert({
       round_id: roundId,
       user_id: userId,
@@ -59,6 +69,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw insertErr
     }
 
+    if (usedConfidenceBoost) {
+      await consumePerk(userId, 'confidence_boost', roundId)
+    }
     await adjustTickets(userId, -1, 'prediction')
     if (confidence > 0) {
       await creditPoints(userId, -confidence, 'stake', { refRound: roundId })

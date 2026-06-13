@@ -1,8 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
+import { sendTelegramMessage, answerPreCheckoutQuery, TelegramUpdate } from '@/lib/telegram'
 import { supabase } from '@/lib/supabase'
-import { adjustTickets, FREE_TICKETS_PER_DAY } from '@/lib/ledger'
+import { adjustTickets, creditCoins, FREE_TICKETS_PER_DAY } from '@/lib/ledger'
 import { createPendingReferral } from '@/lib/referral'
+import { COIN_PACKAGES } from '@/lib/coins'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const MINI_APP_URL = process.env.MINI_APP_URL || ''
@@ -34,12 +35,48 @@ async function upsertUser(telegramId: number, username?: string): Promise<{ id: 
 }
 
 
+async function handleSuccessfulPayment(payment: { invoice_payload: string; total_amount: number; telegram_payment_charge_id: string }) {
+  const [prefix, userIdStr, packageId] = payment.invoice_payload.split(':')
+  if (prefix !== 'coins') return
+
+  const pkg = COIN_PACKAGES.find((p) => p.id === packageId)
+  const userId = Number(userIdStr)
+  if (!pkg || Number.isNaN(userId)) return
+
+  const { error } = await supabase.from('coin_purchases').insert({
+    user_id: userId,
+    telegram_charge_id: payment.telegram_payment_charge_id,
+    stars_amount: payment.total_amount,
+    coins_amount: pkg.coins,
+  })
+  if (error) {
+    if (error.code === '23505') return // already processed this charge
+    throw error
+  }
+
+  await creditCoins(userId, pkg.coins, 'purchase')
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(200).json({ ok: true })
 
   try {
     const update: TelegramUpdate = req.body
     const message = update.message
+
+    if (update.pre_checkout_query) {
+      const query = update.pre_checkout_query
+      const [prefix, userId, packageId] = query.invoice_payload.split(':')
+      const valid = prefix === 'coins' && !Number.isNaN(Number(userId)) && COIN_PACKAGES.some((p) => p.id === packageId)
+      await answerPreCheckoutQuery(BOT_TOKEN, query.id, valid, valid ? undefined : 'Invalid order')
+      return res.status(200).json({ ok: true })
+    }
+
+    if (message?.successful_payment) {
+      await handleSuccessfulPayment(message.successful_payment)
+      return res.status(200).json({ ok: true })
+    }
+
     if (!message?.text || !message.from) return res.status(200).json({ ok: true })
 
     if (message.text.startsWith('/start')) {

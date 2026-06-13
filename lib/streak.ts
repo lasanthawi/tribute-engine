@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { consumePerk } from './ledger'
 
 const MAX_MULTIPLIER = 2.0
 const MULTIPLIER_STEP = 0.1
@@ -43,9 +44,13 @@ export async function updateStreakAfterSettlement(
   const today = toUtcDateString(now)
 
   if (!correct) {
-    if (user.streak_count !== 0 || user.streak_last_day !== null) {
-      await supabase.from('users').update({ streak_count: 0, streak_last_day: null }).eq('id', userId)
-    }
+    if (user.streak_count === 0 && user.streak_last_day === null) return
+
+    // A streak-freeze perk protects an existing streak from this one miss.
+    const frozen = user.streak_count > 0 && (await consumePerk(userId, 'streak_freeze'))
+    if (frozen) return
+
+    await supabase.from('users').update({ streak_count: 0, streak_last_day: null }).eq('id', userId)
     return
   }
 

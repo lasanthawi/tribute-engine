@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { haptic } from '@/lib/telegram-webapp'
 
 export interface TabDef {
@@ -18,7 +19,7 @@ export default function Tabs({
   const idx = Math.max(0, tabs.findIndex((t) => t.key === active))
 
   return (
-    <div className="tab-row">
+    <div className="tab-row" style={{ '--tab-count': tabs.length } as CSSProperties}>
       <div
         className="tab-indicator"
         style={{
