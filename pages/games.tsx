@@ -3,11 +3,12 @@ import Head from 'next/head'
 import BottomNav from '@/components/ui/BottomNav'
 import TapGame from '@/components/minigames/TapGame'
 import SpinWheel from '@/components/minigames/SpinWheel'
-import { api, GameDto, TapPlayResultDto, SpinResultDto } from '@/lib/api-client'
+import { api, GameDto, PlayResultDto } from '@/lib/api-client'
+import { TapCatchConfig, SpinWheelConfig } from '@/lib/game-templates'
 
 export default function Games() {
   const [games, setGames] = useState<GameDto[] | null>(null)
-  const [activeGame, setActiveGame] = useState<'tap' | 'spin' | null>(null)
+  const [activeSlug, setActiveSlug] = useState<string | null>(null)
 
   const refresh = async () => {
     try {
@@ -22,13 +23,9 @@ export default function Games() {
     refresh()
   }, [])
 
-  const spinGame = (games ?? []).find((g) => g.id === 'spin')
+  const activeGame = (games ?? []).find((g) => g.slug === activeSlug)
 
-  const handleTapComplete = (_result: TapPlayResultDto) => {
-    refresh()
-  }
-
-  const handleSpinComplete = (_result: SpinResultDto) => {
+  const handleComplete = (_result: PlayResultDto) => {
     refresh()
   }
 
@@ -53,7 +50,12 @@ export default function Games() {
 
         {games !== null &&
           games.map((g) => (
-            <div key={g.id} className="game-card">
+            <div key={g.slug} className="game-card">
+              {g.coverImageUrl && (
+                <div className="game-card-cover">
+                  <img src={g.coverImageUrl} alt={g.title} />
+                </div>
+              )}
               <div className="game-card-head">
                 <span className="game-card-icon">{g.icon}</span>
                 <div>
@@ -70,7 +72,7 @@ export default function Games() {
                 <button
                   className="game-play-btn"
                   disabled={g.remainingPlays <= 0}
-                  onClick={() => setActiveGame(g.id)}
+                  onClick={() => setActiveSlug(g.slug)}
                 >
                   Play
                 </button>
@@ -83,17 +85,28 @@ export default function Games() {
         )}
       </div>
 
-      {activeGame === 'tap' && (
-        <TapGame onComplete={handleTapComplete} onClose={() => setActiveGame(null)} />
+      {activeGame && activeGame.template === 'tap_catch' && (
+        <TapGame
+          slug={activeGame.slug}
+          title={`${activeGame.icon} ${activeGame.title}`}
+          config={activeGame.config as TapCatchConfig}
+          onComplete={handleComplete}
+          onClose={() => setActiveSlug(null)}
+        />
       )}
 
-      {activeGame === 'spin' && (
-        <div className="sheet-backdrop" onClick={() => setActiveGame(null)}>
+      {activeGame && activeGame.template === 'spin_wheel' && (
+        <div className="sheet-backdrop" onClick={() => setActiveSlug(null)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-handle" />
-            <h3 className="sheet-title">🎡 Daily Spin</h3>
-            <SpinWheel remainingPlays={spinGame?.remainingPlays ?? 0} onComplete={handleSpinComplete} />
-            <button className="btn-primary" style={{ marginTop: 16 }} onClick={() => setActiveGame(null)}>
+            <h3 className="sheet-title">{activeGame.icon} {activeGame.title}</h3>
+            <SpinWheel
+              slug={activeGame.slug}
+              config={activeGame.config as SpinWheelConfig}
+              remainingPlays={activeGame.remainingPlays}
+              onComplete={handleComplete}
+            />
+            <button className="btn-primary" style={{ marginTop: 16 }} onClick={() => setActiveSlug(null)}>
               Close
             </button>
           </div>

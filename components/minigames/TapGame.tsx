@@ -1,33 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, TapPlayResultDto } from '@/lib/api-client'
+import { api, PlayResultDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
+import { TapCatchConfig } from '@/lib/game-templates'
 import Confetti from '@/components/ui/Confetti'
 
-const DURATION_SEC = 30
 const CANVAS_WIDTH = 320
 const CANVAS_HEIGHT = 360
-const SPAWN_MIN_MS = 600
-const SPAWN_MAX_MS = 900
 
-const COIN_COLORS: Record<string, string> = {
-  BTC: '#F7931A',
-  ETH: '#627EEA',
-  TON: '#0098EA',
-}
-const COIN_LABELS: Record<string, string> = {
-  BTC: '₿',
-  ETH: 'Ξ',
-  TON: '◆',
-}
-const ASSETS = ['BTC', 'ETH', 'TON'] as const
-
-interface Coin {
+interface FallingObject {
   id: number
   x: number
   y: number
   vy: number
   size: number
-  asset: (typeof ASSETS)[number]
+  objectId: string
+  label: string
+  color: string
 }
 
 interface FloatingText {
@@ -40,20 +28,26 @@ interface FloatingText {
 type Phase = 'ready' | 'playing' | 'submitting' | 'done'
 
 export default function TapGame({
+  slug,
+  title,
+  config,
   onComplete,
   onClose,
 }: {
-  onComplete: (result: TapPlayResultDto) => void
+  slug: string
+  title: string
+  config: TapCatchConfig
+  onComplete: (result: PlayResultDto) => void
   onClose: () => void
 }) {
   const [phase, setPhase] = useState<Phase>('ready')
   const [score, setScore] = useState(0)
-  const [timeLeft, setTimeLeft] = useState(DURATION_SEC)
-  const [result, setResult] = useState<TapPlayResultDto | null>(null)
+  const [timeLeft, setTimeLeft] = useState(config.durationSec)
+  const [result, setResult] = useState<PlayResultDto | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const coinsRef = useRef<Coin[]>([])
+  const objectsRef = useRef<FallingObject[]>([])
   const floatingRef = useRef<FloatingText[]>([])
   const scoreRef = useRef(0)
   const rafRef = useRef<number | null>(null)
@@ -70,11 +64,21 @@ export default function TapGame({
 
   useEffect(() => stopLoop, [])
 
+  const pickObject = () => {
+    const totalWeight = config.objects.reduce((sum, o) => sum + o.weight, 0)
+    let roll = Math.random() * totalWeight
+    for (const obj of config.objects) {
+      roll -= obj.weight
+      if (roll <= 0) return obj
+    }
+    return config.objects[config.objects.length - 1]
+  }
+
   const start = () => {
     setScore(0)
     scoreRef.current = 0
-    setTimeLeft(DURATION_SEC)
-    coinsRef.current = []
+    setTimeLeft(config.durationSec)
+    objectsRef.current = []
     floatingRef.current = []
     nextSpawnRef.current = 0
     setPhase('playing')
@@ -87,20 +91,22 @@ export default function TapGame({
 
       nextSpawnRef.current -= dt
       if (nextSpawnRef.current <= 0) {
-        const asset = ASSETS[Math.floor(Math.random() * ASSETS.length)]
+        const obj = pickObject()
         const size = 24 + Math.random() * 10
-        coinsRef.current.push({
+        objectsRef.current.push({
           id: nextIdRef.current++,
           x: size + Math.random() * (CANVAS_WIDTH - size * 2),
           y: -size,
           vy: (2 + Math.random() * 2) * (dt / 16.67 || 1),
           size,
-          asset,
+          objectId: obj.id,
+          label: obj.label,
+          color: obj.color,
         })
-        nextSpawnRef.current = SPAWN_MIN_MS + Math.random() * (SPAWN_MAX_MS - SPAWN_MIN_MS)
+        nextSpawnRef.current = config.spawnMinMs + Math.random() * (config.spawnMaxMs - config.spawnMinMs)
       }
 
-      coinsRef.current = coinsRef.current
+      objectsRef.current = objectsRef.current
         .map((c) => ({ ...c, y: c.y + c.vy }))
         .filter((c) => c.y < CANVAS_HEIGHT + c.size)
 
@@ -132,16 +138,16 @@ export default function TapGame({
 
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
 
-    for (const coin of coinsRef.current) {
+    for (const obj of objectsRef.current) {
       ctx.beginPath()
-      ctx.arc(coin.x, coin.y, coin.size, 0, Math.PI * 2)
-      ctx.fillStyle = COIN_COLORS[coin.asset]
+      ctx.arc(obj.x, obj.y, obj.size, 0, Math.PI * 2)
+      ctx.fillStyle = obj.color
       ctx.fill()
       ctx.fillStyle = '#fff'
-      ctx.font = `${Math.round(coin.size)}px sans-serif`
+      ctx.font = `${Math.round(obj.size)}px sans-serif`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(COIN_LABELS[coin.asset], coin.x, coin.y + 1)
+      ctx.fillText(obj.label, obj.x, obj.y + 1)
     }
 
     for (const f of floatingRef.current) {
@@ -163,16 +169,16 @@ export default function TapGame({
     const x = ((e.clientX - rect.left) / rect.width) * CANVAS_WIDTH
     const y = ((e.clientY - rect.top) / rect.height) * CANVAS_HEIGHT
 
-    const hitIndex = coinsRef.current.findIndex((c) => {
+    const hitIndex = objectsRef.current.findIndex((c) => {
       const dx = c.x - x
       const dy = c.y - y
       return Math.sqrt(dx * dx + dy * dy) <= c.size
     })
 
     if (hitIndex >= 0) {
-      const coin = coinsRef.current[hitIndex]
-      coinsRef.current = coinsRef.current.filter((_, i) => i !== hitIndex)
-      floatingRef.current.push({ id: nextIdRef.current++, x: coin.x, y: coin.y, createdAt: performance.now() })
+      const obj = objectsRef.current[hitIndex]
+      objectsRef.current = objectsRef.current.filter((_, i) => i !== hitIndex)
+      floatingRef.current.push({ id: nextIdRef.current++, x: obj.x, y: obj.y, createdAt: performance.now() })
       scoreRef.current += 1
       setScore(scoreRef.current)
       haptic('light')
@@ -182,7 +188,7 @@ export default function TapGame({
   const submit = async () => {
     setPhase('submitting')
     try {
-      const res = await api.playTapGame(scoreRef.current)
+      const res = await api.playGame(slug, { score: scoreRef.current })
       setResult(res)
       hapticNotify('success')
       setPhase('done')
@@ -198,11 +204,13 @@ export default function TapGame({
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-handle" />
-        <h3 className="sheet-title">🪙 Coin Catcher</h3>
+        <h3 className="sheet-title">{title}</h3>
 
         {phase === 'ready' && (
           <>
-            <p className="sheet-subtitle">Tap the falling coins for 30 seconds. Earn points based on your score!</p>
+            <p className="sheet-subtitle">
+              Tap the falling objects for {config.durationSec} seconds. Earn points based on your score!
+            </p>
             <button className="btn-primary" onClick={start}>
               Start
             </button>
@@ -215,7 +223,7 @@ export default function TapGame({
               <span>Score: {score}</span>
               <span>⏱ {timeLeft}s</span>
             </div>
-            <div className="tap-game-canvas-wrap">
+            <div className="tap-game-canvas-wrap" style={{ background: `linear-gradient(180deg, ${config.theme.bg}, var(--bg))` }}>
               <canvas
                 ref={canvasRef}
                 width={CANVAS_WIDTH}

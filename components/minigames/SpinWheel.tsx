@@ -1,11 +1,10 @@
 import { useRef, useState } from 'react'
-import { api, SpinResultDto } from '@/lib/api-client'
+import { api, PlayResultDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
+import { SpinWheelConfig } from '@/lib/game-templates'
 import Confetti from '@/components/ui/Confetti'
 
-// Must match lib/minigames.ts SPIN_SEGMENTS order
-const SEGMENT_LABELS = ['10 pts', '20 pts', '50 pts', '5 coins', '100 pts', '1 ticket', 'Jackpot 250']
-const SEGMENT_COLORS = [
+const SEGMENT_COLOR_PALETTE = [
   'var(--accent)',
   'var(--gold)',
   'var(--up)',
@@ -15,8 +14,6 @@ const SEGMENT_COLORS = [
   'var(--down)',
 ]
 
-const SEGMENTS = SEGMENT_LABELS.length
-const SEGMENT_ANGLE = 360 / SEGMENTS
 const RADIUS = 130
 const CENTER = 130
 
@@ -25,36 +22,44 @@ function polarToCartesian(angleDeg: number) {
   return { x: CENTER + RADIUS * Math.cos(rad), y: CENTER + RADIUS * Math.sin(rad) }
 }
 
-function wedgePath(index: number) {
-  const start = polarToCartesian(index * SEGMENT_ANGLE)
-  const end = polarToCartesian((index + 1) * SEGMENT_ANGLE)
-  return `M${CENTER},${CENTER} L${start.x},${start.y} A${RADIUS},${RADIUS} 0 0,1 ${end.x},${end.y} Z`
-}
-
 type Phase = 'ready' | 'spinning' | 'done'
 
 export default function SpinWheel({
+  slug,
+  config,
   remainingPlays,
   onComplete,
 }: {
+  slug: string
+  config: SpinWheelConfig
   remainingPlays: number
-  onComplete: (result: SpinResultDto) => void
+  onComplete: (result: PlayResultDto) => void
 }) {
   const [phase, setPhase] = useState<Phase>(remainingPlays < 1 ? 'done' : 'ready')
   const [rotation, setRotation] = useState(0)
-  const [result, setResult] = useState<SpinResultDto | null>(null)
+  const [result, setResult] = useState<PlayResultDto | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const pendingRef = useRef<SpinResultDto | null>(null)
+  const pendingRef = useRef<PlayResultDto | null>(null)
+
+  const segments = config.segments
+  const segmentAngle = 360 / segments.length
+
+  const wedgePath = (index: number) => {
+    const start = polarToCartesian(index * segmentAngle)
+    const end = polarToCartesian((index + 1) * segmentAngle)
+    return `M${CENTER},${CENTER} L${start.x},${start.y} A${RADIUS},${RADIUS} 0 0,1 ${end.x},${end.y} Z`
+  }
 
   const handleSpin = async () => {
     if (phase !== 'ready') return
     haptic('medium')
     setPhase('spinning')
     try {
-      const res = await api.spinWheel()
+      const res = await api.playGame(slug)
       pendingRef.current = res
+      const segmentIndex = res.segmentIndex ?? 0
       const baseSpins = 4 + Math.floor(Math.random() * 2)
-      const target = baseSpins * 360 + (360 - res.segmentIndex * SEGMENT_ANGLE) - SEGMENT_ANGLE / 2
+      const target = baseSpins * 360 + (360 - segmentIndex * segmentAngle) - segmentAngle / 2
       setRotation(target)
     } catch (e: any) {
       setError(e.message || 'Something went wrong')
@@ -85,15 +90,15 @@ export default function SpinWheel({
           style={{ transform: `rotate(${rotation}deg)` }}
           onTransitionEnd={handleTransitionEnd}
         >
-          {SEGMENT_LABELS.map((label, i) => {
-            const mid = i * SEGMENT_ANGLE + SEGMENT_ANGLE / 2
+          {segments.map((segment, i) => {
+            const mid = i * segmentAngle + segmentAngle / 2
             const labelPos = {
               x: CENTER + (RADIUS - 35) * Math.cos(((mid - 90) * Math.PI) / 180),
               y: CENTER + (RADIUS - 35) * Math.sin(((mid - 90) * Math.PI) / 180),
             }
             return (
-              <g key={label}>
-                <path d={wedgePath(i)} fill={SEGMENT_COLORS[i]} stroke="var(--bg)" strokeWidth={2} />
+              <g key={i}>
+                <path d={wedgePath(i)} fill={SEGMENT_COLOR_PALETTE[i % SEGMENT_COLOR_PALETTE.length]} stroke="var(--bg)" strokeWidth={2} />
                 <text
                   x={labelPos.x}
                   y={labelPos.y}
@@ -104,7 +109,7 @@ export default function SpinWheel({
                   dominantBaseline="middle"
                   transform={`rotate(${mid}, ${labelPos.x}, ${labelPos.y})`}
                 >
-                  {label}
+                  {segment.label}
                 </text>
               </g>
             )

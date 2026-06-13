@@ -1,4 +1,5 @@
 import { getInitData } from './telegram-webapp'
+import type { GameTemplate, TapCatchConfig, SpinWheelConfig } from './game-templates'
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -141,25 +142,23 @@ export interface AchievementDto {
 }
 
 export interface GameDto {
-  id: 'tap' | 'spin'
+  slug: string
+  template: GameTemplate
   title: string
   description: string
   icon: string
+  config: TapCatchConfig | SpinWheelConfig
+  coverImageUrl: string | null
   remainingPlays: number
   maxPlaysPerDay: number
 }
 
-export interface TapPlayResultDto {
-  rewardPoints: number
-  remainingPlays: number
-}
-
-export interface SpinResultDto {
-  segmentIndex: number
+export interface PlayResultDto {
   rewardPoints: number
   rewardTickets: number
   rewardCoins: number
   remainingPlays: number
+  segmentIndex?: number
 }
 
 export interface ProfileDto {
@@ -211,10 +210,9 @@ export const api = {
     }),
   getProfile: () => request<ProfileDto>('/api/profile'),
   getGames: () => request<{ games: GameDto[] }>('/api/games'),
-  playTapGame: (score: number) =>
-    request<TapPlayResultDto>('/api/games/tap/play', {
+  playGame: (slug: string, payload: { score?: number } = {}) =>
+    request<PlayResultDto>(`/api/games/${slug}/play`, {
       method: 'POST',
-      body: JSON.stringify({ score }),
+      body: JSON.stringify(payload),
     }),
-  spinWheel: () => request<SpinResultDto>('/api/games/spin', { method: 'POST' }),
 }

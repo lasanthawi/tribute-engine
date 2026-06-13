@@ -2603,6 +2603,21 @@ button {
   font-size: 28px;
 }
 
+.game-teaser-cover {
+  display: block;
+  width: 100%;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.game-teaser-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .game-teaser-title {
   font-size: 13px;
   font-weight: 700;
@@ -2623,6 +2638,20 @@ button {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
+}
+
+.game-card-cover {
+  width: calc(100% + 32px);
+  margin: -16px -16px 0;
+  aspect-ratio: 16 / 9;
+}
+
+.game-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .game-card-head {

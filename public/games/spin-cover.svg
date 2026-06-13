@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#241a3a"/>
+      <stop offset="100%" stop-color="#0b0f1a"/>
+    </linearGradient>
+    <radialGradient id="glow2" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#ffd166" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffd166" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#bg2)"/>
+  <rect width="640" height="360" fill="url(#glow2)"/>
+
+  <!-- wheel -->
+  <g transform="translate(320,150)">
+    <circle r="100" fill="none" stroke="#ffd166" stroke-width="4"/>
+    <path d="M0,0 L100,0 A100,100 0 0,1 70.7,70.7 Z" fill="#6c5ce7"/>
+    <path d="M0,0 L70.7,70.7 A100,100 0 0,1 0,100 Z" fill="#29b6f6"/>
+    <path d="M0,0 L0,100 A100,100 0 0,1 -70.7,70.7 Z" fill="#5be37a"/>
+    <path d="M0,0 L-70.7,70.7 A100,100 0 0,1 -100,0 Z" fill="#f7931a"/>
+    <path d="M0,0 L-100,0 A100,100 0 0,1 -70.7,-70.7 Z" fill="#627eea"/>
+    <path d="M0,0 L-70.7,-70.7 A100,100 0 0,1 0,-100 Z" fill="#ff6b6b"/>
+    <path d="M0,0 L0,-100 A100,100 0 0,1 70.7,-70.7 Z" fill="#ffd166"/>
+    <circle r="14" fill="#0b0f1a" stroke="#fff" stroke-width="2"/>
+  </g>
+  <!-- pointer -->
+  <polygon points="320,30 332,50 308,50" fill="#fff"/>
+
+  <text x="50%" y="320" font-family="sans-serif" font-size="44" font-weight="800" fill="#ffffff" text-anchor="middle">Daily Spin</text>
+  <text x="50%" y="345" font-family="sans-serif" font-size="18" font-weight="600" fill="#a3a8c2" text-anchor="middle">🎡 One free spin every day</text>
+</svg>

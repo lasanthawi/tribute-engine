@@ -2,7 +2,8 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { isDemoMode } from '@/lib/demo'
 import { demoGames } from '@/lib/demo-data'
-import { getRemainingPlays, TAP_GAME_MAX_PLAYS_PER_DAY, SPIN_WHEEL_MAX_PLAYS_PER_DAY } from '@/lib/minigames'
+import { getRemainingPlays } from '@/lib/minigames'
+import { getPublishedGames } from '@/lib/games-catalog'
 import { GameDto } from '@/lib/api-client'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -14,29 +15,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (userId === null) return
 
   try {
-    const [tapRemaining, spinRemaining] = await Promise.all([
-      getRemainingPlays(userId, 'tap'),
-      getRemainingPlays(userId, 'spin'),
-    ])
+    const catalog = await getPublishedGames()
 
-    const games: GameDto[] = [
-      {
-        id: 'tap',
-        title: 'Coin Catcher',
-        description: 'Tap falling BTC/ETH/TON coins for 30 seconds',
-        icon: '🪙',
-        remainingPlays: tapRemaining,
-        maxPlaysPerDay: TAP_GAME_MAX_PLAYS_PER_DAY,
-      },
-      {
-        id: 'spin',
-        title: 'Daily Spin',
-        description: 'One free spin every day for bonus rewards',
-        icon: '🎡',
-        remainingPlays: spinRemaining,
-        maxPlaysPerDay: SPIN_WHEEL_MAX_PLAYS_PER_DAY,
-      },
-    ]
+    const games: GameDto[] = await Promise.all(
+      catalog.map(async (game) => ({
+        slug: game.slug,
+        template: game.template,
+        title: game.title,
+        description: game.description,
+        icon: game.icon,
+        config: game.config,
+        coverImageUrl: game.coverImageUrl,
+        remainingPlays: await getRemainingPlays(userId, game.slug, game.maxPlaysPerDay),
+        maxPlaysPerDay: game.maxPlaysPerDay,
+      }))
+    )
 
     res.status(200).json({ games })
   } catch (error) {
