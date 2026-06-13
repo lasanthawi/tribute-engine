@@ -4,8 +4,9 @@ import { creditPoints, adjustTickets, getUserBalance } from './ledger'
 import { getStreakMultiplier, updateStreakAfterSettlement } from './streak'
 import { activateReferralIfPending, applyDownlineOverride } from './referral'
 import { sendTelegramMessage } from './telegram'
-import { recordQuestProgress } from './quests'
+import { recordQuestProgress, QuestDefinition } from './quests'
 import { checkAndUnlockAchievements } from './achievements'
+import { sendMilestoneCelebration, sendQuestCompletedCelebration, postBigWinAnnouncement } from './marketing'
 
 type Round = Database['public']['Tables']['rounds']['Row']
 type Prediction = Database['public']['Tables']['predictions']['Row']
@@ -15,6 +16,7 @@ const ASSET_EMOJI: Record<Asset, string> = { BTC: '₿', ETH: 'Ξ', TON: '◆' }
 const HOURLY_BASE_REWARD = 100
 const MAIN_DAILY_BASE_REWARD = 500
 const PREDICTION_CLOSE_BUFFER_MIN = 5
+const BIG_WIN_THRESHOLD = 500
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const MINI_APP_URL = process.env.MINI_APP_URL || ''
@@ -221,11 +223,11 @@ export async function settleDueRounds(now: Date = new Date()): Promise<{ settled
     if (predErr) throw predErr
 
     const preds = (predictions ?? []) as Prediction[]
-    let userMap = new Map<number, { id: number; telegram_id: number; streak_count: number }>()
+    let userMap = new Map<number, { id: number; telegram_id: number; streak_count: number; username: string | null }>()
     if (preds.length > 0) {
       const { data: users, error: usersErr } = await supabase
         .from('users')
-        .select('id, telegram_id, streak_count')
+        .select('id, telegram_id, streak_count, username')
         .in('id', preds.map((p) => p.user_id))
       if (usersErr) throw usersErr
       userMap = new Map((users ?? []).map((u) => [u.id, u]))
@@ -258,9 +260,12 @@ export async function settleDueRounds(now: Date = new Date()): Promise<{ settled
         .update({ is_correct: correct, points_earned: pointsEarned })
         .eq('id', pred.id)
 
+      let completedQuests: QuestDefinition[] = []
       if (correct) {
-        await recordQuestProgress(pred.user_id, 'correct_count', 1)
-        await recordQuestProgress(pred.user_id, 'streak_maintain', 1)
+        completedQuests = [
+          ...(await recordQuestProgress(pred.user_id, 'correct_count', 1)),
+          ...(await recordQuestProgress(pred.user_id, 'streak_maintain', 1)),
+        ]
       } else {
         await recordQuestProgress(pred.user_id, 'streak_maintain', 0, { reset: true })
       }
@@ -271,7 +276,7 @@ export async function settleDueRounds(now: Date = new Date()): Promise<{ settled
         .eq('id', pred.user_id)
         .single()
       const { points } = await getUserBalance(pred.user_id)
-      await checkAndUnlockAchievements(pred.user_id, {
+      const newlyUnlocked = await checkAndUnlockAchievements(pred.user_id, {
         event: 'settlement',
         correct,
         streakCount: updatedUser?.streak_count ?? 0,
@@ -280,6 +285,16 @@ export async function settleDueRounds(now: Date = new Date()): Promise<{ settled
 
       if (user?.telegram_id) {
         await notifyUser(user.telegram_id, settlementMessage(round, pred, correct, outcome, pointsEarned))
+        for (const achievement of newlyUnlocked) {
+          await sendMilestoneCelebration(user.telegram_id, achievement)
+        }
+        for (const quest of completedQuests) {
+          await sendQuestCompletedCelebration(user.telegram_id, quest.title)
+        }
+      }
+
+      if (correct && pointsEarned >= BIG_WIN_THRESHOLD) {
+        await postBigWinAnnouncement(user?.username ?? null, round.asset, pointsEarned)
       }
     }
 

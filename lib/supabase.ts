@@ -30,7 +30,7 @@ export type LedgerEntryType =
   | 'refund'
   | 'coin_redeem'
   | 'quest_reward'
-export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward' | 'refund' | 'coin_redeem' | 'quest_reward'
+export type TicketReason = 'daily_grant' | 'prediction' | 'referral_reward' | 'refund' | 'coin_redeem' | 'quest_reward' | 'winback_bonus'
 export type CoinEntryType =
   | 'purchase'
   | 'referral_bonus'

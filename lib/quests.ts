@@ -1,7 +1,7 @@
 import { supabase, Asset, Database, QuestGoalType } from './supabase'
 import { creditPoints, creditCoins, adjustTickets, grantPerk } from './ledger'
 
-type QuestDefinition = Database['public']['Tables']['quest_definitions']['Row']
+export type QuestDefinition = Database['public']['Tables']['quest_definitions']['Row']
 type QuestProgress = Database['public']['Tables']['user_quest_progress']['Row']
 
 export interface QuestWithProgress {
@@ -88,7 +88,8 @@ export async function recordQuestProgress(
   delta: number,
   opts: { asset?: Asset; reset?: boolean } = {},
   now: Date = new Date()
-): Promise<void> {
+): Promise<QuestDefinition[]> {
+  const newlyCompleted: QuestDefinition[] = []
   try {
     const { data, error } = await supabase
       .from('quest_definitions')
@@ -121,10 +122,13 @@ export async function recordQuestProgress(
         .from('user_quest_progress')
         .update({ progress: newProgress, completed_at: completedAt })
         .eq('id', progressRow.id)
+
+      if (!progressRow.completed_at && completedAt) newlyCompleted.push(definition)
     }
   } catch (e) {
     console.error('recordQuestProgress error:', e)
   }
+  return newlyCompleted
 }
 
 export async function claimQuestReward(userId: number, questDefinitionId: number, now: Date = new Date()) {
