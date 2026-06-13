@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, PlayResultDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 import { SpinWheelConfig } from '@/lib/game-templates'
@@ -58,7 +58,7 @@ export default function SpinWheel({
       const res = await api.playGame(slug)
       pendingRef.current = res
       const segmentIndex = res.segmentIndex ?? 0
-      const baseSpins = 4 + Math.floor(Math.random() * 2)
+      const baseSpins = 6 + Math.floor(Math.random() * 2)
       const target = baseSpins * 360 + (360 - segmentIndex * segmentAngle) - segmentAngle / 2
       setRotation(target)
     } catch (e: any) {
@@ -67,6 +67,21 @@ export default function SpinWheel({
       setPhase('done')
     }
   }
+
+  // Decelerating "tick" haptics while the wheel spins down, for a slot-machine feel.
+  useEffect(() => {
+    if (phase !== 'spinning') return
+    const delays = [120, 140, 160, 190, 230, 280, 340, 420, 520, 650, 800, 1000, 1250]
+    const timers = delays.reduce<{ list: ReturnType<typeof setTimeout>[]; total: number }>(
+      (acc, delay) => {
+        acc.total += delay
+        acc.list.push(setTimeout(() => haptic('light'), acc.total))
+        return acc
+      },
+      { list: [], total: 0 }
+    ).list
+    return () => timers.forEach(clearTimeout)
+  }, [phase])
 
   const handleTransitionEnd = () => {
     if (phase !== 'spinning') return
@@ -82,7 +97,7 @@ export default function SpinWheel({
 
   return (
     <div>
-      <div className="spin-wheel-wrap">
+      <div className={`spin-wheel-wrap${phase === 'spinning' ? ' spinning' : ''}`}>
         <div className="spin-wheel-pointer" />
         <svg
           className="spin-wheel-svg"
@@ -90,15 +105,26 @@ export default function SpinWheel({
           style={{ transform: `rotate(${rotation}deg)` }}
           onTransitionEnd={handleTransitionEnd}
         >
+          <defs>
+            {segments.map((_, i) => {
+              const color = SEGMENT_COLOR_PALETTE[i % SEGMENT_COLOR_PALETTE.length]
+              return (
+                <radialGradient key={i} id={`spin-seg-${i}`} cx="50%" cy="50%" r="75%">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.75} />
+                  <stop offset="100%" stopColor={color} stopOpacity={1} />
+                </radialGradient>
+              )
+            })}
+          </defs>
           {segments.map((segment, i) => {
             const mid = i * segmentAngle + segmentAngle / 2
             const labelPos = {
-              x: CENTER + (RADIUS - 35) * Math.cos(((mid - 90) * Math.PI) / 180),
-              y: CENTER + (RADIUS - 35) * Math.sin(((mid - 90) * Math.PI) / 180),
+              x: CENTER + (RADIUS - 38) * Math.cos(((mid - 90) * Math.PI) / 180),
+              y: CENTER + (RADIUS - 38) * Math.sin(((mid - 90) * Math.PI) / 180),
             }
             return (
               <g key={i}>
-                <path d={wedgePath(i)} fill={SEGMENT_COLOR_PALETTE[i % SEGMENT_COLOR_PALETTE.length]} stroke="var(--bg)" strokeWidth={2} />
+                <path d={wedgePath(i)} fill={`url(#spin-seg-${i})`} stroke="var(--bg-card)" strokeWidth={2} />
                 <text
                   x={labelPos.x}
                   y={labelPos.y}
@@ -107,6 +133,7 @@ export default function SpinWheel({
                   fontWeight={700}
                   textAnchor="middle"
                   dominantBaseline="middle"
+                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
                   transform={`rotate(${mid}, ${labelPos.x}, ${labelPos.y})`}
                 >
                   {segment.label}
@@ -114,6 +141,10 @@ export default function SpinWheel({
               </g>
             )
           })}
+          <circle className="spin-wheel-hub" cx={CENTER} cy={CENTER} r={22} />
+          <text x={CENTER} y={CENTER} className="spin-wheel-hub-icon" dy="1">
+            🎯
+          </text>
         </svg>
       </div>
 

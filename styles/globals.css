@@ -2827,33 +2827,101 @@ button {
 
 .spin-wheel-wrap {
   position: relative;
-  width: 260px;
-  height: 260px;
+  width: 280px;
+  height: 280px;
   margin: 0 auto;
+  padding: 10px;
+  border-radius: 50%;
+}
+
+.spin-wheel-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    var(--accent),
+    var(--gold),
+    var(--up),
+    var(--ton),
+    var(--btc),
+    var(--eth),
+    var(--down),
+    var(--accent)
+  );
+  opacity: 0.55;
+  filter: blur(10px);
+  z-index: 0;
+  transition: opacity 0.4s ease;
+}
+
+.spin-wheel-wrap.spinning::before {
+  opacity: 1;
+  animation: spin-wheel-glow-spin 1.1s linear infinite;
+}
+
+@keyframes spin-wheel-glow-spin {
+  to { transform: rotate(360deg); }
 }
 
 .spin-wheel-pointer {
   position: absolute;
-  top: -6px;
+  top: -2px;
   left: 50%;
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-top: 16px solid var(--accent);
-  z-index: 2;
+  border-left: 13px solid transparent;
+  border-right: 13px solid transparent;
+  border-top: 22px solid var(--gold);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+  z-index: 3;
+  transition: transform 0.1s ease;
+}
+
+.spin-wheel-wrap.spinning .spin-wheel-pointer {
+  animation: spin-wheel-pointer-bounce 0.35s ease-in-out infinite;
+}
+
+@keyframes spin-wheel-pointer-bounce {
+  0%, 100% { transform: translateX(-50%) rotate(0deg); }
+  50% { transform: translateX(-50%) rotate(10deg); }
 }
 
 .spin-wheel-svg {
+  position: relative;
   width: 100%;
   height: 100%;
-  transition: transform 3.5s cubic-bezier(0.17, 0.67, 0.2, 1);
+  z-index: 1;
+  border-radius: 50%;
+  background: var(--bg-card);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45), inset 0 0 0 2px var(--border);
+  transition: transform 4s cubic-bezier(0.12, 0.72, 0.1, 1);
+}
+
+.spin-wheel-hub {
+  fill: var(--bg-card);
+  stroke: var(--gold);
+  stroke-width: 3;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+}
+
+.spin-wheel-hub-icon {
+  font-size: 22px;
+  text-anchor: middle;
+  dominant-baseline: middle;
 }
 
 .spin-wheel-result {
   text-align: center;
   margin-top: 16px;
+  animation: spin-wheel-result-pop 0.4s ease;
+}
+
+@keyframes spin-wheel-result-pop {
+  from { opacity: 0; transform: scale(0.85) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 /* Gomoku */
