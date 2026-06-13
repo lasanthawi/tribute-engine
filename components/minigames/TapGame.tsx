@@ -7,15 +7,24 @@ import Confetti from '@/components/ui/Confetti'
 const CANVAS_WIDTH = 320
 const CANVAS_HEIGHT = 360
 
+const DIRECTION_VERBS: Record<NonNullable<TapCatchConfig['direction']>, string> = {
+  down: 'falling',
+  up: 'rising',
+  left: 'drifting',
+  right: 'drifting',
+}
+
 interface FallingObject {
   id: number
   x: number
   y: number
+  vx: number
   vy: number
   size: number
   objectId: string
   label: string
   color: string
+  isHazard: boolean
 }
 
 interface FloatingText {
@@ -23,6 +32,8 @@ interface FloatingText {
   x: number
   y: number
   createdAt: number
+  label: string
+  color: string
 }
 
 type Phase = 'ready' | 'playing' | 'submitting' | 'done'
@@ -64,14 +75,23 @@ export default function TapGame({
 
   useEffect(() => stopLoop, [])
 
-  const pickObject = () => {
-    const totalWeight = config.objects.reduce((sum, o) => sum + o.weight, 0)
+  const direction = config.direction ?? 'down'
+  const hazards = config.hazards ?? []
+  const hazardPenalty = config.hazardPenalty ?? 1
+  const speedRamp = config.speedRamp ?? 0
+
+  const pickObject = (): { obj: TapCatchConfig['objects'][number]; isHazard: boolean } => {
+    const pool = [
+      ...config.objects.map((o) => ({ obj: o, isHazard: false })),
+      ...hazards.map((o) => ({ obj: o, isHazard: true })),
+    ]
+    const totalWeight = pool.reduce((sum, p) => sum + p.obj.weight, 0)
     let roll = Math.random() * totalWeight
-    for (const obj of config.objects) {
-      roll -= obj.weight
-      if (roll <= 0) return obj
+    for (const p of pool) {
+      roll -= p.obj.weight
+      if (roll <= 0) return p
     }
-    return config.objects[config.objects.length - 1]
+    return pool[pool.length - 1]
   }
 
   const start = () => {
@@ -83,32 +103,63 @@ export default function TapGame({
     nextSpawnRef.current = 0
     setPhase('playing')
 
-    let last = performance.now()
+    const startedAt = performance.now()
+    let last = startedAt
 
     const loop = (now: number) => {
       const dt = now - last
       last = now
+      const elapsedSec = (now - startedAt) / 1000
+      const rampMultiplier = 1 + speedRamp * elapsedSec
 
       nextSpawnRef.current -= dt
       if (nextSpawnRef.current <= 0) {
-        const obj = pickObject()
+        const { obj, isHazard } = pickObject()
         const size = 24 + Math.random() * 10
+        const speed = (2 + Math.random() * 2) * (dt / 16.67 || 1) * rampMultiplier
+        let x = 0
+        let y = 0
+        let vx = 0
+        let vy = 0
+        switch (direction) {
+          case 'up':
+            x = size + Math.random() * (CANVAS_WIDTH - size * 2)
+            y = CANVAS_HEIGHT + size
+            vy = -speed
+            break
+          case 'left':
+            x = CANVAS_WIDTH + size
+            y = size + Math.random() * (CANVAS_HEIGHT - size * 2)
+            vx = -speed
+            break
+          case 'right':
+            x = -size
+            y = size + Math.random() * (CANVAS_HEIGHT - size * 2)
+            vx = speed
+            break
+          default:
+            x = size + Math.random() * (CANVAS_WIDTH - size * 2)
+            y = -size
+            vy = speed
+        }
         objectsRef.current.push({
           id: nextIdRef.current++,
-          x: size + Math.random() * (CANVAS_WIDTH - size * 2),
-          y: -size,
-          vy: (2 + Math.random() * 2) * (dt / 16.67 || 1),
+          x,
+          y,
+          vx,
+          vy,
           size,
           objectId: obj.id,
           label: obj.label,
           color: obj.color,
+          isHazard,
         })
         nextSpawnRef.current = config.spawnMinMs + Math.random() * (config.spawnMaxMs - config.spawnMinMs)
       }
 
       objectsRef.current = objectsRef.current
-        .map((c) => ({ ...c, y: c.y + c.vy }))
-        .filter((c) => c.y < CANVAS_HEIGHT + c.size)
+        .map((c) => ({ ...c, x: c.x + c.vx, y: c.y + c.vy }))
+        .filter((c) => c.x > -c.size * 2 && c.x < CANVAS_WIDTH + c.size * 2 && c.y > -c.size * 2 && c.y < CANVAS_HEIGHT + c.size * 2)
 
       floatingRef.current = floatingRef.current.filter((f) => now - f.createdAt < 700)
 
@@ -143,6 +194,13 @@ export default function TapGame({
       ctx.arc(obj.x, obj.y, obj.size, 0, Math.PI * 2)
       ctx.fillStyle = obj.color
       ctx.fill()
+      if (obj.isHazard) {
+        ctx.lineWidth = 2
+        ctx.strokeStyle = '#fff'
+        ctx.setLineDash([4, 3])
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
       ctx.fillStyle = '#fff'
       ctx.font = `${Math.round(obj.size)}px sans-serif`
       ctx.textAlign = 'center'
@@ -153,10 +211,10 @@ export default function TapGame({
     for (const f of floatingRef.current) {
       const age = (now - f.createdAt) / 700
       ctx.globalAlpha = Math.max(0, 1 - age)
-      ctx.fillStyle = '#5be37a'
+      ctx.fillStyle = f.color
       ctx.font = 'bold 18px sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText('+1', f.x, f.y - age * 30)
+      ctx.fillText(f.label, f.x, f.y - age * 30)
       ctx.globalAlpha = 1
     }
   }
@@ -178,10 +236,16 @@ export default function TapGame({
     if (hitIndex >= 0) {
       const obj = objectsRef.current[hitIndex]
       objectsRef.current = objectsRef.current.filter((_, i) => i !== hitIndex)
-      floatingRef.current.push({ id: nextIdRef.current++, x: obj.x, y: obj.y, createdAt: performance.now() })
-      scoreRef.current += 1
+      if (obj.isHazard) {
+        scoreRef.current = Math.max(0, scoreRef.current - hazardPenalty)
+        floatingRef.current.push({ id: nextIdRef.current++, x: obj.x, y: obj.y, createdAt: performance.now(), label: `-${hazardPenalty}`, color: '#ff5c5c' })
+        haptic('heavy')
+      } else {
+        scoreRef.current += 1
+        floatingRef.current.push({ id: nextIdRef.current++, x: obj.x, y: obj.y, createdAt: performance.now(), label: '+1', color: '#5be37a' })
+        haptic('light')
+      }
       setScore(scoreRef.current)
-      haptic('light')
     }
   }
 
@@ -209,7 +273,8 @@ export default function TapGame({
         {phase === 'ready' && (
           <>
             <p className="sheet-subtitle">
-              Tap the falling objects for {config.durationSec} seconds. Earn points based on your score!
+              Tap the {DIRECTION_VERBS[direction]} objects for {config.durationSec} seconds. Earn points based on your score!
+              {hazards.length > 0 && ` Avoid the dashed-outline objects — they cost you ${hazardPenalty} point${hazardPenalty === 1 ? '' : 's'}!`}
             </p>
             <button className="btn-primary" onClick={start}>
               Start

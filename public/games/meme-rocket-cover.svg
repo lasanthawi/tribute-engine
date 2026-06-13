@@ -4,15 +4,72 @@
       <stop offset="0%" stop-color="#1a1f33"/>
       <stop offset="100%" stop-color="#0b0f1a"/>
     </linearGradient>
-    <radialGradient id="glow" cx="50%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="#FF4757" stop-opacity="0.55"/>
+    <radialGradient id="glow" cx="50%" cy="32%" r="70%">
+      <stop offset="0%" stop-color="#FF4757" stop-opacity="0.5"/>
       <stop offset="100%" stop-color="#FF4757" stop-opacity="0"/>
     </radialGradient>
+    <linearGradient id="vignette" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f1a" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#0b0f1a" stop-opacity="0.92"/>
+    </linearGradient>
   </defs>
   <rect width="640" height="360" fill="url(#bg)"/>
   <rect width="640" height="360" fill="url(#glow)"/>
-  <circle cx="320" cy="150" r="80" fill="#FF4757" opacity="0.18"/>
-  <text x="50%" y="170" font-family="sans-serif" font-size="84" text-anchor="middle">🚀</text>
-  <text x="50%" y="290" font-family="sans-serif" font-size="44" font-weight="800" fill="#ffffff" text-anchor="middle">Meme Rocket</text>
-  <text x="50%" y="320" font-family="sans-serif" font-size="18" font-weight="600" fill="#a3a8c2" text-anchor="middle">Tap rising meme rockets before they fly off for 25 seconds</text>
+  <circle cx="419" cy="3" r="0.5" fill="#ffffff" opacity="0.49"/>
+  <circle cx="68" cy="203" r="2.0" fill="#ffffff" opacity="0.21"/>
+  <circle cx="342" cy="280" r="1.0" fill="#ffffff" opacity="0.56"/>
+  <circle cx="227" cy="87" r="0.8" fill="#ffffff" opacity="0.28"/>
+  <circle cx="136" cy="347" r="0.5" fill="#ffffff" opacity="0.56"/>
+  <circle cx="34" cy="46" r="0.4" fill="#ffffff" opacity="0.15"/>
+  <circle cx="577" cy="149" r="1.5" fill="#ffffff" opacity="0.61"/>
+  <circle cx="30" cy="291" r="1.4" fill="#ffffff" opacity="0.51"/>
+  <circle cx="499" cy="121" r="1.8" fill="#ffffff" opacity="0.59"/>
+  <circle cx="400" cy="114" r="2.0" fill="#ffffff" opacity="0.33"/>
+  <circle cx="380" cy="356" r="0.8" fill="#ffffff" opacity="0.62"/>
+  <circle cx="365" cy="21" r="1.1" fill="#ffffff" opacity="0.18"/>
+  <circle cx="328" cy="227" r="1.0" fill="#ffffff" opacity="0.52"/>
+  <circle cx="222" cy="126" r="1.1" fill="#ffffff" opacity="0.44"/>
+  <circle cx="215" cy="202" r="1.1" fill="#ffffff" opacity="0.55"/>
+  <circle cx="258" cy="159" r="0.8" fill="#ffffff" opacity="0.43"/>
+  <circle cx="371" cy="43" r="1.2" fill="#ffffff" opacity="0.16"/>
+  <circle cx="229" cy="284" r="1.7" fill="#ffffff" opacity="0.54"/>
+  <circle cx="94" cy="298" r="0.6" fill="#ffffff" opacity="0.58"/>
+  <circle cx="214" cy="4" r="1.7" fill="#ffffff" opacity="0.28"/>
+  <circle cx="480" cy="190" r="1.8" fill="#ffffff" opacity="0.16"/>
+  <circle cx="292" cy="50" r="1.7" fill="#ffffff" opacity="0.45"/>
+  <circle cx="570" cy="138" r="0.7" fill="#ffffff" opacity="0.32"/>
+  <circle cx="289" cy="1" r="0.9" fill="#ffffff" opacity="0.40"/>
+  <circle cx="320" cy="145" r="90" fill="#FF4757" opacity="0.16"/>
+  <g opacity="0.85">
+    <circle cx="405" cy="175" r="42" fill="#C2A633" opacity="0.04"/>
+    <circle cx="405" cy="147" r="42" fill="#C2A633" opacity="0.10"/>
+    <circle cx="405" cy="119" r="42" fill="#C2A633" opacity="0.16"/>
+    <circle cx="405" cy="91" r="42" fill="#C2A633"/>
+    <text x="405" y="92" font-family="sans-serif" font-size="38" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="middle">🐶</text>
+  </g>
+  <g opacity="0.77">
+    <circle cx="537" cy="263" r="41" fill="#4CAF50" opacity="0.04"/>
+    <circle cx="537" cy="235" r="41" fill="#4CAF50" opacity="0.10"/>
+    <circle cx="537" cy="207" r="41" fill="#4CAF50" opacity="0.16"/>
+    <circle cx="537" cy="179" r="41" fill="#4CAF50"/>
+    <text x="537" y="180" font-family="sans-serif" font-size="37" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="middle">🐸</text>
+  </g>
+  <g opacity="0.69">
+    <circle cx="99" cy="277" r="26" fill="#FF4757" opacity="0.04"/>
+    <circle cx="99" cy="249" r="26" fill="#FF4757" opacity="0.10"/>
+    <circle cx="99" cy="221" r="26" fill="#FF4757" opacity="0.16"/>
+    <circle cx="99" cy="193" r="26" fill="#FF4757"/>
+    <text x="99" y="194" font-family="sans-serif" font-size="23" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="middle">🚀</text>
+  </g>
+  <g opacity="0.61">
+    <circle cx="378" cy="160" r="36" fill="#5b1a1a" opacity="0.04"/>
+    <circle cx="378" cy="132" r="36" fill="#5b1a1a" opacity="0.10"/>
+    <circle cx="378" cy="104" r="36" fill="#5b1a1a" opacity="0.16"/>
+    <circle cx="378" cy="76" r="36" fill="#5b1a1a"/>
+    <text x="378" y="77" font-family="sans-serif" font-size="32" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="middle">💀</text>
+  </g>
+  <text x="50%" y="160" font-family="sans-serif" font-size="78" text-anchor="middle" dominant-baseline="middle">🚀</text>
+  <rect width="640" height="140" y="220" fill="url(#vignette)"/>
+  <text x="50%" y="295" font-family="sans-serif" font-size="44" font-weight="800" fill="#ffffff" text-anchor="middle">Meme Rocket</text>
+  <text x="50%" y="325" font-family="sans-serif" font-size="18" font-weight="600" fill="#a3a8c2" text-anchor="middle">Tap rising memecoins, dodge the rug pulls — speed ramps up fast!</text>
 </svg>

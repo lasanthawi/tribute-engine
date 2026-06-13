@@ -10,7 +10,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { rejectUnauthorizedCron } from '@/lib/cron-auth'
 import { isDemoMode } from '@/lib/demo'
-import { MAX_PUBLISHED_GAMES } from '@/lib/game-templates'
+import { MAX_PUBLISHED_GAMES, TapCatchConfig } from '@/lib/game-templates'
 import { getAllGames, listGamesByStatus, createGame, setGameStatus } from '@/lib/games-catalog'
 import { pickWorstPerformer } from '@/lib/game-analytics'
 import { designNewGame, testGameConfig } from '@/lib/game-agent'
@@ -56,6 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const testResult = testGameConfig(proposal, existingGames)
 
+    const tapConfig = proposal.template === 'tap_catch' ? (proposal.config as TapCatchConfig) : null
     const coverImageUrl = await generateCoverImage({
       slug: proposal.slug,
       title: proposal.title,
@@ -63,6 +64,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       icon: proposal.icon,
       imagePrompt: proposal.imagePrompt,
       accentColor: proposal.accentColor,
+      objects: tapConfig ? [...tapConfig.objects, ...(tapConfig.hazards ?? [])] : undefined,
+      direction: tapConfig?.direction,
     })
 
     const created = await createGame({

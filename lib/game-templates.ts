@@ -25,11 +25,21 @@ export interface TapCatchRewardTier {
   points: number
 }
 
+export type TapCatchDirection = 'down' | 'up' | 'left' | 'right'
+
 export interface TapCatchConfig {
   durationSec: number
   spawnMinMs: number
   spawnMaxMs: number
   objects: TapCatchObject[]
+  /** Penalty objects mixed into the spawn pool — tapping one subtracts hazardPenalty from score. Optional, default none. */
+  hazards?: TapCatchObject[]
+  /** Score lost when a hazard is tapped (clamped at 0). Optional, default 1. */
+  hazardPenalty?: number
+  /** Travel direction of spawned objects across the canvas. Optional, default 'down'. */
+  direction?: TapCatchDirection
+  /** Fractional speed increase per second of play, e.g. 0.05 = +5%/sec. Optional, default 0. */
+  speedRamp?: number
   rewardCurve: TapCatchRewardTier[]
   maxScore: number
   theme: { bg: string; accent: string }
@@ -116,6 +126,25 @@ export function validateTapCatchConfig(config: TapCatchConfig): ConfigValidation
     }
     if (config.rewardCurve.some((t) => t.points < 0 || t.minScore < 0)) {
       errors.push('rewardCurve entries must be non-negative')
+    }
+  }
+
+  if (config.direction !== undefined && !['down', 'up', 'left', 'right'].includes(config.direction)) {
+    errors.push('direction must be one of "down", "up", "left", "right"')
+  }
+  if (config.hazards !== undefined) {
+    if (!Array.isArray(config.hazards) || config.hazards.length > 4) {
+      errors.push('hazards must be an array of at most 4 entries')
+    }
+  }
+  if (config.hazardPenalty !== undefined) {
+    if (!Number.isFinite(config.hazardPenalty) || config.hazardPenalty < 0 || config.hazardPenalty > 10) {
+      errors.push('hazardPenalty must be between 0 and 10')
+    }
+  }
+  if (config.speedRamp !== undefined) {
+    if (!Number.isFinite(config.speedRamp) || config.speedRamp < 0 || config.speedRamp > 0.2) {
+      errors.push('speedRamp must be between 0 and 0.2 (0-20% speed increase per second)')
     }
   }
 
