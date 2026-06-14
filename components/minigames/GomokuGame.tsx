@@ -13,6 +13,8 @@ import Confetti from '@/components/ui/Confetti'
 
 type Mode = 'computer' | 'remote'
 
+const MARK_ICON: Record<GomokuMark, string> = { X: '🔥', O: '❄️' }
+
 function cellKey(row: number, col: number) {
   return `${row}:${col}`
 }
@@ -69,6 +71,16 @@ export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () =
     [mode, remoteMatch, board, turn, winner]
   )
 
+  const playerXLabel = mode === 'remote' ? remoteMatch?.players.X?.label ?? 'Player X' : 'You'
+  const playerOLabel = mode === 'remote' ? remoteMatch?.players.O?.label ?? 'Waiting...' : 'Computer'
+
+  const resultHeadline = useMemo(() => {
+    if (!activeWinner) return null
+    if (activeWinner === 'draw') return 'Draw Game'
+    if (mode === 'remote') return activeWinner === remoteMatch?.myMark ? 'You Win!' : `${activeWinner} Wins`
+    return activeWinner === 'X' ? 'You Win!' : 'Computer Wins'
+  }, [activeWinner, mode, remoteMatch?.myMark])
+
   useEffect(() => {
     if (!remoteMatchId || remoteMatchStatus === 'settled') return
     const id = window.setInterval(async () => {
@@ -84,8 +96,22 @@ export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () =
 
   useEffect(() => {
     if (!initialJoinCode) return
+    const code = initialJoinCode.trim().toUpperCase()
     setMode('remote')
-    setJoinCode(initialJoinCode.trim().toUpperCase())
+    setJoinCode(code)
+    setRemoteBusy(true)
+    setRemoteError(null)
+    api
+      .joinGomokuMatch(code)
+      .then((res) => {
+        setRemoteMatch(res.match)
+        hapticNotify('success')
+      })
+      .catch((error: any) => {
+        setRemoteError(error.message || 'Could not join room')
+        hapticNotify('error')
+      })
+      .finally(() => setRemoteBusy(false))
   }, [initialJoinCode])
 
   useEffect(() => {
@@ -228,7 +254,19 @@ export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () =
             <h3 className="gomoku-title">Connect 5 on an 8x8 arena</h3>
           </div>
           <div className="gomoku-turn-orb" data-turn={activeTurn}>
-            {activeTurn}
+            {MARK_ICON[activeTurn]}
+          </div>
+        </div>
+
+        <div className="gomoku-players">
+          <div className={`gomoku-player-chip${activeTurn === 'X' && !activeWinner ? ' active' : ''}`} data-mark="X">
+            <span className="gomoku-player-icon">{MARK_ICON.X}</span>
+            <span className="gomoku-player-name">{playerXLabel}</span>
+          </div>
+          <div className="gomoku-vs">VS</div>
+          <div className={`gomoku-player-chip${activeTurn === 'O' && !activeWinner ? ' active' : ''}`} data-mark="O">
+            <span className="gomoku-player-icon">{MARK_ICON.O}</span>
+            <span className="gomoku-player-name">{playerOLabel}</span>
           </div>
         </div>
 
@@ -320,6 +358,13 @@ export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () =
               })
             )}
           </div>
+
+          {activeWinner && (
+            <div className="gomoku-result-banner">
+              <div className="gomoku-result-emoji">{activeWinner === 'draw' ? '🤝' : MARK_ICON[activeWinner]}</div>
+              <div className="gomoku-result-title">{resultHeadline}</div>
+            </div>
+          )}
         </div>
 
         {remoteError && <div className="gomoku-error">{remoteError}</div>}

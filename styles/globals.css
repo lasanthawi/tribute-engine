@@ -2954,6 +2954,10 @@ button {
   margin: 2px 0 0;
   font-size: 22px;
   line-height: 1.05;
+  background: linear-gradient(135deg, #fff, var(--ton));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .gomoku-turn-orb {
@@ -2975,6 +2979,71 @@ button {
 .gomoku-turn-orb[data-turn="O"] {
   background: var(--ton);
   box-shadow: 0 0 26px rgba(41, 182, 246, 0.42);
+}
+
+.gomoku-players {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gomoku-player-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(5, 8, 14, 0.36);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gomoku-player-chip[data-mark="O"] {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.gomoku-player-icon {
+  flex: 0 0 auto;
+  font-size: 18px;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.22));
+}
+
+.gomoku-player-name {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gomoku-player-chip.active {
+  border-color: rgba(255, 201, 77, 0.45);
+  background: linear-gradient(135deg, rgba(255, 201, 77, 0.16), rgba(41, 182, 246, 0.06));
+  box-shadow: 0 0 18px rgba(255, 201, 77, 0.22);
+}
+
+.gomoku-player-chip[data-mark="O"].active {
+  border-color: rgba(41, 182, 246, 0.45);
+  background: linear-gradient(135deg, rgba(41, 182, 246, 0.16), rgba(108, 92, 231, 0.06));
+  box-shadow: 0 0 18px rgba(41, 182, 246, 0.22);
+}
+
+.gomoku-player-chip.active .gomoku-player-name {
+  color: #fff;
+}
+
+.gomoku-vs {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--text-faint);
+  text-align: center;
 }
 
 .gomoku-mode-tabs {
@@ -3226,6 +3295,21 @@ button {
   box-shadow: 0 0 18px rgba(41, 182, 246, 0.42);
 }
 
+.gomoku-cell[data-mark="X"] span::after,
+.gomoku-cell[data-mark="O"] span::after {
+  font-size: 15px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+
+.gomoku-cell[data-mark="X"] span::after {
+  content: '🔥';
+}
+
+.gomoku-cell[data-mark="O"] span::after {
+  content: '❄️';
+}
+
 .gomoku-cell[data-last="true"] {
   border-color: #fff;
   animation: gomoku-cell-flash 0.6s ease;
@@ -3235,6 +3319,32 @@ button {
   border-color: var(--up);
   background: rgba(33, 208, 122, 0.16);
   animation: gomoku-win-pulse 1s ease-in-out infinite;
+}
+
+.gomoku-result-banner {
+  position: absolute;
+  inset: 10px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  border-radius: 18px;
+  background: rgba(5, 8, 14, 0.74);
+  backdrop-filter: blur(3px);
+  text-align: center;
+  animation: gomoku-result-in 0.35s cubic-bezier(0.18, 1.35, 0.4, 1) both;
+}
+
+.gomoku-result-emoji {
+  font-size: 56px;
+  animation: gomoku-orb-breathe 1.6s ease-in-out infinite;
+}
+
+.gomoku-result-title {
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 18px rgba(255, 201, 77, 0.5);
 }
 
 .gomoku-error {
@@ -3278,6 +3388,11 @@ button {
   0%, 42% { transform: translateX(-125%); opacity: 0; }
   52% { opacity: 1; }
   72%, 100% { transform: translateX(125%); opacity: 0; }
+}
+
+@keyframes gomoku-result-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes gomoku-sheen {
