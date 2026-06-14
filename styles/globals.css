@@ -3246,6 +3246,56 @@ button {
   margin-left: auto;
   margin-right: auto;
   display: block;
+  animation: stack-drop-pulse 1.8s ease-in-out infinite;
+}
+
+.stack-drop-btn:active {
+  transform: scale(0.96);
+  animation: none;
+}
+
+@keyframes stack-drop-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--stack-accent, var(--accent)); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+
+.stack-score-pop {
+  display: inline-block;
+  animation: stack-score-pop 0.35s ease-out;
+}
+
+@keyframes stack-score-pop {
+  0% { transform: scale(1.6); color: #ffd166; }
+  100% { transform: scale(1); }
+}
+
+.stack-combo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, #ffd166, #ff5c5c);
+  color: #1a1029;
+  font-weight: 800;
+  font-size: 12px;
+  animation: stack-combo-pop 0.4s ease-out;
+}
+
+@keyframes stack-combo-pop {
+  0% { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+  60% { transform: scale(1.15) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.stack-reward-pop {
+  animation: stack-reward-pop 0.5s ease-out;
+}
+
+@keyframes stack-reward-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  70% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
 }
 
 /* Spin wheel */
