@@ -1,7 +1,7 @@
 // VOTE LEAGUE — mini-games catalog access (published games, lookup by slug)
 
 import { supabase } from './supabase'
-import { GameTemplate, GameStatus, TapCatchConfig, SpinWheelConfig } from './game-templates'
+import { GameTemplate, GameStatus, TapCatchConfig, SpinWheelConfig, SnakeConfig } from './game-templates'
 
 export interface CatalogGame {
   id: number
@@ -10,7 +10,7 @@ export interface CatalogGame {
   title: string
   description: string
   icon: string
-  config: TapCatchConfig | SpinWheelConfig
+  config: TapCatchConfig | SpinWheelConfig | SnakeConfig
   coverImageUrl: string | null
   status: GameStatus
   maxPlaysPerDay: number
@@ -37,7 +37,7 @@ function toCatalogGame(row: {
     title: row.title,
     description: row.description,
     icon: row.icon,
-    config: row.config as TapCatchConfig | SpinWheelConfig,
+    config: row.config as TapCatchConfig | SpinWheelConfig | SnakeConfig,
     coverImageUrl: row.cover_image_url,
     status: row.status as GameStatus,
     maxPlaysPerDay: row.max_plays_per_day,
@@ -95,7 +95,7 @@ export interface NewGameInput {
   title: string
   description: string
   icon: string
-  config: TapCatchConfig | SpinWheelConfig
+  config: TapCatchConfig | SpinWheelConfig | SnakeConfig
   coverImageUrl: string | null
   maxPlaysPerDay: number
   status: GameStatus

@@ -2823,6 +2823,47 @@ button {
   padding: 24px 0;
 }
 
+/* Snake game */
+
+.snake-canvas-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.snake-controls {
+  display: grid;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.snake-controls-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.snake-controls button {
+  width: 56px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.snake-controls button:active {
+  background: rgba(33, 208, 122, 0.18);
+  border-color: rgba(33, 208, 122, 0.4);
+}
+
 /* Spin wheel */
 
 .spin-wheel-wrap {

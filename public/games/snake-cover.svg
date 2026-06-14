@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <defs>
+    <linearGradient id="bgSnake" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#13301f"/>
+      <stop offset="100%" stop-color="#0b0f1a"/>
+    </linearGradient>
+    <radialGradient id="glowSnake" cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#21d07a" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#21d07a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#bgSnake)"/>
+  <rect width="640" height="360" fill="url(#glowSnake)"/>
+
+  <g stroke="rgba(255,255,255,0.06)" stroke-width="1">
+    <line x1="0" y1="60" x2="640" y2="60"/>
+    <line x1="0" y1="120" x2="640" y2="120"/>
+    <line x1="0" y1="180" x2="640" y2="180"/>
+    <line x1="0" y1="240" x2="640" y2="240"/>
+    <line x1="80" y1="0" x2="80" y2="360"/>
+    <line x1="160" y1="0" x2="160" y2="360"/>
+    <line x1="240" y1="0" x2="240" y2="360"/>
+    <line x1="320" y1="0" x2="320" y2="360"/>
+    <line x1="400" y1="0" x2="400" y2="360"/>
+    <line x1="480" y1="0" x2="480" y2="360"/>
+    <line x1="560" y1="0" x2="560" y2="360"/>
+  </g>
+
+  <!-- snake body -->
+  <g fill="#21d07a">
+    <rect x="180" y="100" width="56" height="56" rx="10"/>
+    <rect x="240" y="100" width="56" height="56" rx="10"/>
+    <rect x="240" y="160" width="56" height="56" rx="10"/>
+    <rect x="240" y="220" width="56" height="56" rx="10"/>
+  </g>
+  <rect x="300" y="220" width="56" height="56" rx="10" fill="#ffffff"/>
+
+  <!-- food -->
+  <circle cx="420" cy="248" r="20" fill="#ff5c5c">
+    <animate attributeName="r" values="16;22;16" dur="1.6s" repeatCount="indefinite"/>
+  </circle>
+
+  <text x="50%" y="320" font-family="sans-serif" font-size="44" font-weight="800" fill="#ffffff" text-anchor="middle">Snake Run</text>
+  <text x="50%" y="345" font-family="sans-serif" font-size="18" font-weight="600" fill="#a3a8c2" text-anchor="middle">🐍 Eat orbs, dodge walls, beat the clock</text>
+</svg>

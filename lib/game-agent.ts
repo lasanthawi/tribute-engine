@@ -10,8 +10,10 @@ import {
   GameTemplate,
   TapCatchConfig,
   SpinWheelConfig,
+  SnakeConfig,
   validateGameConfig,
   computeTapRewardFromCurve,
+  computeRewardFromCurve,
 } from './game-templates'
 import { CatalogGame } from './games-catalog'
 
@@ -24,7 +26,7 @@ export interface ProposedGame {
   title: string
   description: string
   icon: string
-  config: TapCatchConfig | SpinWheelConfig
+  config: TapCatchConfig | SpinWheelConfig | SnakeConfig
   /** Short visual brief for cover art generation. */
   imagePrompt: string
   /** One-line announcement copy for the official channel. */
@@ -53,23 +55,37 @@ You design small reward mini-games that slot into an existing catalog. Each game
   Pick a distinct combination of these (e.g. a different direction AND hazards, or a high speedRamp) so the game
   plays differently from existing tap_catch games, not just looks different.
 - "spin_wheel": a wheel with 3-10 weighted segments, each awarding points, tickets, and/or coins.
+- "snake_run": a classic grid-snake game — the player steers (swipe/arrows) a snake around a square grid to eat
+  glowing food orbs, growing longer and scoring a point per orb, for a fixed duration. Reward is a tiered curve
+  over the final score (food eaten), same shape as tap_catch's rewardCurve/maxScore. Mechanical levers:
+  - "gridSize": 8-20 — board dimension (gridSize x gridSize cells). Bigger boards feel roomier, smaller boards
+    feel frantic.
+  - "tickMs": 60-400 — milliseconds per movement step; lower is faster/harder.
+  - "wrap": boolean — true lets the snake wrap around edges instead of dying on wall contact (more forgiving).
+  - "obstacles": 0-10 — static blocks scattered on the board to dodge.
+  - "speedRamp": 0-0.05 — fractional reduction in tickMs per second of play, making the game accelerate.
+  - "theme": { bg, accent, food } hex colors for the board background, snake body, and food orb.
+  Pick a distinct combination (e.g. small fast grid with wrap-around vs large slow grid with many obstacles) so
+  each snake_run game plays differently.
 
 Hard constraints (a separate automated gate enforces these — design within them):
 - tap_catch: durationSec 10-60, spawnMinMs >= 200 and <= spawnMaxMs, 1-6 objects, hazards 0-4, hazardPenalty 0-10,
   speedRamp 0-0.2, maxScore 1-200, rewardCurve max points <= 300.
 - spin_wheel: 3-10 segments, weights positive, rewardPoints <= 300 per segment, and the weighted expected value per spin <= 60 points
   (treat 1 ticket ~= 50 points and 1 coin ~= 10 points when estimating).
+- snake_run: gridSize 8-20, tickMs 60-400, durationSec 15-90, obstacles 0-10, speedRamp 0-0.05, maxScore 1-100,
+  rewardCurve max points <= 300.
 - The slug must be a short lowercase-with-hyphens identifier not already used by an existing game.
 - Theme AND mechanic should feel distinct from existing games (different icon, color, travel direction/hazards, and concept).
 
 Respond with ONLY a JSON object matching this TypeScript shape, no prose, no markdown fences:
 {
   "slug": string,
-  "template": "tap_catch" | "spin_wheel",
+  "template": "tap_catch" | "spin_wheel" | "snake_run",
   "title": string,
   "description": string,
   "icon": string, // a single emoji
-  "config": { ...template-specific config, using the mechanical levers above for tap_catch... },
+  "config": { ...template-specific config, using the mechanical levers above... },
   "imagePrompt": string, // short cinematic visual brief for cover art — describe a dynamic scene, lighting, and mood
   "promoCopy": string, // one-line announcement for players
   "accentColor": string // hex color, e.g. "#6c5ce7"
@@ -137,6 +153,18 @@ function simulateTapCatchEv(config: TapCatchConfig, trials = 5000): number {
   return total / trials
 }
 
+/** Monte Carlo estimate of average reward points per play for a snake_run config. */
+function simulateSnakeRunEv(config: SnakeConfig, trials = 5000): number {
+  let total = 0
+  for (let i = 0; i < trials; i++) {
+    // Assume scores cluster around 1/3 of maxScore (a casual player), with
+    // some spread — representative enough for a guardrail estimate.
+    const score = Math.max(0, Math.round((Math.random() + Math.random()) * (config.maxScore / 3)))
+    total += computeRewardFromCurve(score, config.maxScore, config.rewardCurve)
+  }
+  return total / trials
+}
+
 function simulateSpinWheelEv(config: SpinWheelConfig): number {
   const totalWeight = config.segments.reduce((sum, s) => sum + s.weight, 0)
   if (totalWeight <= 0) return 0
@@ -175,6 +203,8 @@ export function testGameConfig(proposal: ProposedGame, existingGames: CatalogGam
     estimatedAvgPointsPerPlay = simulateTapCatchEv(proposal.config as TapCatchConfig)
   } else if (proposal.template === 'spin_wheel') {
     estimatedAvgPointsPerPlay = simulateSpinWheelEv(proposal.config as SpinWheelConfig)
+  } else if (proposal.template === 'snake_run') {
+    estimatedAvgPointsPerPlay = simulateSnakeRunEv(proposal.config as SnakeConfig)
   }
   if (estimatedAvgPointsPerPlay > MAX_EXPECTED_POINTS_PER_PLAY) {
     errors.push(`estimated average points per play (${estimatedAvgPointsPerPlay.toFixed(1)}) exceeds cap of ${MAX_EXPECTED_POINTS_PER_PLAY}`)

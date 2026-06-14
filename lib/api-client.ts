@@ -1,5 +1,5 @@
 import { getInitData } from './telegram-webapp'
-import type { GameTemplate, TapCatchConfig, SpinWheelConfig, GomokuConfig } from './game-templates'
+import type { GameTemplate, TapCatchConfig, SpinWheelConfig, SnakeConfig, GomokuConfig } from './game-templates'
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -147,7 +147,7 @@ export interface GameDto {
   title: string
   description: string
   icon: string
-  config: TapCatchConfig | SpinWheelConfig | GomokuConfig
+  config: TapCatchConfig | SpinWheelConfig | SnakeConfig | GomokuConfig
   coverImageUrl: string | null
   remainingPlays: number
   maxPlaysPerDay: number

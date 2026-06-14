@@ -5,8 +5,9 @@ import BottomNav from '@/components/ui/BottomNav'
 import TapGame from '@/components/minigames/TapGame'
 import SpinWheel from '@/components/minigames/SpinWheel'
 import GomokuGame from '@/components/minigames/GomokuGame'
+import SnakeGame from '@/components/minigames/SnakeGame'
 import { api, GameDto, PlayResultDto } from '@/lib/api-client'
-import { TapCatchConfig, SpinWheelConfig } from '@/lib/game-templates'
+import { TapCatchConfig, SpinWheelConfig, SnakeConfig } from '@/lib/game-templates'
 
 export default function Games() {
   const router = useRouter()
@@ -108,6 +109,16 @@ export default function Games() {
           slug={activeGame.slug}
           title={`${activeGame.icon} ${activeGame.title}`}
           config={activeGame.config as TapCatchConfig}
+          onComplete={handleComplete}
+          onClose={() => setActiveSlug(null)}
+        />
+      )}
+
+      {activeGame && activeGame.template === 'snake_run' && (
+        <SnakeGame
+          slug={activeGame.slug}
+          title={`${activeGame.icon} ${activeGame.title}`}
+          config={activeGame.config as SnakeConfig}
           onComplete={handleComplete}
           onClose={() => setActiveSlug(null)}
         />

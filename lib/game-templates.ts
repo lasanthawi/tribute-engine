@@ -4,7 +4,7 @@
 // renders/plays it) plus a `config` (JSONB params for that engine). New games
 // are new config rows, not new code.
 
-export type GameTemplate = 'tap_catch' | 'spin_wheel' | 'gomoku'
+export type GameTemplate = 'tap_catch' | 'spin_wheel' | 'gomoku' | 'snake_run'
 export type GameStatus = 'draft' | 'testing' | 'published' | 'retired'
 
 // Catalog rotation: when this many games are published, the autonomous
@@ -47,15 +47,20 @@ export interface TapCatchConfig {
   theme: { bg: string; accent: string }
 }
 
-/** Tiered points reward for a tap_catch game based on a server-validated score. */
-export function computeTapRewardFromCurve(score: number, config: TapCatchConfig): number {
-  const clamped = Math.max(0, Math.min(config.maxScore, Math.trunc(score)))
-  const tiers = [...config.rewardCurve].sort((a, b) => a.minScore - b.minScore)
+/** Tiered points reward for any score-based game (tap_catch, snake_run, ...) based on a server-validated score. */
+export function computeRewardFromCurve(score: number, maxScore: number, rewardCurve: TapCatchRewardTier[]): number {
+  const clamped = Math.max(0, Math.min(maxScore, Math.trunc(score)))
+  const tiers = [...rewardCurve].sort((a, b) => a.minScore - b.minScore)
   let points = 0
   for (const tier of tiers) {
     if (clamped >= tier.minScore) points = tier.points
   }
   return points
+}
+
+/** Tiered points reward for a tap_catch game based on a server-validated score. */
+export function computeTapRewardFromCurve(score: number, config: TapCatchConfig): number {
+  return computeRewardFromCurve(score, config.maxScore, config.rewardCurve)
 }
 
 // ---------- spin_wheel ----------
@@ -190,6 +195,73 @@ export function validateSpinWheelConfig(config: SpinWheelConfig): ConfigValidati
   return { valid: errors.length === 0, errors }
 }
 
+// ---------- snake_run ----------
+//
+// Classic grid-snake: steer with swipes/arrows, eat food to grow and score,
+// avoid walls (unless wrap is on), your own tail, and any obstacles. Reward
+// is a tiered curve over the final score (food eaten), same shape as
+// tap_catch's rewardCurve/maxScore.
+
+export interface SnakeConfig {
+  /** Square grid dimension, e.g. 14 = 14x14 cells. */
+  gridSize: number
+  /** Milliseconds per movement step (lower = faster). */
+  tickMs: number
+  durationSec: number
+  /** If true, the snake wraps around edges instead of dying on wall contact. */
+  wrap: boolean
+  /** Number of static obstacle cells scattered on the board. Optional, default 0. */
+  obstacles?: number
+  /** Fractional reduction in tickMs per second of play (0-0.05), makes the game speed up. Optional, default 0. */
+  speedRamp?: number
+  theme: { bg: string; accent: string; food: string }
+  rewardCurve: TapCatchRewardTier[]
+  maxScore: number
+}
+
+export function validateSnakeConfig(config: SnakeConfig): ConfigValidationResult {
+  const errors: string[] = []
+
+  if (!Number.isFinite(config.gridSize) || config.gridSize < 8 || config.gridSize > 20) {
+    errors.push('gridSize must be between 8 and 20')
+  }
+  if (!Number.isFinite(config.tickMs) || config.tickMs < 60 || config.tickMs > 400) {
+    errors.push('tickMs must be between 60 and 400')
+  }
+  if (!Number.isFinite(config.durationSec) || config.durationSec < 15 || config.durationSec > 90) {
+    errors.push('durationSec must be between 15 and 90')
+  }
+  if (typeof config.wrap !== 'boolean') {
+    errors.push('wrap must be a boolean')
+  }
+  if (config.obstacles !== undefined) {
+    if (!Number.isFinite(config.obstacles) || config.obstacles < 0 || config.obstacles > 10) {
+      errors.push('obstacles must be between 0 and 10')
+    }
+  }
+  if (config.speedRamp !== undefined) {
+    if (!Number.isFinite(config.speedRamp) || config.speedRamp < 0 || config.speedRamp > 0.05) {
+      errors.push('speedRamp must be between 0 and 0.05 (0-5% speed increase per second)')
+    }
+  }
+  if (!Number.isFinite(config.maxScore) || config.maxScore < 1 || config.maxScore > 100) {
+    errors.push('maxScore must be between 1 and 100')
+  }
+  if (!Array.isArray(config.rewardCurve) || config.rewardCurve.length < 1) {
+    errors.push('rewardCurve must contain at least one tier')
+  } else {
+    const maxPoints = Math.max(...config.rewardCurve.map((t) => t.points))
+    if (maxPoints > MAX_REWARD_POINTS_PER_PLAY) {
+      errors.push(`rewardCurve max points (${maxPoints}) exceeds cap of ${MAX_REWARD_POINTS_PER_PLAY}`)
+    }
+    if (config.rewardCurve.some((t) => t.points < 0 || t.minScore < 0)) {
+      errors.push('rewardCurve entries must be non-negative')
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
 // ---------- gomoku ----------
 //
 // Live 8x8 connect-5 matches are a bespoke engine (lib/gomoku.ts), not a
@@ -201,6 +273,7 @@ export type GomokuConfig = Record<string, never>
 export function validateGameConfig(template: GameTemplate, config: unknown): ConfigValidationResult {
   if (template === 'tap_catch') return validateTapCatchConfig(config as TapCatchConfig)
   if (template === 'spin_wheel') return validateSpinWheelConfig(config as SpinWheelConfig)
+  if (template === 'snake_run') return validateSnakeConfig(config as SnakeConfig)
   if (template === 'gomoku') return { valid: true, errors: [] }
   return { valid: false, errors: [`Unknown template: ${template}`] }
 }

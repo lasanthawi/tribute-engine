@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { GameTemplate, GameStatus, TapCatchConfig, SpinWheelConfig, GomokuConfig } from './game-templates'
+import { GameTemplate, GameStatus, TapCatchConfig, SpinWheelConfig, SnakeConfig, GomokuConfig } from './game-templates'
 
 // Falls back to placeholder values in demo mode (no Supabase project configured yet)
 // so the client can be constructed without crashing at import time.
@@ -454,7 +454,7 @@ export interface Database {
           title: string
           description: string
           icon: string
-          config: TapCatchConfig | SpinWheelConfig | GomokuConfig
+          config: TapCatchConfig | SpinWheelConfig | SnakeConfig | GomokuConfig
           cover_image_url: string | null
           status: GameStatus
           max_plays_per_day: number
@@ -468,7 +468,7 @@ export interface Database {
           template: GameTemplate
           title: string
           description: string
-          config: TapCatchConfig | SpinWheelConfig | GomokuConfig
+          config: TapCatchConfig | SpinWheelConfig | SnakeConfig | GomokuConfig
         }
         Update: Partial<Database['public']['Tables']['games']['Row']>
         Relationships: [
