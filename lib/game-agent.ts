@@ -11,6 +11,7 @@ import {
   TapCatchConfig,
   SpinWheelConfig,
   SnakeConfig,
+  StackTowerConfig,
   validateGameConfig,
   computeTapRewardFromCurve,
   computeRewardFromCurve,
@@ -26,7 +27,7 @@ export interface ProposedGame {
   title: string
   description: string
   icon: string
-  config: TapCatchConfig | SpinWheelConfig | SnakeConfig
+  config: TapCatchConfig | SpinWheelConfig | SnakeConfig | StackTowerConfig
   /** Short visual brief for cover art generation. */
   imagePrompt: string
   /** One-line announcement copy for the official channel. */
@@ -67,6 +68,20 @@ You design small reward mini-games that slot into an existing catalog. Each game
   - "theme": { bg, accent, food } hex colors for the board background, snake body, and food orb.
   Pick a distinct combination (e.g. small fast grid with wrap-around vs large slow grid with many obstacles) so
   each snake_run game plays differently.
+- "stack_tower": a precision block-stacker — a block oscillates horizontally above the tower; tapping drops it onto
+  the stack, trimming any overhang to the overlap with the block below. Missing entirely (no overlap) ends the run.
+  Score is the number of blocks successfully placed, scored via a tiered rewardCurve/maxScore (same shape as
+  tap_catch/snake_run). Mechanical levers:
+  - "boardWidth": 200-360 — canvas width in px, also the width of the base block.
+  - "blockWidth": 20 to just under boardWidth — width of the first moving block. Narrower starting blocks make the
+    game harder from the outset.
+  - "blockHeight": 16-40 — height of each stacked block in px.
+  - "blockSpeed": 60-320 — horizontal oscillation speed of the moving block, px/sec. Higher is harder.
+  - "speedRamp": 0-0.15 — fractional increase in blockSpeed per block placed, making the game escalate.
+  - "perfectBonus": boolean — if true, a near-perfect placement snaps to full overlap (no trimming), rewarding precision.
+  - "theme": { bg, accent, blockColors } — blockColors is an array of 1-6 hex colors cycled per stacked block.
+  Pick a distinct combination (e.g. fast narrow blocks with high speedRamp vs slow wide blocks with perfectBonus)
+  so each stack_tower game plays differently.
 
 Hard constraints (a separate automated gate enforces these — design within them):
 - tap_catch: durationSec 10-60, spawnMinMs >= 200 and <= spawnMaxMs, 1-6 objects, hazards 0-4, hazardPenalty 0-10,
@@ -75,6 +90,8 @@ Hard constraints (a separate automated gate enforces these — design within the
   (treat 1 ticket ~= 50 points and 1 coin ~= 10 points when estimating).
 - snake_run: gridSize 8-20, tickMs 60-400, durationSec 15-90, obstacles 0-10, speedRamp 0-0.05, maxScore 1-100,
   rewardCurve max points <= 300.
+- stack_tower: boardWidth 200-360, blockWidth >= 20 and < boardWidth, blockHeight 16-40, blockSpeed 60-320,
+  speedRamp 0-0.15, blockColors 1-6 entries, maxScore 1-100, rewardCurve max points <= 300.
 - The slug must be a short lowercase-with-hyphens identifier not already used by an existing game.
 - Theme AND mechanic should feel distinct from existing games (different icon, color, travel direction/hazards, and concept).
 
@@ -165,6 +182,18 @@ function simulateSnakeRunEv(config: SnakeConfig, trials = 5000): number {
   return total / trials
 }
 
+/** Monte Carlo estimate of average reward points per play for a stack_tower config. */
+function simulateStackTowerEv(config: StackTowerConfig, trials = 5000): number {
+  let total = 0
+  for (let i = 0; i < trials; i++) {
+    // Assume scores cluster around 1/3 of maxScore (a casual player), with
+    // some spread — representative enough for a guardrail estimate.
+    const score = Math.max(0, Math.round((Math.random() + Math.random()) * (config.maxScore / 3)))
+    total += computeRewardFromCurve(score, config.maxScore, config.rewardCurve)
+  }
+  return total / trials
+}
+
 function simulateSpinWheelEv(config: SpinWheelConfig): number {
   const totalWeight = config.segments.reduce((sum, s) => sum + s.weight, 0)
   if (totalWeight <= 0) return 0
@@ -205,6 +234,8 @@ export function testGameConfig(proposal: ProposedGame, existingGames: CatalogGam
     estimatedAvgPointsPerPlay = simulateSpinWheelEv(proposal.config as SpinWheelConfig)
   } else if (proposal.template === 'snake_run') {
     estimatedAvgPointsPerPlay = simulateSnakeRunEv(proposal.config as SnakeConfig)
+  } else if (proposal.template === 'stack_tower') {
+    estimatedAvgPointsPerPlay = simulateStackTowerEv(proposal.config as StackTowerConfig)
   }
   if (estimatedAvgPointsPerPlay > MAX_EXPECTED_POINTS_PER_PLAY) {
     errors.push(`estimated average points per play (${estimatedAvgPointsPerPlay.toFixed(1)}) exceeds cap of ${MAX_EXPECTED_POINTS_PER_PLAY}`)

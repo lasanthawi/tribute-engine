@@ -4,7 +4,7 @@
 // renders/plays it) plus a `config` (JSONB params for that engine). New games
 // are new config rows, not new code.
 
-export type GameTemplate = 'tap_catch' | 'spin_wheel' | 'gomoku' | 'snake_run'
+export type GameTemplate = 'tap_catch' | 'spin_wheel' | 'gomoku' | 'snake_run' | 'stack_tower'
 export type GameStatus = 'draft' | 'testing' | 'published' | 'retired'
 
 // Catalog rotation: when this many games are published, the autonomous
@@ -262,6 +262,76 @@ export function validateSnakeConfig(config: SnakeConfig): ConfigValidationResult
   return { valid: errors.length === 0, errors }
 }
 
+// ---------- stack_tower ----------
+//
+// Classic block-stacker: a block oscillates horizontally above the tower;
+// tapping drops it onto the stack, trimming any overhang to the overlap with
+// the block below. Missing entirely (no overlap) ends the run. Score is the
+// number of blocks successfully placed, scored via the same tiered
+// rewardCurve/maxScore shape as tap_catch/snake_run.
+
+export interface StackTowerConfig {
+  /** Canvas width in px — also the width of the base block. */
+  boardWidth: number
+  /** Width in px of the very first moving block (must be less than boardWidth). */
+  blockWidth: number
+  /** Height in px of each stacked block. */
+  blockHeight: number
+  /** Horizontal oscillation speed of the moving block, in px/sec. */
+  blockSpeed: number
+  /** Fractional increase in blockSpeed per block placed (0-0.15). Optional, default 0. */
+  speedRamp?: number
+  /** If true, a near-perfect placement snaps to full overlap with no trimming. Optional, default false. */
+  perfectBonus?: boolean
+  theme: { bg: string; accent: string; blockColors: string[] }
+  rewardCurve: TapCatchRewardTier[]
+  maxScore: number
+}
+
+export function validateStackTowerConfig(config: StackTowerConfig): ConfigValidationResult {
+  const errors: string[] = []
+
+  if (!Number.isFinite(config.boardWidth) || config.boardWidth < 200 || config.boardWidth > 360) {
+    errors.push('boardWidth must be between 200 and 360')
+  }
+  if (!Number.isFinite(config.blockWidth) || config.blockWidth < 20 || config.blockWidth >= config.boardWidth) {
+    errors.push('blockWidth must be at least 20 and less than boardWidth')
+  }
+  if (!Number.isFinite(config.blockHeight) || config.blockHeight < 16 || config.blockHeight > 40) {
+    errors.push('blockHeight must be between 16 and 40')
+  }
+  if (!Number.isFinite(config.blockSpeed) || config.blockSpeed < 60 || config.blockSpeed > 320) {
+    errors.push('blockSpeed must be between 60 and 320')
+  }
+  if (config.speedRamp !== undefined) {
+    if (!Number.isFinite(config.speedRamp) || config.speedRamp < 0 || config.speedRamp > 0.15) {
+      errors.push('speedRamp must be between 0 and 0.15 (0-15% speed increase per block placed)')
+    }
+  }
+  if (config.perfectBonus !== undefined && typeof config.perfectBonus !== 'boolean') {
+    errors.push('perfectBonus must be a boolean')
+  }
+  if (!Array.isArray(config.theme?.blockColors) || config.theme.blockColors.length < 1 || config.theme.blockColors.length > 6) {
+    errors.push('theme.blockColors must contain between 1 and 6 entries')
+  }
+  if (!Number.isFinite(config.maxScore) || config.maxScore < 1 || config.maxScore > 100) {
+    errors.push('maxScore must be between 1 and 100')
+  }
+  if (!Array.isArray(config.rewardCurve) || config.rewardCurve.length < 1) {
+    errors.push('rewardCurve must contain at least one tier')
+  } else {
+    const maxPoints = Math.max(...config.rewardCurve.map((t) => t.points))
+    if (maxPoints > MAX_REWARD_POINTS_PER_PLAY) {
+      errors.push(`rewardCurve max points (${maxPoints}) exceeds cap of ${MAX_REWARD_POINTS_PER_PLAY}`)
+    }
+    if (config.rewardCurve.some((t) => t.points < 0 || t.minScore < 0)) {
+      errors.push('rewardCurve entries must be non-negative')
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
 // ---------- gomoku ----------
 //
 // Live 8x8 connect-5 matches are a bespoke engine (lib/gomoku.ts), not a
@@ -274,6 +344,7 @@ export function validateGameConfig(template: GameTemplate, config: unknown): Con
   if (template === 'tap_catch') return validateTapCatchConfig(config as TapCatchConfig)
   if (template === 'spin_wheel') return validateSpinWheelConfig(config as SpinWheelConfig)
   if (template === 'snake_run') return validateSnakeConfig(config as SnakeConfig)
+  if (template === 'stack_tower') return validateStackTowerConfig(config as StackTowerConfig)
   if (template === 'gomoku') return { valid: true, errors: [] }
   return { valid: false, errors: [`Unknown template: ${template}`] }
 }

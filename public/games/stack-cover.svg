@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <defs>
+    <linearGradient id="bgStack" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#231a3d"/>
+      <stop offset="100%" stop-color="#0b0f1a"/>
+    </linearGradient>
+    <radialGradient id="glowStack" cx="50%" cy="30%" r="65%">
+      <stop offset="0%" stop-color="#6c5ce7" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#6c5ce7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#bgStack)"/>
+  <rect width="640" height="360" fill="url(#glowStack)"/>
+
+  <g stroke="rgba(255,255,255,0.06)" stroke-width="1">
+    <line x1="0" y1="60" x2="640" y2="60"/>
+    <line x1="0" y1="120" x2="640" y2="120"/>
+    <line x1="0" y1="180" x2="640" y2="180"/>
+    <line x1="0" y1="240" x2="640" y2="240"/>
+  </g>
+
+  <!-- tower -->
+  <rect x="240" y="232" width="160" height="36" rx="6" fill="#F7931A"/>
+  <rect x="256" y="196" width="128" height="36" rx="6" fill="#6c5ce7"/>
+  <rect x="232" y="160" width="140" height="36" rx="6" fill="#29B6F6"/>
+  <rect x="250" y="124" width="110" height="36" rx="6" fill="#5be37a"/>
+
+  <!-- falling block -->
+  <rect x="380" y="60" width="90" height="36" rx="6" fill="#ffd166">
+    <animate attributeName="x" values="380;200;380" dur="2.4s" repeatCount="indefinite"/>
+  </rect>
+
+  <text x="50%" y="320" font-family="sans-serif" font-size="44" font-weight="800" fill="#ffffff" text-anchor="middle">Tower Stack</text>
+  <text x="50%" y="345" font-family="sans-serif" font-size="18" font-weight="600" fill="#a3a8c2" text-anchor="middle">🧱 Drop blocks, line them up, build sky-high</text>
+</svg>

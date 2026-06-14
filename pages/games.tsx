@@ -6,19 +6,21 @@ import TapGame from '@/components/minigames/TapGame'
 import SpinWheel from '@/components/minigames/SpinWheel'
 import GomokuGame from '@/components/minigames/GomokuGame'
 import SnakeGame from '@/components/minigames/SnakeGame'
+import StackTowerGame from '@/components/minigames/StackTowerGame'
 import { api, GameDto, PlayResultDto } from '@/lib/api-client'
-import { TapCatchConfig, SpinWheelConfig, SnakeConfig } from '@/lib/game-templates'
+import { TapCatchConfig, SpinWheelConfig, SnakeConfig, StackTowerConfig } from '@/lib/game-templates'
 
 const CATEGORY_LABEL: Record<string, string> = {
   tap_catch: 'Arcade',
   snake_run: 'Arcade',
+  stack_tower: 'Arcade',
   spin_wheel: 'Lucky Draw',
   gomoku: 'Multiplayer',
 }
 
 function maxReward(g: GameDto): number {
-  if (g.template === 'tap_catch' || g.template === 'snake_run') {
-    const cfg = g.config as TapCatchConfig | SnakeConfig
+  if (g.template === 'tap_catch' || g.template === 'snake_run' || g.template === 'stack_tower') {
+    const cfg = g.config as TapCatchConfig | SnakeConfig | StackTowerConfig
     return cfg.rewardCurve.reduce((max, tier) => Math.max(max, tier.points), 0)
   }
   if (g.template === 'spin_wheel') {
@@ -81,7 +83,9 @@ export default function Games() {
     refresh()
   }
 
-  const arcadeGames = (games ?? []).filter((g) => g.template === 'tap_catch' || g.template === 'snake_run')
+  const arcadeGames = (games ?? []).filter(
+    (g) => g.template === 'tap_catch' || g.template === 'snake_run' || g.template === 'stack_tower'
+  )
   const spinGame = (games ?? []).find((g) => g.template === 'spin_wheel')
   const gomokuGame = (games ?? []).find((g) => g.template === 'gomoku')
 
@@ -247,6 +251,16 @@ export default function Games() {
           slug={activeGame.slug}
           title={`${activeGame.icon} ${activeGame.title}`}
           config={activeGame.config as SnakeConfig}
+          onComplete={handleComplete}
+          onClose={() => setActiveSlug(null)}
+        />
+      )}
+
+      {activeGame && activeGame.template === 'stack_tower' && (
+        <StackTowerGame
+          slug={activeGame.slug}
+          title={`${activeGame.icon} ${activeGame.title}`}
+          config={activeGame.config as StackTowerConfig}
           onComplete={handleComplete}
           onClose={() => setActiveSlug(null)}
         />

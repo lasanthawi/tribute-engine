@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/api-auth'
 import { isDemoMode } from '@/lib/demo'
 import { demoGames } from '@/lib/demo-data'
 import { playTapGame, spinWheel } from '@/lib/minigames'
-import { computeTapRewardFromCurve, computeRewardFromCurve, pickSpinSegment, TapCatchConfig, SpinWheelConfig, SnakeConfig } from '@/lib/game-templates'
+import { computeTapRewardFromCurve, computeRewardFromCurve, pickSpinSegment, TapCatchConfig, SpinWheelConfig, SnakeConfig, StackTowerConfig } from '@/lib/game-templates'
 import { PlayResultDto } from '@/lib/api-client'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -38,6 +38,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: 'Invalid request' })
       }
       const config = game.config as SnakeConfig
+      const clampedScore = Math.min(score, config.maxScore)
+      const result: PlayResultDto = {
+        rewardPoints: computeRewardFromCurve(clampedScore, config.maxScore, config.rewardCurve),
+        rewardTickets: 0,
+        rewardCoins: 0,
+        remainingPlays: 2,
+      }
+      return res.status(200).json(result)
+    }
+
+    if (game.template === 'stack_tower') {
+      const { score } = req.body ?? {}
+      if (typeof score !== 'number' || !Number.isInteger(score) || score < 0) {
+        return res.status(400).json({ error: 'Invalid request' })
+      }
+      const config = game.config as StackTowerConfig
       const clampedScore = Math.min(score, config.maxScore)
       const result: PlayResultDto = {
         rewardPoints: computeRewardFromCurve(clampedScore, config.maxScore, config.rewardCurve),
