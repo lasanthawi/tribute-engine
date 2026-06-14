@@ -7,7 +7,7 @@ import Confetti from '@/components/ui/Confetti'
 const CANVAS_SIZE = 320
 const MIN_TICK_MS = 60
 
-type Phase = 'ready' | 'playing' | 'submitting' | 'done'
+type Phase = 'ready' | 'countdown' | 'playing' | 'submitting' | 'done'
 type Cell = [number, number]
 type Dir = [number, number]
 
@@ -49,6 +49,7 @@ export default function SnakeGame({
   const [phase, setPhase] = useState<Phase>('ready')
   const [score, setScore] = useState(0)
   const [timeLeft, setTimeLeft] = useState(config.durationSec)
+  const [countdown, setCountdown] = useState(3)
   const [result, setResult] = useState<PlayResultDto | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -65,6 +66,7 @@ export default function SnakeGame({
   const rafRef = useRef<number | null>(null)
   const tickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const countdownStepRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const overRef = useRef(false)
 
   const cellSize = CANVAS_SIZE / config.gridSize
@@ -76,6 +78,8 @@ export default function SnakeGame({
     tickTimeoutRef.current = null
     if (countdownRef.current !== null) clearInterval(countdownRef.current)
     countdownRef.current = null
+    if (countdownStepRef.current !== null) clearTimeout(countdownStepRef.current)
+    countdownStepRef.current = null
   }
 
   useEffect(() => stopLoop, [])
@@ -114,8 +118,8 @@ export default function SnakeGame({
     obstaclesRef.current = obstacles
     foodRef.current = randomEmptyCell([...snake, ...obstacles])
 
-    setPhase('playing')
-    startedAtRef.current = performance.now()
+    setPhase('countdown')
+    setCountdown(3)
 
     const step = () => {
       if (overRef.current) return
@@ -174,8 +178,6 @@ export default function SnakeGame({
       submit()
     }
 
-    tickTimeoutRef.current = setTimeout(step, config.tickMs)
-
     const render = (now: number) => {
       draw(now)
       floatingRef.current = floatingRef.current.filter((f) => now - f.createdAt < 700)
@@ -183,17 +185,35 @@ export default function SnakeGame({
     }
     rafRef.current = requestAnimationFrame(render)
 
-    countdownRef.current = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          overRef.current = true
-          stopLoop()
-          submit()
-          return 0
-        }
-        return t - 1
-      })
-    }, 1000)
+    const beginPlaying = () => {
+      setPhase('playing')
+      startedAtRef.current = performance.now()
+      tickTimeoutRef.current = setTimeout(step, config.tickMs)
+      countdownRef.current = setInterval(() => {
+        setTimeLeft((t) => {
+          if (t <= 1) {
+            overRef.current = true
+            stopLoop()
+            submit()
+            return 0
+          }
+          return t - 1
+        })
+      }, 1000)
+    }
+
+    let ticksLeft = 3
+    const tickCountdown = () => {
+      ticksLeft -= 1
+      if (ticksLeft <= 0) {
+        setCountdown(0)
+        beginPlaying()
+        return
+      }
+      setCountdown(ticksLeft)
+      countdownStepRef.current = setTimeout(tickCountdown, 700)
+    }
+    countdownStepRef.current = setTimeout(tickCountdown, 700)
   }
 
   const draw = (now: number) => {
@@ -264,7 +284,7 @@ export default function SnakeGame({
 
   const queueDirection = useCallback(
     (dir: Dir) => {
-      if (phase !== 'playing') return
+      if (phase !== 'playing' && phase !== 'countdown') return
       if (isOpposite(dir, directionRef.current) && snakeRef.current.length > 1) return
       pendingDirectionRef.current = dir
     },
@@ -319,7 +339,7 @@ export default function SnakeGame({
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+      <div className="sheet snake-sheet" style={{ '--snake-accent': config.theme.accent } as React.CSSProperties} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-handle" />
         <h3 className="sheet-title">{title}</h3>
 
@@ -328,7 +348,7 @@ export default function SnakeGame({
             <p className="sheet-subtitle">
               Swipe or use the arrows to steer your snake for {config.durationSec} seconds. Eat the glowing orbs to
               grow and score — {config.wrap ? 'wrap around the edges' : "don't hit the walls"}, your tail, or the
-              blocks!
+              blocks! You&apos;ll get a 3-second head start before the snake moves.
             </p>
             <button className="btn-primary" onClick={start}>
               Start
@@ -336,11 +356,11 @@ export default function SnakeGame({
           </>
         )}
 
-        {(phase === 'playing' || phase === 'submitting') && (
+        {(phase === 'countdown' || phase === 'playing' || phase === 'submitting') && (
           <>
             <div className="tap-game-hud">
-              <span>Score: {score}</span>
-              <span>⏱ {timeLeft}s</span>
+              <span className="snake-hud-stat">🟢 Score: {score}</span>
+              <span className="snake-hud-stat">⏱ {timeLeft}s</span>
             </div>
             <div className="snake-canvas-wrap" style={{ background: config.theme.bg }}>
               <canvas
@@ -351,6 +371,14 @@ export default function SnakeGame({
                 onPointerDown={handlePointerDown}
                 onPointerUp={handlePointerUp}
               />
+              {phase === 'countdown' && (
+                <div className="snake-countdown">
+                  <span className="snake-countdown-number" key={countdown}>
+                    {countdown > 0 ? countdown : 'GO!'}
+                  </span>
+                  <span className="snake-countdown-hint">Get ready — steer with swipes or the arrows below</span>
+                </div>
+              )}
             </div>
             <div className="snake-controls">
               <div className="snake-controls-row">

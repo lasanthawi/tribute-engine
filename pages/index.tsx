@@ -16,10 +16,18 @@ import SentimentWidget from '@/components/ui/SentimentWidget'
 import QuestCard from '@/components/ui/QuestCard'
 import { api, CallDto, GameDto, MeDto, QuestDto, RoundDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
+import { BOT_NAME } from '@/lib/bot'
 
 const PANEL_IDLE_MS = 3000
 const ASSETS = ['BTC', 'ETH', 'TON'] as const
 type AssetFilter = 'ALL' | (typeof ASSETS)[number]
+
+const AGENT_INVITES = [
+  `${BOT_NAME} just opened a Gomoku board — tap to play.`,
+  `${BOT_NAME} is online and up for a quick match.`,
+  `Feeling lucky? ${BOT_NAME} is waiting for a rematch.`,
+  `${BOT_NAME} challenges you to a round of Gomoku.`,
+]
 
 export default function Home() {
   const router = useRouter()
@@ -36,6 +44,7 @@ export default function Home() {
   const [quests, setQuests] = useState<QuestDto[] | null>(null)
   const [games, setGames] = useState<GameDto[] | null>(null)
   const [gomokuChallengeCode, setGomokuChallengeCode] = useState<string | null>(null)
+  const [agentInvite, setAgentInvite] = useState<string | null>(null)
   const panelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refresh = async () => {
@@ -87,6 +96,16 @@ export default function Home() {
         : ''
     setGomokuChallengeCode(code || null)
   }, [router.asPath, router.query.gomoku])
+
+  useEffect(() => {
+    if (gomokuChallengeCode) {
+      setAgentInvite(null)
+      return
+    }
+    if (Math.random() < 0.5) {
+      setAgentInvite(AGENT_INVITES[Math.floor(Math.random() * AGENT_INVITES.length)])
+    }
+  }, [gomokuChallengeCode])
 
   useEffect(() => {
     if (me?.dailyBonusAwarded) {
@@ -185,6 +204,17 @@ export default function Home() {
               <span className="gomoku-home-alert-sub">Room {gomokuChallengeCode} is waiting. Tap to join.</span>
             </span>
             <span className="gomoku-home-alert-action">Join</span>
+          </Link>
+        )}
+
+        {!gomokuChallengeCode && agentInvite && (
+          <Link href="/games?play=gomoku" className="gomoku-home-alert gomoku-home-alert--agent">
+            <span className="gomoku-home-alert-badge gomoku-home-alert-badge--emoji">🤖</span>
+            <span className="gomoku-home-alert-text">
+              <span className="gomoku-home-alert-title">{BOT_NAME} invites you to play</span>
+              <span className="gomoku-home-alert-sub">{agentInvite}</span>
+            </span>
+            <span className="gomoku-home-alert-action">Play</span>
           </Link>
         )}
 

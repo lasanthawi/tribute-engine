@@ -60,10 +60,20 @@ export default function Games() {
         : typeof router.query.gomoku === 'string'
         ? router.query.gomoku.trim().toUpperCase()
         : ''
-    if (!code) return
-    setGomokuJoinCode(code)
-    setActiveSlug('gomoku')
-  }, [router.asPath, router.query.gomoku])
+    if (code) {
+      setGomokuJoinCode(code)
+      setActiveSlug('gomoku')
+      return
+    }
+
+    const play =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('play')?.trim().toLowerCase() ?? ''
+        : typeof router.query.play === 'string'
+        ? router.query.play.trim().toLowerCase()
+        : ''
+    if (play === 'gomoku') setActiveSlug('gomoku')
+  }, [router.asPath, router.query.gomoku, router.query.play])
 
   const activeGame = (games ?? []).find((g) => g.slug === activeSlug)
 
@@ -144,7 +154,7 @@ export default function Games() {
                         </div>
                         <div className="game-feature-desc">{gomokuGame.description}</div>
                         <div className="game-feature-footer">
-                          <span className="game-card-plays">Computer + live remote rooms</span>
+                          <span className="game-card-plays">🤖 Nova + live remote rooms</span>
                           <button className="game-play-btn" onClick={(e) => { e.stopPropagation(); setActiveSlug(gomokuGame.slug) }}>
                             Play
                           </button>

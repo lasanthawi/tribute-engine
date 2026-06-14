@@ -2429,6 +2429,21 @@ button {
   box-shadow: 0 0 22px rgba(41, 182, 246, 0.28);
 }
 
+.gomoku-home-alert--agent {
+  border-color: rgba(108, 92, 231, 0.34);
+  background:
+    linear-gradient(135deg, rgba(108, 92, 231, 0.22), rgba(33, 208, 122, 0.1)),
+    var(--bg-card);
+  box-shadow: 0 14px 32px rgba(108, 92, 231, 0.14);
+}
+
+.gomoku-home-alert-badge--emoji {
+  font-size: 22px;
+  font-weight: 400;
+  background: linear-gradient(135deg, var(--accent), var(--up));
+  color: #fff;
+}
+
 .gomoku-home-alert-text {
   min-width: 0;
   display: grid;
@@ -3115,6 +3130,16 @@ button {
 
 /* Snake game */
 
+.snake-sheet {
+  max-width: 420px;
+}
+
+.snake-hud-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .snake-canvas-wrap {
   position: relative;
   width: 100%;
@@ -3125,11 +3150,46 @@ button {
   border: 1px solid var(--border);
 }
 
+.snake-countdown {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(5, 8, 14, 0.5);
+  backdrop-filter: blur(2px);
+  text-align: center;
+  padding: 0 20px;
+}
+
+.snake-countdown-number {
+  font-size: 60px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 24px var(--snake-accent, var(--up));
+  animation: snake-countdown-pop 0.6s cubic-bezier(0.18, 1.35, 0.4, 1);
+}
+
+.snake-countdown-hint {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+@keyframes snake-countdown-pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 .snake-controls {
   display: grid;
   justify-content: center;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .snake-controls-row {
@@ -3139,19 +3199,28 @@ button {
 }
 
 .snake-controls button {
-  width: 56px;
-  height: 48px;
+  width: 58px;
+  height: 50px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--bg-card);
   color: var(--text);
   font-size: 18px;
   font-weight: 800;
+  transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .snake-controls button:active {
-  background: rgba(33, 208, 122, 0.18);
-  border-color: rgba(33, 208, 122, 0.4);
+  background: color-mix(in srgb, var(--snake-accent, var(--up)) 18%, transparent);
+  border-color: color-mix(in srgb, var(--snake-accent, var(--up)) 45%, transparent);
+  transform: scale(0.94);
+}
+
+@media (max-width: 380px) {
+  .snake-controls button {
+    width: 50px;
+    height: 46px;
+  }
 }
 
 /* Spin wheel */

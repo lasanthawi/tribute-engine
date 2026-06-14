@@ -35,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       slug: 'gomoku',
       template: 'gomoku',
       title: 'Gomoku Blitz',
-      description: '8x8 connect-5 vs computer or a live remote player',
+      description: '8x8 connect-5 vs Nova or a live remote player',
       icon: 'GX',
       config: {},
       coverImageUrl: '/games/gomoku-cover.svg',

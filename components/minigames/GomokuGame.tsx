@@ -10,6 +10,7 @@ import {
 } from '@/lib/gomoku-rules'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 import Confetti from '@/components/ui/Confetti'
+import { BOT_NAME } from '@/lib/bot'
 
 type Mode = 'computer' | 'remote'
 
@@ -32,10 +33,10 @@ function statusText(match: GomokuMatchDto | null, board: GomokuBoard, turn: Gomo
     return match.currentTurn === match.myMark ? 'Your move' : `Player ${match.currentTurn} is thinking`
   }
   if (winner === 'draw') return 'Draw game'
-  if (winner) return winner === 'X' ? 'You win' : 'Computer wins'
+  if (winner) return winner === 'X' ? 'You win' : `${BOT_NAME} wins`
   const moveCount = board.flat().filter(Boolean).length
   if (moveCount === 0) return 'Place the first stone'
-  return turn === 'X' ? 'Your move' : 'Computer is calculating'
+  return turn === 'X' ? 'Your move' : `${BOT_NAME} is thinking`
 }
 
 export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () => void; initialJoinCode?: string }) {
@@ -72,13 +73,13 @@ export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () =
   )
 
   const playerXLabel = mode === 'remote' ? remoteMatch?.players.X?.label ?? 'Player X' : 'You'
-  const playerOLabel = mode === 'remote' ? remoteMatch?.players.O?.label ?? 'Waiting...' : 'Computer'
+  const playerOLabel = mode === 'remote' ? remoteMatch?.players.O?.label ?? 'Waiting...' : BOT_NAME
 
   const resultHeadline = useMemo(() => {
     if (!activeWinner) return null
     if (activeWinner === 'draw') return 'Draw Game'
     if (mode === 'remote') return activeWinner === remoteMatch?.myMark ? 'You Win!' : `${activeWinner} Wins`
-    return activeWinner === 'X' ? 'You Win!' : 'Computer Wins'
+    return activeWinner === 'X' ? 'You Win!' : `${BOT_NAME} Wins`
   }, [activeWinner, mode, remoteMatch?.myMark])
 
   useEffect(() => {
@@ -272,7 +273,7 @@ export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () =
 
         <div className="gomoku-mode-tabs" role="tablist" aria-label="Gomoku mode">
           <button className={mode === 'computer' ? 'active' : ''} onClick={() => setMode('computer')}>
-            Computer
+            🤖 vs {BOT_NAME}
           </button>
           <button className={mode === 'remote' ? 'active' : ''} onClick={() => setMode('remote')}>
             Remote
@@ -313,7 +314,7 @@ export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () =
           <div className="gomoku-wait-alert">
             <div>
               <strong>Still waiting?</strong>
-              <span>Keep the room open, or continue with the computer agent.</span>
+              <span>Keep the room open, or play a quick match against {BOT_NAME} while you wait.</span>
             </div>
             <div className="gomoku-wait-actions">
               <button onClick={() => setWaitingNudge(false)}>Wait longer</button>
@@ -324,7 +325,7 @@ export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () =
                   setMode('computer')
                 }}
               >
-                Play agent
+                Play {BOT_NAME}
               </button>
             </div>
           </div>
@@ -372,7 +373,7 @@ export default function GomokuGame({ onClose, initialJoinCode }: { onClose: () =
         <div className="gomoku-actions">
           {mode === 'computer' && (
             <button className="game-play-btn" onClick={resetComputer}>
-              New AI match
+              Rematch {BOT_NAME}
             </button>
           )}
           {mode === 'remote' && remoteMatch && (
