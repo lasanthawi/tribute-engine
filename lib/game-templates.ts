@@ -18,6 +18,8 @@ export interface TapCatchObject {
   label: string
   color: string
   weight: number
+  /** Optional logo image (e.g. "/games/icons/btc.svg") drawn over the colored circle instead of `label`. */
+  iconUrl?: string
 }
 
 export interface TapCatchRewardTier {

@@ -24,6 +24,7 @@ interface FallingObject {
   objectId: string
   label: string
   color: string
+  iconUrl?: string
   isHazard: boolean
 }
 
@@ -65,6 +66,7 @@ export default function TapGame({
   const nextSpawnRef = useRef(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const nextIdRef = useRef(0)
+  const iconCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
 
   const stopLoop = () => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
@@ -72,6 +74,20 @@ export default function TapGame({
     if (intervalRef.current !== null) clearInterval(intervalRef.current)
     intervalRef.current = null
   }
+
+  // Preload object/hazard logo images (if any) so render() can draw them once decoded.
+  useEffect(() => {
+    const urls = new Set<string>()
+    for (const obj of [...config.objects, ...(config.hazards ?? [])]) {
+      if (obj.iconUrl) urls.add(obj.iconUrl)
+    }
+    Array.from(urls).forEach((url) => {
+      if (iconCacheRef.current.has(url)) return
+      const img = new Image()
+      img.src = url
+      iconCacheRef.current.set(url, img)
+    })
+  }, [config.objects, config.hazards])
 
   useEffect(() => stopLoop, [])
 
@@ -152,6 +168,7 @@ export default function TapGame({
           objectId: obj.id,
           label: obj.label,
           color: obj.color,
+          iconUrl: obj.iconUrl,
           isHazard,
         })
         nextSpawnRef.current = config.spawnMinMs + Math.random() * (config.spawnMaxMs - config.spawnMinMs)
@@ -201,11 +218,17 @@ export default function TapGame({
         ctx.stroke()
         ctx.setLineDash([])
       }
-      ctx.fillStyle = '#fff'
-      ctx.font = `${Math.round(obj.size)}px sans-serif`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(obj.label, obj.x, obj.y + 1)
+      const icon = obj.iconUrl ? iconCacheRef.current.get(obj.iconUrl) : undefined
+      if (icon && icon.complete && icon.naturalWidth > 0) {
+        const iconSize = obj.size * 1.15
+        ctx.drawImage(icon, obj.x - iconSize / 2, obj.y - iconSize / 2, iconSize, iconSize)
+      } else {
+        ctx.fillStyle = '#fff'
+        ctx.font = `${Math.round(obj.size)}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(obj.label, obj.x, obj.y + 1)
+      }
     }
 
     for (const f of floatingRef.current) {

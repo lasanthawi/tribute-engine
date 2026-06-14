@@ -51,9 +51,9 @@ export function demoGames(): { games: GameDto[] } {
           spawnMinMs: 600,
           spawnMaxMs: 900,
           objects: [
-            { id: 'BTC', label: '₿', color: '#F7931A', weight: 1 },
-            { id: 'ETH', label: 'Ξ', color: '#627EEA', weight: 1 },
-            { id: 'TON', label: '◆', color: '#0098EA', weight: 1 },
+            { id: 'BTC', label: '₿', color: '#F7931A', weight: 1, iconUrl: '/games/icons/btc.svg' },
+            { id: 'ETH', label: 'Ξ', color: '#627EEA', weight: 1, iconUrl: '/games/icons/eth.svg' },
+            { id: 'TON', label: '◆', color: '#0098EA', weight: 1, iconUrl: '/games/icons/ton.svg' },
           ],
           rewardCurve: [
             { minScore: 0, points: 0 },
