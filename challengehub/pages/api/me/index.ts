@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { supabase } from '@/lib/supabase'
-import { getUserXp } from '@/lib/xp'
+import { getUserXp, getStreak } from '@/lib/xp'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
@@ -18,6 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (error) throw error
 
     const { xp, level } = await getUserXp(userId)
+    const { streak, atRisk: streakAtRisk } = await getStreak(userId)
 
     const { data: memberships, error: memErr } = await supabase
       .from('challenge_members')
@@ -37,6 +38,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       username: user.username,
       xp,
       level,
+      streak,
+      streakAtRisk,
       activeChallenges,
     })
   } catch (error) {
