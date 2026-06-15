@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import Head from 'next/head'
 import BottomNav from '@/components/ui/BottomNav'
 import XpBadge from '@/components/ui/XpBadge'
+import XpRing from '@/components/ui/XpRing'
+import CategoryBadge from '@/components/ui/CategoryBadge'
 import { api, MeDto, RewardDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 
@@ -61,6 +63,15 @@ export default function Profile() {
 
         {me && (
           <>
+            <div className="profile-hero">
+              <div className="profile-avatar">{(me.username ?? '?').slice(0, 1).toUpperCase()}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="profile-name">{me.username ? `@${me.username}` : 'Anonymous'}</div>
+                <div className="profile-sub">{me.xp.toLocaleString()} XP total</div>
+              </div>
+              <XpRing xp={me.xp} level={me.level} size={64} progressColor="var(--accent)" trackColor="var(--border)" textColor="var(--text)" />
+            </div>
+
             <div style={{ marginBottom: 18 }}>
               <XpBadge xp={me.xp} level={me.level} />
             </div>
@@ -83,7 +94,7 @@ export default function Profile() {
                 <div className="section-title">Active Challenges</div>
                 {me.activeChallenges.map((c) => (
                   <div key={c.id} className="task-item">
-                    <div className="task-item-day">🏁</div>
+                    <CategoryBadge category={c.category} size={36} />
                     <div className="task-item-body">
                       <div className="task-item-title">{c.title}</div>
                     </div>

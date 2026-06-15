@@ -47,6 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         title: c.title,
         description: c.description,
         coverUrl: c.cover_url,
+        category: c.category,
         startDate: c.start_date,
         endDate: c.end_date,
         status: c.status,

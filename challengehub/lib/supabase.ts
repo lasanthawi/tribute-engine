@@ -83,6 +83,7 @@ export interface Database {
           creator_id: number
           rules: string | null
           rewards: Record<string, unknown> | null
+          category: string
           created_at: string
         }
         Insert: Partial<Omit<Database['public']['Tables']['challenges']['Row'], 'id'>> & {

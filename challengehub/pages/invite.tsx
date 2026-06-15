@@ -51,7 +51,7 @@ export default function Invite() {
         </div>
 
         <div className="invite-card">
-          <div className="invite-emoji">🎉</div>
+          <div className="category-badge invite-badge">🎉</div>
           <h2 className="invite-title">Invite friends, earn XP</h2>
           <p className="invite-subtitle">
             Earn <b style={{ color: 'var(--gold)' }}>50 XP</b> when your friend completes their first check-in.

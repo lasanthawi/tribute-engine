@@ -3,6 +3,7 @@ import Head from 'next/head'
 import BottomNav from '@/components/ui/BottomNav'
 import Tabs from '@/components/ui/Tabs'
 import LeaderboardRow from '@/components/ui/LeaderboardRow'
+import LeaderboardPodium from '@/components/ui/LeaderboardPodium'
 import { api, LeaderboardDto } from '@/lib/api-client'
 
 export default function Leaderboard() {
@@ -55,7 +56,9 @@ export default function Leaderboard() {
           </div>
         )}
 
-        {data?.leaderboard.map((row, i) => (
+        {data && data.leaderboard.length >= 3 && <LeaderboardPodium rows={data.leaderboard.slice(0, 3)} />}
+
+        {data?.leaderboard.slice(data.leaderboard.length >= 3 ? 3 : 0).map((row, i) => (
           <LeaderboardRow key={row.userId} row={row} delay={Math.min(i, 8) * 50} />
         ))}
 

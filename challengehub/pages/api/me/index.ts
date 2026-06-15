@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { data: memberships, error: memErr } = await supabase
       .from('challenge_members')
-      .select('challenge_id, status, challenges(id, title, status)')
+      .select('challenge_id, status, challenges(id, title, status, category)')
       .eq('user_id', userId)
       .eq('status', 'active')
     if (memErr) throw memErr
@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const activeChallenges = (memberships ?? [])
       .map((m: any) => m.challenges)
       .filter(Boolean)
-      .map((c: any) => ({ id: c.id, title: c.title, status: c.status }))
+      .map((c: any) => ({ id: c.id, title: c.title, status: c.status, category: c.category }))
 
     res.status(200).json({
       id: user.id,

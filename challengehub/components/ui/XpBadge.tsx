@@ -1,13 +1,7 @@
-/** Simple level curve matching lib/xp.ts: level N requires N^2 * 100 cumulative XP. */
-function xpForLevel(level: number): number {
-  return Math.pow(level - 1, 2) * 100
-}
+import { levelProgress } from '@/lib/xp-client'
 
 export default function XpBadge({ xp, level }: { xp: number; level: number }) {
-  const currentLevelXp = xpForLevel(level)
-  const nextLevelXp = xpForLevel(level + 1)
-  const span = Math.max(1, nextLevelXp - currentLevelXp)
-  const progress = Math.min(1, Math.max(0, (xp - currentLevelXp) / span))
+  const progress = levelProgress(xp, level)
 
   return (
     <div className="xp-badge-wrap">

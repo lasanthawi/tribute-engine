@@ -24,7 +24,7 @@ export interface MeDto {
   username: string | null
   xp: number
   level: number
-  activeChallenges: { id: number; title: string; status: string }[]
+  activeChallenges: { id: number; title: string; status: string; category: string }[]
 }
 
 export interface ChallengeDto {
@@ -32,6 +32,7 @@ export interface ChallengeDto {
   title: string
   description: string
   coverUrl: string | null
+  category: string
   startDate: string
   endDate: string
   status: 'upcoming' | 'active' | 'completed' | 'cancelled'

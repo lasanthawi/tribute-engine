@@ -3,6 +3,9 @@ import Head from 'next/head'
 import { useRouter } from 'next/router'
 import BottomNav from '@/components/ui/BottomNav'
 import TaskItem from '@/components/ui/TaskItem'
+import ProgressBar from '@/components/ui/ProgressBar'
+import CategoryBadge from '@/components/ui/CategoryBadge'
+import { getCategoryMeta } from '@/lib/categories'
 import { api, ChallengeDto, TaskDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
 
@@ -90,7 +93,10 @@ export default function ChallengeDetail() {
         {challenge === null && <div className="skeleton" style={{ height: 160, marginBottom: 16 }} />}
 
         {challenge && (
-          <div className="detail-hero">
+          <div className={`detail-hero cat-${getCategoryMeta(challenge.category).className.replace('cat-', '')}-soft`}>
+            <div style={{ marginBottom: 10, position: 'relative' }}>
+              <CategoryBadge category={challenge.category} size={44} />
+            </div>
             <h1 className="detail-title">{challenge.title}</h1>
             <p className="detail-desc">{challenge.description}</p>
             {challenge.rules && <p className="detail-desc">{challenge.rules}</p>}
@@ -100,6 +106,10 @@ export default function ChallengeDetail() {
               <span className={`challenge-status ${challenge.status}`}>{challenge.status}</span>
             </div>
           </div>
+        )}
+
+        {challenge && tasks && tasks.length > 0 && (
+          <ProgressBar label="Progress" done={tasks.filter((t) => t.submission).length} total={tasks.length} />
         )}
 
         {challenge && !challenge.isMember && (
@@ -134,6 +144,7 @@ export default function ChallengeDetail() {
           <TaskItem
             key={task.id}
             task={task}
+            category={challenge?.category}
             onSelect={(t) => {
               if (!challenge?.isMember) return
               haptic('light')

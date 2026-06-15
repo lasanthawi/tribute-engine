@@ -29,6 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         title: challenge.title,
         description: challenge.description,
         coverUrl: challenge.cover_url,
+        category: challenge.category,
         startDate: challenge.start_date,
         endDate: challenge.end_date,
         status: challenge.status,
