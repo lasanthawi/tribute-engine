@@ -5,7 +5,7 @@ export default function Document() {
     <Html lang="en">
       <Head>
         <script src="https://telegram.org/js/telegram-web-app.js" async />
-        <meta name="theme-color" content="#0a0e17" />
+        <meta name="theme-color" content="#fff8f2" />
         <link rel="icon" href="/logo.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
       </Head>

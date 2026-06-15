@@ -7,8 +7,8 @@ import '@/styles/globals.css'
 export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     const tg = initTelegramWebApp()
-    tg?.setBackgroundColor?.('#0a0e17')
-    tg?.setHeaderColor?.('#0a0e17')
+    tg?.setBackgroundColor?.('#fff8f2')
+    tg?.setHeaderColor?.('#fff8f2')
   }, [])
 
   return (

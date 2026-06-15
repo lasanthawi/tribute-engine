@@ -1,24 +1,26 @@
 :root {
-  --bg: #0a0e17;
-  --bg-elevated: #131a2a;
-  --bg-card: #161d30;
-  --border: #232b40;
-  --text: #f4f6fb;
-  --text-dim: #8a93a8;
-  --text-faint: #5b6378;
+  --bg: #fff8f2;
+  --bg-elevated: #ffffff;
+  --bg-card: #ffffff;
+  --border: #f4e6e8;
+  --text: #4a3f55;
+  --text-dim: #9a8fae;
+  --text-faint: #c4bbd4;
 
-  --accent: #2dd4bf;
-  --accent-glow: rgba(45, 212, 191, 0.4);
-  --accent-2: #6c5ce7;
-  --gold: #ffc94d;
-  --success: #21d07a;
+  --accent: #ff9ebb;
+  --accent-glow: rgba(255, 158, 187, 0.35);
+  --accent-2: #b39ddb;
+  --gold: #ffc857;
+  --success: #5ed6a4;
+  --error: #ff8585;
+  --sky: #9fd8f5;
 
-  --radius-lg: 20px;
-  --radius-md: 14px;
-  --radius-sm: 10px;
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
   --radius-pill: 999px;
 
-  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 8px 24px rgba(216, 178, 200, 0.18);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -49,7 +51,7 @@ button {
 #__next {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 50% -10%, rgba(45, 212, 191, 0.16), transparent 45%),
+    radial-gradient(circle at 50% -10%, rgba(255, 158, 187, 0.16), transparent 45%),
     var(--bg);
 }
 
@@ -110,34 +112,34 @@ button {
 .orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(60px);
+  filter: blur(70px);
 }
 
 .orb-1 {
   width: 280px;
   height: 280px;
   background: var(--accent);
-  opacity: 0.18;
+  opacity: 0.35;
   top: -100px;
   left: -80px;
   animation: drift-1 24s ease-in-out infinite alternate;
 }
 
 .orb-2 {
-  width: 240px;
-  height: 240px;
+  width: 260px;
+  height: 260px;
   background: var(--accent-2);
-  opacity: 0.14;
+  opacity: 0.28;
   top: 35%;
   right: -100px;
   animation: drift-2 28s ease-in-out infinite alternate;
 }
 
 .orb-3 {
-  width: 220px;
-  height: 220px;
+  width: 240px;
+  height: 240px;
   background: var(--gold);
-  opacity: 0.1;
+  opacity: 0.3;
   bottom: -80px;
   left: 25%;
   animation: drift-3 32s ease-in-out infinite alternate;
@@ -160,7 +162,7 @@ button {
 
 .section-title {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1.2px;
   color: var(--text-dim);
@@ -196,7 +198,7 @@ button {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-elevated) 50%, var(--bg-card) 75%);
+  background: linear-gradient(90deg, #f6ecee 25%, #fbf3ef 50%, #f6ecee 75%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
   border-radius: var(--radius-md);
@@ -217,12 +219,13 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   padding: 6px 14px;
+  box-shadow: var(--shadow-card);
 }
 
 .xp-badge-level {
   font-weight: 800;
   font-size: 13px;
-  color: var(--gold);
+  color: #e0a82e;
   white-space: nowrap;
 }
 
@@ -278,6 +281,7 @@ button {
 .challenge-card-title {
   font-size: 16px;
   font-weight: 800;
+  color: var(--text);
 }
 
 .challenge-status {
@@ -291,27 +295,27 @@ button {
 }
 
 .challenge-status.active {
-  color: var(--success);
-  background: rgba(33, 208, 122, 0.14);
-  border: 1px solid rgba(33, 208, 122, 0.35);
+  color: #2e9b6f;
+  background: rgba(94, 214, 164, 0.18);
+  border: 1px solid rgba(94, 214, 164, 0.4);
 }
 
 .challenge-status.upcoming {
-  color: var(--accent);
-  background: rgba(45, 212, 191, 0.14);
-  border: 1px solid rgba(45, 212, 191, 0.35);
+  color: #c2799d;
+  background: rgba(255, 158, 187, 0.18);
+  border: 1px solid rgba(255, 158, 187, 0.4);
 }
 
 .challenge-status.completed {
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(154, 143, 174, 0.1);
   border: 1px solid var(--border);
 }
 
 .challenge-status.cancelled {
-  color: #ff4d6a;
-  background: rgba(255, 77, 106, 0.1);
-  border: 1px solid rgba(255, 77, 106, 0.3);
+  color: #e0625f;
+  background: rgba(255, 133, 133, 0.14);
+  border: 1px solid rgba(255, 133, 133, 0.35);
 }
 
 .challenge-card-desc {
@@ -335,19 +339,20 @@ button {
 }
 
 .challenge-card-member {
-  color: var(--gold);
+  color: #e0a82e;
 }
 
 /* ---------- Detail header ---------- */
 
 .detail-hero {
-  background: linear-gradient(135deg, var(--bg-elevated), var(--bg-card));
+  background: linear-gradient(135deg, #fff0f4, #fff8f2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 18px;
   margin-bottom: 16px;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
 .detail-hero::after {
@@ -363,6 +368,7 @@ button {
   font-weight: 800;
   margin: 0 0 8px;
   position: relative;
+  color: var(--text);
 }
 
 .detail-desc {
@@ -393,11 +399,12 @@ button {
   border-radius: var(--radius-md);
   padding: 12px 14px;
   margin-bottom: 10px;
+  box-shadow: var(--shadow-card);
 }
 
 .task-item.done {
-  border-color: rgba(33, 208, 122, 0.35);
-  background: linear-gradient(135deg, rgba(33, 208, 122, 0.08), var(--bg-card));
+  border-color: rgba(94, 214, 164, 0.4);
+  background: linear-gradient(135deg, rgba(94, 214, 164, 0.1), var(--bg-card));
 }
 
 .task-item-day {
@@ -407,16 +414,17 @@ button {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--bg-elevated);
+  background: #fdf1f4;
   border: 1px solid var(--border);
   font-weight: 800;
   font-size: 13px;
   flex-shrink: 0;
+  color: var(--text);
 }
 
 .task-item.done .task-item-day {
   background: var(--success);
-  color: #07101d;
+  color: #ffffff;
   border-color: var(--success);
 }
 
@@ -429,6 +437,7 @@ button {
   font-weight: 800;
   font-size: 14px;
   margin-bottom: 2px;
+  color: var(--text);
 }
 
 .task-item-desc {
@@ -440,7 +449,7 @@ button {
 .task-item-xp {
   font-size: 11px;
   font-weight: 800;
-  color: var(--gold);
+  color: #e0a82e;
   white-space: nowrap;
 }
 
@@ -457,6 +466,7 @@ button {
   border-radius: var(--radius-md);
   padding: 14px;
   margin-top: 6px;
+  box-shadow: var(--shadow-card);
 }
 
 .checkin-textarea {
@@ -487,8 +497,8 @@ button {
   padding: 14px;
   font-size: 15px;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--accent), #14b8a6);
-  color: #07101d;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #ffffff;
   box-shadow: 0 8px 20px var(--accent-glow);
   cursor: pointer;
   transition: transform 0.08s ease, opacity 0.15s ease;
@@ -511,7 +521,7 @@ button {
   padding: 13px;
   font-size: 14px;
   font-weight: 700;
-  background: transparent;
+  background: var(--bg-card);
   color: var(--text);
   cursor: pointer;
 }
@@ -532,6 +542,7 @@ button {
   padding: 4px;
   margin-bottom: 16px;
   position: relative;
+  box-shadow: var(--shadow-card);
 }
 
 .tab-indicator {
@@ -540,7 +551,7 @@ button {
   left: 4px;
   bottom: 4px;
   border-radius: var(--radius-pill);
-  background: linear-gradient(135deg, var(--accent), #14b8a6);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   box-shadow: 0 4px 14px var(--accent-glow);
   transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   z-index: 0;
@@ -562,7 +573,7 @@ button {
 }
 
 .tab-btn.active {
-  color: #07101d;
+  color: #ffffff;
 }
 
 /* ---------- Leaderboard ---------- */
@@ -576,12 +587,13 @@ button {
   margin-bottom: 8px;
   background: var(--bg-card);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .lb-row.me {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.14), var(--bg-card));
+  background: linear-gradient(135deg, rgba(255, 158, 187, 0.14), var(--bg-card));
 }
 
 .lb-rank {
@@ -592,9 +604,9 @@ button {
   color: var(--text-dim);
 }
 
-.lb-rank.top1 { color: #ffd54a; }
-.lb-rank.top2 { color: #d6dbe6; }
-.lb-rank.top3 { color: #d59a6c; }
+.lb-rank.top1 { color: #f3b94c; }
+.lb-rank.top2 { color: #b9b0cc; }
+.lb-rank.top3 { color: #e0a17a; }
 
 .lb-avatar {
   width: 36px;
@@ -607,7 +619,7 @@ button {
   font-weight: 800;
   font-size: 14px;
   flex-shrink: 0;
-  color: #07101d;
+  color: #ffffff;
 }
 
 .lb-name {
@@ -617,11 +629,12 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text);
 }
 
 .lb-xp {
   font-weight: 800;
-  color: var(--gold);
+  color: #e0a82e;
   font-size: 14px;
   white-space: nowrap;
 }
@@ -645,11 +658,12 @@ button {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  background: rgba(10, 14, 23, 0.4);
+  background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 14px 6px;
   text-align: center;
+  box-shadow: var(--shadow-card);
 }
 
 .stat-tile-icon {
@@ -663,6 +677,7 @@ button {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.3px;
+  color: var(--text);
 }
 
 .stat-tile-label {
@@ -683,11 +698,12 @@ button {
   border-radius: var(--radius-md);
   padding: 14px;
   margin-bottom: 10px;
+  box-shadow: var(--shadow-card);
 }
 
 .reward-card.claimed {
-  border-color: rgba(255, 201, 77, 0.4);
-  background: linear-gradient(135deg, rgba(255, 201, 77, 0.1), var(--bg-card));
+  border-color: rgba(255, 200, 87, 0.45);
+  background: linear-gradient(135deg, rgba(255, 200, 87, 0.14), var(--bg-card));
 }
 
 .reward-icon {
@@ -701,6 +717,7 @@ button {
 .reward-title {
   font-size: 14px;
   font-weight: 800;
+  color: var(--text);
 }
 
 .reward-desc {
@@ -719,7 +736,7 @@ button {
 /* ---------- Invite ---------- */
 
 .invite-card {
-  background: linear-gradient(135deg, var(--bg-elevated), var(--bg-card));
+  background: linear-gradient(135deg, #fff0f4, #fff8f2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 22px 18px;
@@ -727,6 +744,7 @@ button {
   margin-bottom: 16px;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
 .invite-card::after {
@@ -747,6 +765,7 @@ button {
   font-weight: 800;
   margin: 0 0 6px;
   position: relative;
+  color: var(--text);
 }
 
 .invite-subtitle {
@@ -761,7 +780,7 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--bg);
+  background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   padding: 10px 14px;
@@ -792,12 +811,13 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 14px;
+  box-shadow: var(--shadow-card);
 }
 
 .invite-stat-value {
   font-size: 22px;
   font-weight: 800;
-  color: var(--gold);
+  color: #e0a82e;
 }
 
 .invite-stat-label {
@@ -817,6 +837,7 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 14px 16px;
+  box-shadow: var(--shadow-card);
 }
 
 .invite-rules b {
@@ -840,9 +861,10 @@ button {
   max-width: 480px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  background: rgba(19, 26, 42, 0.92);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(14px);
   border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 24px rgba(216, 178, 200, 0.14);
   padding: 10px 8px calc(10px + var(--safe-bottom));
 }
 
@@ -865,7 +887,7 @@ button {
 }
 
 .nav-item.active {
-  color: var(--accent);
+  color: #e07a9e;
 }
 
 .nav-icon {

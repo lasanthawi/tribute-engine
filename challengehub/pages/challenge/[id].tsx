@@ -155,7 +155,7 @@ export default function ChallengeDetail() {
               value={evidence}
               onChange={(e) => setEvidence(e.target.value)}
             />
-            {error && <div style={{ color: '#ff4d6a', fontSize: 12, marginBottom: 8 }}>{error}</div>}
+            {error && <div style={{ color: 'var(--error)', fontSize: 12, marginBottom: 8 }}>{error}</div>}
             <button className="btn-primary" onClick={handleSubmit} disabled={submitting} style={{ marginBottom: 8 }}>
               {submitting ? 'Submitting…' : `Submit Check-in (+${activeTask.xpReward} XP)`}
             </button>
