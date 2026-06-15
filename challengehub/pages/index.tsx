@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Head from 'next/head'
-import Link from 'next/link'
 import BottomNav from '@/components/ui/BottomNav'
 import ChallengeCard from '@/components/ui/ChallengeCard'
+import SpotlightCard from '@/components/ui/SpotlightCard'
 import Tabs from '@/components/ui/Tabs'
 import XpRing from '@/components/ui/XpRing'
-import { getCategoryMeta } from '@/lib/categories'
-import { api, ChallengeDto, MeDto } from '@/lib/api-client'
+import XpToast from '@/components/ui/XpToast'
+import { TaskSubmitResult } from '@/components/ui/CheckinPanel'
+import { api, ChallengeDto, MeDto, TaskDto } from '@/lib/api-client'
 
 type StatusFilter = 'active' | 'upcoming' | 'completed'
 
@@ -22,15 +23,23 @@ export default function Home() {
   const [me, setMe] = useState<MeDto | null>(null)
   const [challenges, setChallenges] = useState<ChallengeDto[] | null>(null)
   const [allActive, setAllActive] = useState<ChallengeDto[] | null>(null)
+  const [tasksByChallenge, setTasksByChallenge] = useState<Record<number, TaskDto[]>>({})
   const [rewardCount, setRewardCount] = useState<number | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('active')
+  const [toast, setToast] = useState<TaskSubmitResult | null>(null)
+  const [spotIndex, setSpotIndex] = useState(0)
+  const carouselRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    api.getMe().then(setMe).catch(() => setMe(null))
+  const loadMe = () => api.getMe().then(setMe).catch(() => setMe(null))
+  const loadActive = () =>
     api
       .getChallenges('active')
       .then((data) => setAllActive(data.challenges))
       .catch(() => setAllActive([]))
+
+  useEffect(() => {
+    loadMe()
+    loadActive()
     api
       .getRewards()
       .then((data) => setRewardCount(data.rewards.filter((r) => !r.claimed).length))
@@ -45,10 +54,39 @@ export default function Home() {
       .catch(() => setChallenges([]))
   }, [filter])
 
-  const spotlight = allActive?.find((c) => c.isMember) ?? allActive?.[0] ?? null
-  const spotlightMeta = getCategoryMeta(spotlight?.category)
-  const spotlightCatClass = `cat-${spotlightMeta.className.replace('cat-', '')}`
-  const remainingChallenges = challenges?.filter((c) => c.id !== spotlight?.id || filter !== 'active')
+  const joinedActive = allActive?.filter((c) => c.isMember) ?? []
+
+  useEffect(() => {
+    if (joinedActive.length === 0) {
+      setTasksByChallenge({})
+      return
+    }
+    Promise.all(
+      joinedActive.map((c) =>
+        api
+          .getChallengeTasks(c.id)
+          .then((data) => [c.id, data.tasks] as const)
+          .catch(() => [c.id, []] as const)
+      )
+    ).then((entries) => setTasksByChallenge(Object.fromEntries(entries)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allActive])
+
+  const spotlightChallenges = joinedActive.length > 0 ? joinedActive : allActive?.[0] ? [allActive[0]] : []
+  const spotlightIds = new Set(spotlightChallenges.map((c) => c.id))
+  const remainingChallenges = challenges?.filter((c) => !spotlightIds.has(c.id) || filter !== 'active')
+
+  const handleSpotlightSubmitted = (result: TaskSubmitResult) => {
+    setToast(result)
+    loadMe()
+    loadActive()
+  }
+
+  const handleCarouselScroll = () => {
+    const el = carouselRef.current
+    if (!el || el.clientWidth === 0) return
+    setSpotIndex(Math.round(el.scrollLeft / el.clientWidth))
+  }
 
   return (
     <>
@@ -58,7 +96,8 @@ export default function Home() {
       <div className="screen">
         <div className="topbar">
           <div className="brand">
-            <span className="brand-wordmark">ChallengeHub 🏆</span>
+            <span className="brand-icon">🏆</span>
+            <span className="brand-wordmark">ChallengeHub</span>
           </div>
         </div>
 
@@ -96,14 +135,26 @@ export default function Home() {
           </div>
         </div>
 
-        {spotlight && (
-          <Link href={`/challenge/${spotlight.id}`} className={`spotlight-card ${spotlightCatClass}`}>
-            <div className="spotlight-eyebrow">{spotlight.isMember ? 'Continue your challenge' : 'Featured challenge'}</div>
-            <div className="spotlight-icon">{spotlightMeta.icon}</div>
-            <h2 className="spotlight-title">{spotlight.title}</h2>
-            <p className="spotlight-desc">{spotlight.description}</p>
-            <span className="spotlight-cta">{spotlight.isMember ? 'Continue →' : 'Join now →'}</span>
-          </Link>
+        {spotlightChallenges.length > 0 && (
+          <>
+            <div className="spotlight-carousel" ref={carouselRef} onScroll={handleCarouselScroll}>
+              {spotlightChallenges.map((c) => (
+                <SpotlightCard
+                  key={c.id}
+                  challenge={c}
+                  tasks={tasksByChallenge[c.id] ?? null}
+                  onSubmitted={handleSpotlightSubmitted}
+                />
+              ))}
+            </div>
+            {spotlightChallenges.length > 1 && (
+              <div className="spotlight-dots">
+                {spotlightChallenges.map((_, i) => (
+                  <span key={i} className={`spotlight-dot ${i === spotIndex ? 'active' : ''}`} />
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         <Tabs
@@ -132,6 +183,16 @@ export default function Home() {
 
         {remainingChallenges?.map((c, i) => <ChallengeCard key={c.id} challenge={c} delay={Math.min(i, 8) * 50} />)}
       </div>
+
+      {toast && (
+        <XpToast
+          xp={toast.xpAwarded}
+          leveledUp={toast.leveledUp}
+          newLevel={toast.newLevel}
+          isCatchup={toast.isCatchup}
+          onDone={() => setToast(null)}
+        />
+      )}
       <BottomNav />
     </>
   )
