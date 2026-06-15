@@ -1,0 +1,106 @@
+import { DashboardDto, MemberProfileDto } from './api-client'
+
+export const demoDashboard: DashboardDto = {
+  community: {
+    id: 1,
+    name: 'Builder Circle',
+    handle: '@buildercircle',
+    description: 'A focused Telegram community for builders shipping every week.',
+    status: 'active',
+  },
+  metrics: {
+    members: 328,
+    activeSubscriptions: 186,
+    referralActivations: 42,
+    monthlyRevenueCents: 412900,
+    xpIssued: 18420,
+    accessIssues: 3,
+  },
+  members: [
+    {
+      id: 1,
+      username: 'deepa',
+      role: 'owner',
+      accessStatus: 'granted',
+      source: 'direct',
+      xp: 2480,
+      level: 5,
+      subscriptionStatus: 'active',
+      planName: 'Founder',
+      joinedAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+    },
+    {
+      id: 2,
+      username: 'mira',
+      role: 'member',
+      accessStatus: 'granted',
+      source: 'referral',
+      xp: 940,
+      level: 3,
+      subscriptionStatus: 'active',
+      planName: 'Pro',
+      joinedAt: new Date(Date.now() - 86400000 * 9).toISOString(),
+      lastActiveAt: new Date(Date.now() - 86400000).toISOString(),
+    },
+    {
+      id: 3,
+      username: 'sam',
+      role: 'member',
+      accessStatus: 'pending',
+      source: 'challengehub',
+      xp: 260,
+      level: 2,
+      subscriptionStatus: 'trialing',
+      planName: 'Trial',
+      joinedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+      lastActiveAt: null,
+    },
+  ],
+  plans: [
+    {
+      id: 1,
+      name: 'Free',
+      description: 'Community updates and public events.',
+      priceCents: 0,
+      currency: 'USD',
+      interval: 'free',
+      status: 'active',
+      subscribers: 142,
+    },
+    {
+      id: 2,
+      name: 'Pro',
+      description: 'Premium group, recordings, and weekly office hours.',
+      priceCents: 2900,
+      currency: 'USD',
+      interval: 'month',
+      status: 'active',
+      subscribers: 186,
+    },
+  ],
+  referrals: [
+    { id: 1, referrer: 'mira', referralCode: 'co_1_2', status: 'activated', clicks: 18, revenueCents: 8700 },
+    { id: 2, referrer: 'deepa', referralCode: 'co_1_1', status: 'joined', clicks: 43, revenueCents: 0 },
+  ],
+  rewards: [
+    { id: 1, type: 'badge', title: 'Founding Member', description: 'Awarded to the first 100 active members.', claimed: true },
+    { id: 2, type: 'premium_access', title: 'Referral Unlock', description: 'Invite 3 members to unlock bonus sessions.', claimed: false },
+  ],
+  activity: [
+    { id: 1, title: 'Pro plan renewed by @mira', eventType: 'subscription', createdAt: new Date().toISOString() },
+    { id: 2, title: '@sam joined from ChallengeHub', eventType: 'member_joined', createdAt: new Date(Date.now() - 3600000).toISOString() },
+  ],
+  accessLogs: [
+    { id: 1, action: 'grant', status: 'success', message: 'Invite link issued to @mira', createdAt: new Date().toISOString() },
+    { id: 2, action: 'sync', status: 'failed', message: 'Missing Telegram chat id for 3 pending members', createdAt: new Date().toISOString() },
+  ],
+}
+
+export const demoMemberProfile: MemberProfileDto = {
+  community: demoDashboard.community,
+  member: demoDashboard.members[1],
+  referralLink: 'https://t.me/communityos_bot?start=co_1_2',
+  rewards: demoDashboard.rewards,
+  activity: demoDashboard.activity,
+}
