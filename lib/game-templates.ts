@@ -4,7 +4,7 @@
 // renders/plays it) plus a `config` (JSONB params for that engine). New games
 // are new config rows, not new code.
 
-export type GameTemplate = 'tap_catch' | 'spin_wheel' | 'gomoku' | 'snake_run' | 'stack_tower'
+export type GameTemplate = 'tap_catch' | 'spin_wheel' | 'gomoku' | 'snake_run' | 'stack_tower' | 'crash'
 export type GameStatus = 'draft' | 'testing' | 'published' | 'retired'
 
 // Catalog rotation: when this many games are published, the autonomous
@@ -332,6 +332,67 @@ export function validateStackTowerConfig(config: StackTowerConfig): ConfigValida
   return { valid: errors.length === 0, errors }
 }
 
+// ---------- crash ----------
+//
+// "Rocket Cash Out": a multiplier climbs from 1.00x while a rocket rises;
+// the player taps Cash Out to lock in the current multiplier as their score.
+// The longer they wait, the higher the multiplier — but past `crashStartScore`
+// there's a per-tick chance the rocket explodes, ending the run at 0. Score
+// (and rewardCurve.minScore) are the multiplier expressed in x100 units, e.g.
+// 250 = 2.50x. Reward is the same tiered rewardCurve/maxScore shape as the
+// other score-based templates.
+
+export interface CrashConfig {
+  /** Multiplier growth, in x100 units per second (e.g. 60 = +0.60x/sec). */
+  growthRate: number
+  /** Multiplier (x100 units) at which crash risk begins, e.g. 150 = 1.50x. */
+  crashStartScore: number
+  /** Crash probability per ~100ms tick once past crashStartScore, 0-1. */
+  baseCrashChance: number
+  /** Additional crash chance per 10 points (0.10x) above crashStartScore, 0-1. */
+  crashChanceRamp: number
+  /** Hard cap on the multiplier in x100 units, e.g. 500 = 5.00x. Also doubles as maxScore. */
+  maxScore: number
+  rewardCurve: TapCatchRewardTier[]
+  theme: { bg: string; accent: string; danger: string }
+}
+
+export function validateCrashConfig(config: CrashConfig): ConfigValidationResult {
+  const errors: string[] = []
+
+  if (!Number.isFinite(config.growthRate) || config.growthRate < 20 || config.growthRate > 300) {
+    errors.push('growthRate must be between 20 and 300 (x100 units per second, i.e. 0.20x-3.00x/sec)')
+  }
+  if (!Number.isFinite(config.maxScore) || config.maxScore < 150 || config.maxScore > 1000) {
+    errors.push('maxScore must be between 150 and 1000 (1.50x-10.00x)')
+  }
+  if (!Number.isFinite(config.crashStartScore) || config.crashStartScore < 100 || config.crashStartScore >= config.maxScore) {
+    errors.push('crashStartScore must be at least 100 (1.00x) and less than maxScore')
+  }
+  if (!Number.isFinite(config.baseCrashChance) || config.baseCrashChance < 0 || config.baseCrashChance > 0.05) {
+    errors.push('baseCrashChance must be between 0 and 0.05')
+  }
+  if (!Number.isFinite(config.crashChanceRamp) || config.crashChanceRamp < 0 || config.crashChanceRamp > 0.1) {
+    errors.push('crashChanceRamp must be between 0 and 0.1')
+  }
+  if (typeof config.theme?.bg !== 'string' || typeof config.theme?.accent !== 'string' || typeof config.theme?.danger !== 'string') {
+    errors.push('theme.bg, theme.accent, and theme.danger must all be hex color strings')
+  }
+  if (!Array.isArray(config.rewardCurve) || config.rewardCurve.length < 1) {
+    errors.push('rewardCurve must contain at least one tier')
+  } else {
+    const maxPoints = Math.max(...config.rewardCurve.map((t) => t.points))
+    if (maxPoints > MAX_REWARD_POINTS_PER_PLAY) {
+      errors.push(`rewardCurve max points (${maxPoints}) exceeds cap of ${MAX_REWARD_POINTS_PER_PLAY}`)
+    }
+    if (config.rewardCurve.some((t) => t.points < 0 || t.minScore < 0)) {
+      errors.push('rewardCurve entries must be non-negative')
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
 // ---------- gomoku ----------
 //
 // Live 8x8 connect-5 matches are a bespoke engine (lib/gomoku.ts), not a
@@ -345,6 +406,7 @@ export function validateGameConfig(template: GameTemplate, config: unknown): Con
   if (template === 'spin_wheel') return validateSpinWheelConfig(config as SpinWheelConfig)
   if (template === 'snake_run') return validateSnakeConfig(config as SnakeConfig)
   if (template === 'stack_tower') return validateStackTowerConfig(config as StackTowerConfig)
+  if (template === 'crash') return validateCrashConfig(config as CrashConfig)
   if (template === 'gomoku') return { valid: true, errors: [] }
   return { valid: false, errors: [`Unknown template: ${template}`] }
 }
