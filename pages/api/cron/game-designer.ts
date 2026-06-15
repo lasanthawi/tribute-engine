@@ -16,6 +16,8 @@ import { pickWorstPerformer } from '@/lib/game-analytics'
 import { designNewGame, testGameConfig } from '@/lib/game-agent'
 import { generateCoverImage } from '@/lib/game-images'
 import { announceNewGame, notifyAdmins } from '@/lib/game-promos'
+import { broadcastNewGame } from '@/lib/notifications'
+import { supabase } from '@/lib/supabase'
 
 const CREATIVE_BRIEFS = [
   'A fast-paced reflex game with a fresh visual theme not used elsewhere in the catalog.',
@@ -82,6 +84,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (testResult.passed) {
       await announceNewGame(created, proposal.promoCopy)
+      const { data: users } = await supabase.from('users').select('telegram_id').eq('notifications_enabled', true)
+      const telegramIds = (users ?? []).map((u) => u.telegram_id)
+      await broadcastNewGame(telegramIds, created.title, created.icon, proposal.promoCopy)
     } else {
       await notifyAdmins(
         `⚠️ game-designer: proposal "${created.slug}" failed the test gate and was saved as retired.\n${testResult.errors.join('\n')}`
