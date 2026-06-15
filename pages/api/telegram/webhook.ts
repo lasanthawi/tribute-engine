@@ -199,8 +199,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json({ ok: true })
   } catch (error) {
     console.error('telegram/webhook error:', error)
-    const msg = error instanceof Error ? `${error.message}\n${error.stack}` : JSON.stringify(error)
-    await supabase.from('debug_log').insert({ message: msg }).then(() => {}, () => {})
     res.status(200).json({ ok: true }) // always 200 so Telegram doesn't retry-storm
   }
 }
