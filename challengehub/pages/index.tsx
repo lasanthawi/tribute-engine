@@ -70,6 +70,13 @@ export default function Home() {
             <div className="home-hero-sub">
               {me ? `${me.xp.toLocaleString()} XP earned · keep the streak alive!` : 'Loading your progress…'}
             </div>
+            {me && me.streak > 0 && (
+              <div className={`streak-pill ${me.streakAtRisk ? 'at-risk' : ''}`}>
+                <span className="streak-flame">🔥</span>
+                {me.streak} day streak
+                {me.streakAtRisk && <span className="streak-warning"> · check in today!</span>}
+              </div>
+            )}
           </div>
           {me && <XpRing xp={me.xp} level={me.level} />}
         </div>

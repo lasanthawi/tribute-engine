@@ -10,13 +10,14 @@ export type ReferralStatus = 'pending' | 'activated'
 export type XpEntryType =
   | 'join_challenge'
   | 'daily_task'
+  | 'catchup_task'
   | 'invite_friend'
   | 'finish_challenge'
   | 'referral_bonus'
 
 export type ChallengeStatus = 'upcoming' | 'active' | 'completed' | 'cancelled'
 export type ChallengeMemberStatus = 'active' | 'completed' | 'dropped'
-export type SubmissionEvidenceType = 'text' | 'screenshot' | 'link'
+export type SubmissionEvidenceType = 'text' | 'screenshot' | 'link' | 'voice'
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected'
 export type RewardType = 'badge' | 'certificate' | 'digital_product' | 'premium_access' | 'cash' | 'sponsor'
 
