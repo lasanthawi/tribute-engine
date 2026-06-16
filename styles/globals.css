@@ -1757,8 +1757,9 @@ button {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 14px;
-  margin-bottom: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  min-height: 64px;
   transition: border-color 0.2s ease;
 }
 
@@ -1809,6 +1810,13 @@ button {
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
+  flex-shrink: 0;
+}
+
+.call-settled-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .outcome-badge {
@@ -1850,7 +1858,6 @@ button {
 .points-delta.neutral { color: var(--text-dim); }
 
 .share-btn {
-  margin-top: 6px;
   font-size: 11px;
   font-weight: 800;
   color: var(--accent);
@@ -1859,6 +1866,7 @@ button {
   border-radius: var(--radius-pill);
   padding: 4px 10px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .empty-state {

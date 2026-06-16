@@ -102,15 +102,13 @@ function CallCard({ call, referralLink }: { call: CallDto; referralLink: string 
             {round?.resolve_at && <PendingCountdown target={round.resolve_at} />}
           </>
         ) : (
-          <>
+          <div className="call-settled-row">
             <span className="outcome-badge">{badge}</span>
             <span className={`points-delta ${deltaClass}`}>{deltaText} pts</span>
-          </>
-        )}
-        {call.isCorrect === true && (
-          <button className="share-btn" onClick={handleShare}>
-            Share win
-          </button>
+            {call.isCorrect === true && (
+              <button className="share-btn" onClick={handleShare}>Share</button>
+            )}
+          </div>
         )}
       </div>
     </div>
