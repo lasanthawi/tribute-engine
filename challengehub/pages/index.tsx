@@ -10,6 +10,7 @@ import XpRing from '@/components/ui/XpRing'
 import XpToast from '@/components/ui/XpToast'
 import { TaskSubmitResult } from '@/components/ui/CheckinPanel'
 import { api, ChallengeDto, LeaderboardEntryDto, MeDto, TaskDto } from '@/lib/api-client'
+import { levelProgress } from '@/lib/xp-client'
 
 type StatusFilter = 'active' | 'upcoming' | 'completed'
 
@@ -84,6 +85,8 @@ export default function Home() {
   const remainingChallenges = challenges?.filter((c) => !spotlightIds.has(c.id) || filter !== 'active')
   const listIsEmpty = challenges !== null && challenges.length === 0
 
+  const xpProgress = me ? levelProgress(me.xp, me.level) : 0
+
   const handleSpotlightSubmitted = (result: TaskSubmitResult) => {
     setToast(result)
     loadMe()
@@ -115,8 +118,13 @@ export default function Home() {
               {greeting()}{me?.username ? `, @${me.username}` : ''} 👋
             </div>
             <div className="home-hero-sub">
-              {me ? `${me.xp.toLocaleString()} XP earned · keep the streak alive!` : 'Loading your progress…'}
+              {me ? `Level ${me.level} · ${me.xp.toLocaleString()} XP` : 'Loading your progress…'}
             </div>
+            {me && (
+              <div className="home-hero-xp-bar">
+                <div className="home-hero-xp-fill" style={{ width: `${Math.round(xpProgress * 100)}%` }} />
+              </div>
+            )}
             {me && me.streak > 0 && (
               <div className={`streak-pill ${me.streakAtRisk ? 'at-risk' : ''}`}>
                 <span className="streak-flame">🔥</span>
@@ -184,8 +192,8 @@ export default function Home() {
 
         {challenges === null && (
           <>
-            <div className="skeleton" style={{ height: 110, marginBottom: 12 }} />
-            <div className="skeleton" style={{ height: 110, marginBottom: 12 }} />
+            <div className="skeleton" style={{ height: 100, marginBottom: 12 }} />
+            <div className="skeleton" style={{ height: 100, marginBottom: 12 }} />
           </>
         )}
 
