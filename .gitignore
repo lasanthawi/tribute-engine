@@ -1,3 +1,9 @@
 /.next
 /node_modules
 *.tsbuildinfo
+.env.local
+.env
+challengehub/.env.local
+challengehub/.env
+community-os/.env.local
+community-os/.env
