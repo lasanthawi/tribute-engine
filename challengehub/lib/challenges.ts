@@ -1,4 +1,4 @@
-import { supabase, ChallengeStatus } from './supabase'
+import { supabase, ChallengeStatus, SubmissionEvidenceType } from './supabase'
 import { creditXp } from './xp'
 
 const JOIN_CHALLENGE_XP = 10
@@ -83,16 +83,21 @@ export async function isFirstSubmission(userId: number): Promise<boolean> {
   return (count ?? 0) === 0
 }
 
+/** Fraction of a task's XP awarded for a late "catch-up" check-in. */
+export const CATCHUP_XP_RATIO = 0.5
+
 /**
  * Records a check-in submission for a task and credits XP (the task's
- * configured reward, or the default). Returns the created submission row.
- * Throws if the user has already submitted this task (unique constraint).
+ * configured reward, or the default — halved for late "catch-up" check-ins).
+ * Returns the created submission row. Throws if the user has already
+ * submitted this task (unique constraint).
  */
 export async function submitTask(
   userId: number,
   taskId: number,
-  evidenceType: 'text' | 'screenshot' | 'link',
-  evidenceContent: string | null
+  evidenceType: SubmissionEvidenceType,
+  evidenceContent: string | null,
+  isCatchup = false
 ) {
   const task = await getTask(taskId)
   if (!task) throw new Error('Task not found')
@@ -111,8 +116,9 @@ export async function submitTask(
     .single()
   if (error) throw error
 
-  const xpReward = task.xp_reward ?? DAILY_TASK_DEFAULT_XP
-  await creditXp(userId, xpReward, 'daily_task', { refChallenge: task.challenge_id })
+  const baseXp = task.xp_reward ?? DAILY_TASK_DEFAULT_XP
+  const xpReward = isCatchup ? Math.max(1, Math.round(baseXp * CATCHUP_XP_RATIO)) : baseXp
+  await creditXp(userId, xpReward, isCatchup ? 'catchup_task' : 'daily_task', { refChallenge: task.challenge_id })
 
   return { submission, task, xpAwarded: xpReward }
 }
