@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import Head from 'next/head'
+import Link from 'next/link'
 import BottomNav from '@/components/ui/BottomNav'
 import ChallengeCard from '@/components/ui/ChallengeCard'
+import LeaderboardRow from '@/components/ui/LeaderboardRow'
 import SpotlightCard from '@/components/ui/SpotlightCard'
 import Tabs from '@/components/ui/Tabs'
 import XpRing from '@/components/ui/XpRing'
 import XpToast from '@/components/ui/XpToast'
 import { TaskSubmitResult } from '@/components/ui/CheckinPanel'
-import { api, ChallengeDto, MeDto, TaskDto } from '@/lib/api-client'
+import { api, ChallengeDto, LeaderboardEntryDto, MeDto, TaskDto } from '@/lib/api-client'
 
 type StatusFilter = 'active' | 'upcoming' | 'completed'
 
@@ -25,6 +27,7 @@ export default function Home() {
   const [allActive, setAllActive] = useState<ChallengeDto[] | null>(null)
   const [tasksByChallenge, setTasksByChallenge] = useState<Record<number, TaskDto[]>>({})
   const [rewardCount, setRewardCount] = useState<number | null>(null)
+  const [topUsers, setTopUsers] = useState<LeaderboardEntryDto[] | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('active')
   const [toast, setToast] = useState<TaskSubmitResult | null>(null)
   const [spotIndex, setSpotIndex] = useState(0)
@@ -44,6 +47,10 @@ export default function Home() {
       .getRewards()
       .then((data) => setRewardCount(data.rewards.filter((r) => !r.claimed).length))
       .catch(() => setRewardCount(0))
+    api
+      .getLeaderboard('global')
+      .then((data) => setTopUsers(data.leaderboard.slice(0, 3)))
+      .catch(() => setTopUsers([]))
   }, [])
 
   useEffect(() => {
@@ -75,6 +82,7 @@ export default function Home() {
   const spotlightChallenges = joinedActive.length > 0 ? joinedActive : allActive?.[0] ? [allActive[0]] : []
   const spotlightIds = new Set(spotlightChallenges.map((c) => c.id))
   const remainingChallenges = challenges?.filter((c) => !spotlightIds.has(c.id) || filter !== 'active')
+  const listIsEmpty = challenges !== null && challenges.length === 0
 
   const handleSpotlightSubmitted = (result: TaskSubmitResult) => {
     setToast(result)
@@ -135,6 +143,13 @@ export default function Home() {
           </div>
         </div>
 
+        {rewardCount !== null && rewardCount > 0 && (
+          <Link href="/profile" className="rewards-strip">
+            🎁 {rewardCount} unclaimed reward{rewardCount > 1 ? 's' : ''} waiting for you
+            <span className="rewards-strip-cta">Claim →</span>
+          </Link>
+        )}
+
         {spotlightChallenges.length > 0 && (
           <>
             <div className="spotlight-carousel" ref={carouselRef} onScroll={handleCarouselScroll}>
@@ -174,14 +189,42 @@ export default function Home() {
           </>
         )}
 
-        {challenges !== null && challenges.length === 0 && (
+        {remainingChallenges?.map((c, i) => <ChallengeCard key={c.id} challenge={c} delay={Math.min(i, 8) * 50} />)}
+
+        {listIsEmpty && filter === 'active' && (
+          <>
+            <div className="empty-state" style={{ padding: '24px 0 16px' }}>
+              <div className="empty-emoji">🏁</div>
+              No active challenges yet — join one to get started!
+            </div>
+
+            {topUsers && topUsers.length > 0 && (
+              <>
+                <div className="home-section-header">
+                  <span>Community leaders</span>
+                  <Link href="/leaderboard" className="home-section-link">View all →</Link>
+                </div>
+                {topUsers.map((u, i) => <LeaderboardRow key={u.userId} row={u} delay={i * 60} />)}
+              </>
+            )}
+
+            <div className="home-invite-card">
+              <div className="home-invite-emoji">🤝</div>
+              <div className="home-invite-body">
+                <div className="home-invite-title">Invite friends, earn XP</div>
+                <div className="home-invite-sub">Get bonus XP for every friend who joins a challenge</div>
+              </div>
+              <Link href="/invite" className="home-invite-btn">Invite</Link>
+            </div>
+          </>
+        )}
+
+        {listIsEmpty && filter !== 'active' && (
           <div className="empty-state">
             <div className="empty-emoji">🗂️</div>
             No {filter} challenges right now — check back soon!
           </div>
         )}
-
-        {remainingChallenges?.map((c, i) => <ChallengeCard key={c.id} challenge={c} delay={Math.min(i, 8) * 50} />)}
       </div>
 
       {toast && (
