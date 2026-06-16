@@ -1,7 +1,15 @@
 -- CommunityOS beta schema.
 -- Reuses shared `users` from tribute-engine and keeps financial/growth state append-only.
+-- Paste this file's contents into the Supabase SQL Editor. Do not paste the file path.
 
-CREATE TABLE communities (
+DO $$
+BEGIN
+  IF to_regclass('public.users') IS NULL THEN
+    RAISE EXCEPTION 'Missing public.users. Run supabase/migrations/0001_called_it_schema.sql before CommunityOS.';
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS communities (
   id                  BIGSERIAL PRIMARY KEY,
   owner_id            BIGINT NOT NULL REFERENCES users(id),
   name                TEXT NOT NULL,
@@ -14,10 +22,10 @@ CREATE TABLE communities (
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_communities_owner ON communities(owner_id);
-CREATE INDEX idx_communities_status ON communities(status);
+CREATE INDEX IF NOT EXISTS idx_communities_owner ON communities(owner_id);
+CREATE INDEX IF NOT EXISTS idx_communities_status ON communities(status);
 
-CREATE TABLE community_members (
+CREATE TABLE IF NOT EXISTS community_members (
   community_id   BIGINT NOT NULL REFERENCES communities(id),
   user_id        BIGINT NOT NULL REFERENCES users(id),
   role           TEXT NOT NULL DEFAULT 'member', -- owner|admin|member
@@ -28,10 +36,10 @@ CREATE TABLE community_members (
   notes          TEXT,
   PRIMARY KEY (community_id, user_id)
 );
-CREATE INDEX idx_community_members_user ON community_members(user_id);
-CREATE INDEX idx_community_members_access ON community_members(community_id, access_status);
+CREATE INDEX IF NOT EXISTS idx_community_members_user ON community_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_members_access ON community_members(community_id, access_status);
 
-CREATE TABLE membership_plans (
+CREATE TABLE IF NOT EXISTS membership_plans (
   id             BIGSERIAL PRIMARY KEY,
   community_id   BIGINT NOT NULL REFERENCES communities(id),
   name           TEXT NOT NULL,
@@ -43,9 +51,9 @@ CREATE TABLE membership_plans (
   status         TEXT NOT NULL DEFAULT 'active', -- active|paused|archived
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_membership_plans_community ON membership_plans(community_id, status);
+CREATE INDEX IF NOT EXISTS idx_membership_plans_community ON membership_plans(community_id, status);
 
-CREATE TABLE member_subscriptions (
+CREATE TABLE IF NOT EXISTS member_subscriptions (
   id                    BIGSERIAL PRIMARY KEY,
   community_id           BIGINT NOT NULL REFERENCES communities(id),
   user_id                BIGINT NOT NULL REFERENCES users(id),
@@ -58,10 +66,10 @@ CREATE TABLE member_subscriptions (
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_member_subscriptions_community ON member_subscriptions(community_id, status);
-CREATE INDEX idx_member_subscriptions_user ON member_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_member_subscriptions_community ON member_subscriptions(community_id, status);
+CREATE INDEX IF NOT EXISTS idx_member_subscriptions_user ON member_subscriptions(user_id);
 
-CREATE TABLE community_referrals (
+CREATE TABLE IF NOT EXISTS community_referrals (
   id              BIGSERIAL PRIMARY KEY,
   community_id    BIGINT NOT NULL REFERENCES communities(id),
   referrer_id     BIGINT NOT NULL REFERENCES users(id),
@@ -74,9 +82,9 @@ CREATE TABLE community_referrals (
   activated_at    TIMESTAMPTZ,
   UNIQUE (community_id, referral_code)
 );
-CREATE INDEX idx_community_referrals_referrer ON community_referrals(community_id, referrer_id);
+CREATE INDEX IF NOT EXISTS idx_community_referrals_referrer ON community_referrals(community_id, referrer_id);
 
-CREATE TABLE community_xp_ledger (
+CREATE TABLE IF NOT EXISTS community_xp_ledger (
   id             BIGSERIAL PRIMARY KEY,
   community_id   BIGINT NOT NULL REFERENCES communities(id),
   user_id        BIGINT NOT NULL REFERENCES users(id),
@@ -87,14 +95,14 @@ CREATE TABLE community_xp_ledger (
   metadata       JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_community_xp_user ON community_xp_ledger(community_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_community_xp_user ON community_xp_ledger(community_id, user_id);
 
-CREATE VIEW community_user_xp_totals AS
+CREATE OR REPLACE VIEW community_user_xp_totals AS
   SELECT community_id, user_id, COALESCE(SUM(delta), 0) AS xp
   FROM community_xp_ledger
   GROUP BY community_id, user_id;
 
-CREATE TABLE community_rewards (
+CREATE TABLE IF NOT EXISTS community_rewards (
   id             BIGSERIAL PRIMARY KEY,
   community_id   BIGINT NOT NULL REFERENCES communities(id),
   type           TEXT NOT NULL, -- badge|certificate|digital_product|premium_access|sponsor|manual
@@ -104,9 +112,9 @@ CREATE TABLE community_rewards (
   status         TEXT NOT NULL DEFAULT 'active',
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_community_rewards_community ON community_rewards(community_id, status);
+CREATE INDEX IF NOT EXISTS idx_community_rewards_community ON community_rewards(community_id, status);
 
-CREATE TABLE community_user_rewards (
+CREATE TABLE IF NOT EXISTS community_user_rewards (
   id             BIGSERIAL PRIMARY KEY,
   community_id   BIGINT NOT NULL REFERENCES communities(id),
   user_id        BIGINT NOT NULL REFERENCES users(id),
@@ -115,7 +123,7 @@ CREATE TABLE community_user_rewards (
   UNIQUE (community_id, user_id, reward_id)
 );
 
-CREATE TABLE community_activity_events (
+CREATE TABLE IF NOT EXISTS community_activity_events (
   id             BIGSERIAL PRIMARY KEY,
   community_id   BIGINT NOT NULL REFERENCES communities(id),
   user_id        BIGINT REFERENCES users(id),
@@ -124,9 +132,9 @@ CREATE TABLE community_activity_events (
   metadata       JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_community_activity ON community_activity_events(community_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_community_activity ON community_activity_events(community_id, created_at DESC);
 
-CREATE TABLE telegram_access_logs (
+CREATE TABLE IF NOT EXISTS telegram_access_logs (
   id             BIGSERIAL PRIMARY KEY,
   community_id   BIGINT NOT NULL REFERENCES communities(id),
   user_id        BIGINT REFERENCES users(id),
@@ -135,9 +143,9 @@ CREATE TABLE telegram_access_logs (
   message        TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX idx_telegram_access_logs_community ON telegram_access_logs(community_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_telegram_access_logs_community ON telegram_access_logs(community_id, created_at DESC);
 
-CREATE TABLE community_ai_settings (
+CREATE TABLE IF NOT EXISTS community_ai_settings (
   community_id       BIGINT PRIMARY KEY REFERENCES communities(id),
   faq_enabled        BOOLEAN NOT NULL DEFAULT false,
   welcome_enabled    BOOLEAN NOT NULL DEFAULT true,
@@ -146,3 +154,5 @@ CREATE TABLE community_ai_settings (
   tone               TEXT NOT NULL DEFAULT 'helpful',
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+NOTIFY pgrst, 'reload schema';
