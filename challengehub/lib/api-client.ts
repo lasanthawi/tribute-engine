@@ -24,6 +24,8 @@ export interface MeDto {
   username: string | null
   xp: number
   level: number
+  streak: number
+  streakAtRisk: boolean
   activeChallenges: { id: number; title: string; status: string; category: string }[]
 }
 
@@ -95,11 +97,18 @@ export const api = {
   joinChallenge: (id: number | string) =>
     request<{ joined: boolean }>(`/api/challenges/${id}/join`, { method: 'POST' }),
   getChallengeTasks: (id: number | string) => request<{ tasks: TaskDto[] }>(`/api/challenges/${id}/tasks`),
-  submitTask: (id: number | string, body: { evidenceType: string; evidenceContent?: string }) =>
-    request<{ xpAwarded: number }>(`/api/tasks/${id}/submit`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
+  submitTask: (
+    id: number | string,
+    body: { evidenceType: string; evidenceContent?: string; isCatchup?: boolean }
+  ) =>
+    request<{ ok: boolean; xpAwarded: number; leveledUp: boolean; newLevel: number; referralActivated: boolean }>(
+      `/api/tasks/${id}/submit`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }
+    ),
+  uploadEvidence: (dataUrl: string) => request<{ url: string }>('/api/uploads', { method: 'POST', body: JSON.stringify({ dataUrl }) }),
   getLeaderboard: (scope: 'challenge' | 'community' | 'global', challengeId?: number | string) =>
     request<LeaderboardDto>(
       `/api/leaderboard?scope=${scope}${challengeId ? `&challengeId=${challengeId}` : ''}`

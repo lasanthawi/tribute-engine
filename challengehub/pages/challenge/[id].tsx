@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 import BottomNav from '@/components/ui/BottomNav'
-import TaskItem from '@/components/ui/TaskItem'
+import TaskItem, { TaskSubmitResult } from '@/components/ui/TaskItem'
 import ProgressBar from '@/components/ui/ProgressBar'
 import CategoryBadge from '@/components/ui/CategoryBadge'
+import XpToast from '@/components/ui/XpToast'
 import { getCategoryMeta } from '@/lib/categories'
 import { api, ChallengeDto, TaskDto } from '@/lib/api-client'
 import { haptic, hapticNotify } from '@/lib/telegram-webapp'
@@ -20,10 +21,7 @@ export default function ChallengeDetail() {
   const [challenge, setChallenge] = useState<ChallengeDto | null>(null)
   const [tasks, setTasks] = useState<TaskDto[] | null>(null)
   const [joining, setJoining] = useState(false)
-  const [activeTask, setActiveTask] = useState<TaskDto | null>(null)
-  const [evidence, setEvidence] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [toast, setToast] = useState<TaskSubmitResult | null>(null)
 
   const refresh = () => {
     if (!id) return
@@ -57,22 +55,9 @@ export default function ChallengeDetail() {
     }
   }
 
-  const handleSubmit = async () => {
-    if (!activeTask) return
-    setSubmitting(true)
-    setError(null)
-    try {
-      await api.submitTask(activeTask.id, { evidenceType: 'text', evidenceContent: evidence })
-      hapticNotify('success')
-      setActiveTask(null)
-      setEvidence('')
-      refresh()
-    } catch (e: any) {
-      hapticNotify('error')
-      setError(e.message || 'Failed to submit')
-    } finally {
-      setSubmitting(false)
-    }
+  const handleSubmitted = (result: TaskSubmitResult) => {
+    setToast(result)
+    refresh()
   }
 
   return (
@@ -145,37 +130,22 @@ export default function ChallengeDetail() {
             key={task.id}
             task={task}
             category={challenge?.category}
-            onSelect={(t) => {
-              if (!challenge?.isMember) return
-              haptic('light')
-              setActiveTask(t)
-              setEvidence('')
-              setError(null)
-            }}
+            challengeStartDate={challenge?.startDate}
+            canSubmit={!!challenge?.isMember}
+            onSubmitted={handleSubmitted}
           />
         ))}
-
-        {activeTask && (
-          <div className="checkin-form card-in">
-            <div className="task-item-title" style={{ marginBottom: 8 }}>
-              Check in: {activeTask.title}
-            </div>
-            <textarea
-              className="checkin-textarea"
-              placeholder="Describe what you did today (optional)…"
-              value={evidence}
-              onChange={(e) => setEvidence(e.target.value)}
-            />
-            {error && <div style={{ color: 'var(--error)', fontSize: 12, marginBottom: 8 }}>{error}</div>}
-            <button className="btn-primary" onClick={handleSubmit} disabled={submitting} style={{ marginBottom: 8 }}>
-              {submitting ? 'Submitting…' : `Submit Check-in (+${activeTask.xpReward} XP)`}
-            </button>
-            <button className="btn-ghost" onClick={() => setActiveTask(null)}>
-              Cancel
-            </button>
-          </div>
-        )}
       </div>
+
+      {toast && (
+        <XpToast
+          xp={toast.xpAwarded}
+          leveledUp={toast.leveledUp}
+          newLevel={toast.newLevel}
+          isCatchup={toast.isCatchup}
+          onDone={() => setToast(null)}
+        />
+      )}
       <BottomNav />
     </>
   )
