@@ -7,20 +7,22 @@ import SpinWheel from '@/components/minigames/SpinWheel'
 import GomokuGame from '@/components/minigames/GomokuGame'
 import SnakeGame from '@/components/minigames/SnakeGame'
 import StackTowerGame from '@/components/minigames/StackTowerGame'
+import CrashGame from '@/components/minigames/CrashGame'
 import { api, GameDto, PlayResultDto } from '@/lib/api-client'
-import { TapCatchConfig, SpinWheelConfig, SnakeConfig, StackTowerConfig } from '@/lib/game-templates'
+import { TapCatchConfig, SpinWheelConfig, SnakeConfig, StackTowerConfig, CrashConfig } from '@/lib/game-templates'
 
 const CATEGORY_LABEL: Record<string, string> = {
   tap_catch: 'Arcade',
   snake_run: 'Arcade',
   stack_tower: 'Arcade',
+  crash: 'Arcade',
   spin_wheel: 'Lucky Draw',
   gomoku: 'Multiplayer',
 }
 
 function maxReward(g: GameDto): number {
-  if (g.template === 'tap_catch' || g.template === 'snake_run' || g.template === 'stack_tower') {
-    const cfg = g.config as TapCatchConfig | SnakeConfig | StackTowerConfig
+  if (g.template === 'tap_catch' || g.template === 'snake_run' || g.template === 'stack_tower' || g.template === 'crash') {
+    const cfg = g.config as TapCatchConfig | SnakeConfig | StackTowerConfig | CrashConfig
     return cfg.rewardCurve.reduce((max, tier) => Math.max(max, tier.points), 0)
   }
   if (g.template === 'spin_wheel') {
@@ -84,7 +86,7 @@ export default function Games() {
   }
 
   const arcadeGames = (games ?? []).filter(
-    (g) => g.template === 'tap_catch' || g.template === 'snake_run' || g.template === 'stack_tower'
+    (g) => g.template === 'tap_catch' || g.template === 'snake_run' || g.template === 'stack_tower' || g.template === 'crash'
   )
   const spinGame = (games ?? []).find((g) => g.template === 'spin_wheel')
   const gomokuGame = (games ?? []).find((g) => g.template === 'gomoku')
@@ -261,6 +263,16 @@ export default function Games() {
           slug={activeGame.slug}
           title={`${activeGame.icon} ${activeGame.title}`}
           config={activeGame.config as StackTowerConfig}
+          onComplete={handleComplete}
+          onClose={() => setActiveSlug(null)}
+        />
+      )}
+
+      {activeGame && activeGame.template === 'crash' && (
+        <CrashGame
+          slug={activeGame.slug}
+          title={`${activeGame.icon} ${activeGame.title}`}
+          config={activeGame.config as CrashConfig}
           onComplete={handleComplete}
           onClose={() => setActiveSlug(null)}
         />

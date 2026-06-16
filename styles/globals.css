@@ -3288,6 +3288,74 @@ button {
   100% { transform: scale(1) rotate(0deg); }
 }
 
+/* Crash (rocket cash-out) game */
+
+.crash-sheet {
+  max-width: 380px;
+}
+
+.crash-track {
+  position: relative;
+  width: 100%;
+  height: 320px;
+  margin-top: 8px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.crash-multiplier {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 36px;
+  font-weight: 800;
+}
+
+.crash-rocket {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 36px;
+  transition: bottom 0.05s linear;
+}
+
+.crash-rocket-exploded {
+  font-size: 48px;
+  animation: crash-explode 0.5s ease-out;
+}
+
+@keyframes crash-explode {
+  0% { transform: translateX(-50%) scale(0.6); }
+  50% { transform: translateX(-50%) scale(1.4); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+.crash-cashout-btn {
+  margin-top: 14px;
+  width: 100%;
+  animation: stack-drop-pulse 1.2s ease-in-out infinite;
+}
+
+.crash-cashout-btn:disabled {
+  animation: none;
+  opacity: 0.6;
+}
+
+.crash-shake {
+  animation: crash-shake 0.4s ease-in-out;
+}
+
+@keyframes crash-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+
 .stack-reward-pop {
   animation: stack-reward-pop 0.5s ease-out;
 }

@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 import { creditPoints, adjustTickets, creditCoins } from './ledger'
 import { getGameBySlug } from './games-catalog'
-import { computeRewardFromCurve, pickSpinSegment, TapCatchConfig, SpinWheelConfig, SnakeConfig } from './game-templates'
+import { computeRewardFromCurve, pickSpinSegment, TapCatchConfig, SpinWheelConfig, SnakeConfig, StackTowerConfig, CrashConfig } from './game-templates'
 
 function toUtcDateString(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -30,12 +30,14 @@ export async function playTapGame(
   now: Date = new Date()
 ): Promise<{ rewardPoints: number; remainingPlays: number }> {
   const game = await getGameBySlug(slug)
-  if (!game || (game.template !== 'tap_catch' && game.template !== 'snake_run')) throw new Error('Game not found')
+  if (!game || (game.template !== 'tap_catch' && game.template !== 'snake_run' && game.template !== 'stack_tower' && game.template !== 'crash')) {
+    throw new Error('Game not found')
+  }
 
   const playsToday = await getPlaysToday(userId, slug, now)
   if (playsToday >= game.maxPlaysPerDay) throw new Error('No plays remaining')
 
-  const config = game.config as TapCatchConfig | SnakeConfig
+  const config = game.config as TapCatchConfig | SnakeConfig | StackTowerConfig | CrashConfig
   const clampedScore = Math.max(0, Math.min(config.maxScore, Math.trunc(score)))
   const rewardPoints = computeRewardFromCurve(clampedScore, config.maxScore, config.rewardCurve)
 

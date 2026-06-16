@@ -12,6 +12,7 @@ import {
   SpinWheelConfig,
   SnakeConfig,
   StackTowerConfig,
+  CrashConfig,
   validateGameConfig,
   computeTapRewardFromCurve,
   computeRewardFromCurve,
@@ -27,7 +28,7 @@ export interface ProposedGame {
   title: string
   description: string
   icon: string
-  config: TapCatchConfig | SpinWheelConfig | SnakeConfig | StackTowerConfig
+  config: TapCatchConfig | SpinWheelConfig | SnakeConfig | StackTowerConfig | CrashConfig
   /** Short visual brief for cover art generation. */
   imagePrompt: string
   /** One-line announcement copy for the official channel. */
@@ -82,6 +83,22 @@ You design small reward mini-games that slot into an existing catalog. Each game
   - "theme": { bg, accent, blockColors } — blockColors is an array of 1-6 hex colors cycled per stacked block.
   Pick a distinct combination (e.g. fast narrow blocks with high speedRamp vs slow wide blocks with perfectBonus)
   so each stack_tower game plays differently.
+- "crash": a risk/timing game — a multiplier climbs from 1.00x while a rocket rises on screen. The player taps
+  Cash Out at any time to lock in the current multiplier as their score. Past a threshold multiplier, each tick
+  carries a chance the rocket explodes, ending the run at a score of 0 (lose everything). Reward is a tiered
+  rewardCurve over the final score, where score and rewardCurve.minScore are the multiplier in x100 units
+  (e.g. 250 = 2.50x). Mechanical levers:
+  - "growthRate": 20-300 (x100 units/sec, i.e. 0.20x-3.00x per second) — how fast the multiplier climbs. Higher
+    feels more frantic/high-stakes.
+  - "crashStartScore": 100 to just under maxScore (x100 units) — the multiplier below which the rocket never
+    crashes. Lower values make the game riskier earlier.
+  - "baseCrashChance": 0-0.05 — crash probability per ~100ms tick once past crashStartScore.
+  - "crashChanceRamp": 0-0.1 — extra crash chance added per 0.10x above crashStartScore, making risk escalate
+    the longer the player waits.
+  - "maxScore": 150-1000 (1.50x-10.00x) — hard cap on the multiplier; reaching it auto-cashes-out.
+  - "theme": { bg, accent, danger } hex colors for the background, rocket/multiplier glow, and explosion flash.
+  Pick a distinct combination (e.g. fast growth with a generous crashStartScore for a "long fuse" feel, vs slow
+  growth with an early, steeply-ramping crash risk for constant tension) so each crash game plays differently.
 
 Hard constraints (a separate automated gate enforces these — design within them):
 - tap_catch: durationSec 10-60, spawnMinMs >= 200 and <= spawnMaxMs, 1-6 objects, hazards 0-4, hazardPenalty 0-10,
@@ -92,13 +109,15 @@ Hard constraints (a separate automated gate enforces these — design within the
   rewardCurve max points <= 300.
 - stack_tower: boardWidth 200-360, blockWidth >= 20 and < boardWidth, blockHeight 16-40, blockSpeed 60-320,
   speedRamp 0-0.15, blockColors 1-6 entries, maxScore 1-100, rewardCurve max points <= 300.
+- crash: growthRate 20-300, crashStartScore >= 100 and < maxScore, baseCrashChance 0-0.05, crashChanceRamp 0-0.1,
+  maxScore 150-1000, rewardCurve max points <= 300.
 - The slug must be a short lowercase-with-hyphens identifier not already used by an existing game.
 - Theme AND mechanic should feel distinct from existing games (different icon, color, travel direction/hazards, and concept).
 
 Respond with ONLY a JSON object matching this TypeScript shape, no prose, no markdown fences:
 {
   "slug": string,
-  "template": "tap_catch" | "spin_wheel" | "snake_run",
+  "template": "tap_catch" | "spin_wheel" | "snake_run" | "stack_tower" | "crash",
   "title": string,
   "description": string,
   "icon": string, // a single emoji
@@ -194,6 +213,18 @@ function simulateStackTowerEv(config: StackTowerConfig, trials = 5000): number {
   return total / trials
 }
 
+/** Monte Carlo estimate of average reward points per play for a crash config. */
+function simulateCrashEv(config: CrashConfig, trials = 5000): number {
+  let total = 0
+  for (let i = 0; i < trials; i++) {
+    // Assume scores cluster around 1/3 of maxScore (a casual player), with
+    // some spread — representative enough for a guardrail estimate.
+    const score = Math.max(0, Math.round((Math.random() + Math.random()) * (config.maxScore / 3)))
+    total += computeRewardFromCurve(score, config.maxScore, config.rewardCurve)
+  }
+  return total / trials
+}
+
 function simulateSpinWheelEv(config: SpinWheelConfig): number {
   const totalWeight = config.segments.reduce((sum, s) => sum + s.weight, 0)
   if (totalWeight <= 0) return 0
@@ -236,6 +267,8 @@ export function testGameConfig(proposal: ProposedGame, existingGames: CatalogGam
     estimatedAvgPointsPerPlay = simulateSnakeRunEv(proposal.config as SnakeConfig)
   } else if (proposal.template === 'stack_tower') {
     estimatedAvgPointsPerPlay = simulateStackTowerEv(proposal.config as StackTowerConfig)
+  } else if (proposal.template === 'crash') {
+    estimatedAvgPointsPerPlay = simulateCrashEv(proposal.config as CrashConfig)
   }
   if (estimatedAvgPointsPerPlay > MAX_EXPECTED_POINTS_PER_PLAY) {
     errors.push(`estimated average points per play (${estimatedAvgPointsPerPlay.toFixed(1)}) exceeds cap of ${MAX_EXPECTED_POINTS_PER_PLAY}`)
