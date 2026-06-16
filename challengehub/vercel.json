@@ -1,5 +1,8 @@
 {
   "crons": [
-    { "path": "/api/cron/challenge-status-sync", "schedule": "0 0 * * *" }
+    { "path": "/api/cron/challenge-status-sync", "schedule": "0 0 * * *" },
+    { "path": "/api/cron/send-reminders",        "schedule": "0 9 * * *" },
+    { "path": "/api/cron/streak-alerts",         "schedule": "0 19 * * *" },
+    { "path": "/api/cron/weekly-digest",         "schedule": "0 8 * * 1" }
   ]
 }
