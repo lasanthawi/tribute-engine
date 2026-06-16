@@ -1757,8 +1757,9 @@ button {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 14px;
-  margin-bottom: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  min-height: 64px;
   transition: border-color 0.2s ease;
 }
 
@@ -1809,6 +1810,13 @@ button {
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
+  flex-shrink: 0;
+}
+
+.call-settled-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .outcome-badge {
@@ -1850,7 +1858,6 @@ button {
 .points-delta.neutral { color: var(--text-dim); }
 
 .share-btn {
-  margin-top: 6px;
   font-size: 11px;
   font-weight: 800;
   color: var(--accent);
@@ -1859,6 +1866,7 @@ button {
   border-radius: var(--radius-pill);
   padding: 4px 10px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .empty-state {
@@ -3291,69 +3299,218 @@ button {
 /* Crash (rocket cash-out) game */
 
 .crash-sheet {
-  max-width: 380px;
+  max-width: 400px;
 }
 
-.crash-track {
-  position: relative;
+/* ── Ready state ── */
+
+.crash-reward-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 10px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.crash-reward-strip::-webkit-scrollbar { display: none; }
+
+.crash-reward-tier {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  min-width: 56px;
+}
+
+.crash-tier-mult {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.crash-tier-pts {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.crash-hint {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  margin: 4px 0 12px;
+}
+
+.crash-auto-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.crash-auto-label {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  flex: 1;
+  white-space: nowrap;
+}
+
+.crash-auto-input {
+  width: 72px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.crash-auto-unit {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.crash-auto-preview {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* ── Playing state ── */
+
+.crash-canvas-wrap {
   width: 100%;
-  height: 320px;
-  margin-top: 8px;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border);
+  margin-top: 6px;
 }
 
-.crash-multiplier {
-  position: absolute;
-  top: 20px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 36px;
-  font-weight: 800;
+.crash-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
-.crash-rocket {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 36px;
-  transition: bottom 0.05s linear;
+.crash-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 2px 6px;
 }
 
-.crash-rocket-exploded {
-  font-size: 48px;
-  animation: crash-explode 0.5s ease-out;
+.crash-mult-display {
+  font-size: 46px;
+  font-weight: 900;
+  letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: color 0.25s;
 }
 
-@keyframes crash-explode {
-  0% { transform: translateX(-50%) scale(0.6); }
-  50% { transform: translateX(-50%) scale(1.4); }
-  100% { transform: translateX(-50%) scale(1); }
+.crash-hud-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.crash-danger-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.crash-risk-text {
+  font-size: 11px;
+  font-weight: 600;
+  transition: color 0.25s;
+}
+
+.crash-bar-track {
+  height: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 100px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.crash-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 100px;
+  transition: background 0.3s;
+}
+
+.crash-bar-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-bottom: 10px;
 }
 
 .crash-cashout-btn {
-  margin-top: 14px;
   width: 100%;
-  animation: stack-drop-pulse 1.2s ease-in-out infinite;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 800;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  animation: crash-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes crash-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(108, 92, 231, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(108, 92, 231, 0); }
 }
 
 .crash-cashout-btn:disabled {
   animation: none;
-  opacity: 0.6;
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
+.crash-cashout-crashed {
+  background: var(--down, #ff4d6a) !important;
+  animation: none !important;
+}
+
+/* ── Done state ── */
+
+.crash-result-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* ── Shake on crash ── */
+
 .crash-shake {
-  animation: crash-shake 0.4s ease-in-out;
+  animation: crash-shake 0.45s ease-in-out;
 }
 
 @keyframes crash-shake {
   0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-8px); }
-  40% { transform: translateX(8px); }
-  60% { transform: translateX(-6px); }
-  80% { transform: translateX(6px); }
+  15% { transform: translateX(-10px) rotate(-1deg); }
+  35% { transform: translateX(10px) rotate(1deg); }
+  55% { transform: translateX(-7px); }
+  75% { transform: translateX(7px); }
 }
 
 .stack-reward-pop {
