@@ -22,3 +22,28 @@ export function getTaskStatus(task: TaskDto, challengeStartDate?: string): TaskS
   if (due.getTime() === today.getTime()) return 'today'
   return 'upcoming'
 }
+
+/** Days from today until the task's due date (positive = future, 0 = today, negative = past). */
+export function getDaysUntil(challengeStartDate: string, day: number): number {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = dueDateForDay(challengeStartDate, day)
+  return Math.round((due.getTime() - today.getTime()) / 86400000)
+}
+
+export interface StatusInfo {
+  label: string
+  cls: 'missed' | 'today' | 'soon' | 'upcoming'
+}
+
+export function getSpotlightStatusInfo(task: TaskDto, challengeStartDate?: string): StatusInfo {
+  const status = getTaskStatus(task, challengeStartDate)
+  if (status === 'missed') return { label: 'Delayed', cls: 'missed' }
+  if (status === 'today') return { label: 'Today', cls: 'today' }
+
+  const days = challengeStartDate ? getDaysUntil(challengeStartDate, task.day) : null
+  if (days === 1) return { label: 'Tomorrow', cls: 'soon' }
+  if (days !== null && days <= 3) return { label: `In ${days} days · Reminder`, cls: 'soon' }
+  if (days !== null) return { label: `In ${days} days`, cls: 'upcoming' }
+  return { label: 'Upcoming', cls: 'upcoming' }
+}
