@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useState } from 'react'
 import Link from 'next/link'
 import { ChallengeDto, TaskDto } from '@/lib/api-client'
@@ -30,13 +31,41 @@ export default function SpotlightCard({
     setShowModal(true)
   }
 
+  const modal = showModal && nextTask && typeof document !== 'undefined'
+    ? createPortal(
+        <div className="checkin-modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="checkin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="checkin-modal-handle" />
+            <div className="checkin-modal-header">
+              <div className="checkin-modal-challenge">{challenge.title}</div>
+              <button className="checkin-modal-close" onClick={() => setShowModal(false)}>✕</button>
+            </div>
+            <CheckinPanel
+              task={nextTask}
+              missed={missed}
+              onSubmitted={(result) => {
+                setShowModal(false)
+                onSubmitted(result)
+              }}
+              onCancel={() => setShowModal(false)}
+            />
+          </div>
+        </div>,
+        document.body
+      )
+    : null
+
   return (
     <>
       <div className={`spotlight-card ${catClass}`}>
         <Link href={`/challenge/${challenge.id}`} className="spotlight-link">
-          <div className="spotlight-eyebrow">{challenge.isMember ? 'Continue your challenge' : 'Featured challenge'}</div>
-          <div className="spotlight-icon">{meta.icon}</div>
-          <h2 className="spotlight-title">{challenge.title}</h2>
+          <div className="spotlight-eyebrow">
+            {challenge.isMember ? 'Continue your challenge' : 'Featured challenge'}
+          </div>
+          <div className="spotlight-card-head">
+            <span className="spotlight-icon">{meta.icon}</span>
+            <h2 className="spotlight-title">{challenge.title}</h2>
+          </div>
           <p className="spotlight-desc">{challenge.description}</p>
         </Link>
 
@@ -63,26 +92,7 @@ export default function SpotlightCard({
         )}
       </div>
 
-      {showModal && nextTask && (
-        <div className="checkin-modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="checkin-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="checkin-modal-handle" />
-            <div className="checkin-modal-header">
-              <div className="checkin-modal-challenge">{challenge.title}</div>
-              <button className="checkin-modal-close" onClick={() => setShowModal(false)}>✕</button>
-            </div>
-            <CheckinPanel
-              task={nextTask}
-              missed={missed}
-              onSubmitted={(result) => {
-                setShowModal(false)
-                onSubmitted(result)
-              }}
-              onCancel={() => setShowModal(false)}
-            />
-          </div>
-        </div>
-      )}
+      {modal}
     </>
   )
 }
