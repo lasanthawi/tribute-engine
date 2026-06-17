@@ -1,9 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
-import { demoDashboard } from '@/lib/demo-data'
 import { claimReward, createReward, createRewardRule, listRewards } from '@/lib/rewards'
-import { isDemoMode } from '@/lib/supabase'
 
 interface RewardRow {
   id: number
@@ -29,11 +27,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const communityId = Number(req.query.id)
   if (Number.isNaN(communityId)) return res.status(400).json({ error: 'Invalid community id' })
-
-  if (isDemoMode) {
-    if (req.method === 'GET') return res.status(200).json({ rewards: demoDashboard.rewards })
-    if (req.method === 'POST') return res.status(200).json({ ok: true })
-  }
 
   try {
     if (req.method === 'GET') {

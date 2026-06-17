@@ -2,7 +2,6 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { autoLinkChatToCommunity, findCommunityForChat, grantMemberAccess, upsertTelegramChat } from '@/lib/access-control'
 import { findInvoiceByPayload, recordSuccessfulPayment } from '@/lib/payments'
 import { recordClickByCode, registerReferredJoin } from '@/lib/referrals'
-import { isDemoMode } from '@/lib/supabase'
 import { answerPreCheckoutQuery, sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
 import { getOrCreateUser } from '@/lib/telegram-auth'
 
@@ -24,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const update: TelegramUpdate = req.body
     if (update.pre_checkout_query) {
       const isStars = update.pre_checkout_query.currency === 'XTR'
-      const invoice = isDemoMode ? true : await findInvoiceByPayload(update.pre_checkout_query.invoice_payload)
+      const invoice = await findInvoiceByPayload(update.pre_checkout_query.invoice_payload)
       const ok = !!isStars && !!invoice
       await answerPreCheckoutQuery(
         BOT_TOKEN,
@@ -39,9 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (message?.successful_payment && message.from) {
       const user = await getOrCreateUser(message.from)
       const payment = message.successful_payment
-      const result = isDemoMode
-        ? { ok: true as const, communityId: null }
-        : await recordSuccessfulPayment({
+      const result = await recordSuccessfulPayment({
             payload: payment.invoice_payload,
             stars: payment.total_amount,
             buyerUserId: user.id,
@@ -73,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const botIsAdmin = newStatus === 'administrator' || newStatus === 'creator'
       const botRemoved = newStatus === 'left' || newStatus === 'kicked'
 
-      if (!isDemoMode && mcm.chat.type !== 'private') {
+      if (mcm.chat.type !== 'private') {
         let communityId = await findCommunityForChat(telegramChatId)
         if (!communityId && botIsAdmin) {
           communityId = await autoLinkChatToCommunity(mcm.from.id, telegramChatId)
@@ -112,7 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (message.text.startsWith('/start')) {
       const startParam = message.text.split(/\s+/)[1]
       const user = await getOrCreateUser(message.from)
-      if (startParam && !isDemoMode) {
+      if (startParam) {
         await recordClickByCode(startParam, String(message.from.id))
         await registerReferredJoin(startParam, user.id)
       }

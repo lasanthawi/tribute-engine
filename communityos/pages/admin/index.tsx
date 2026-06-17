@@ -1,10 +1,65 @@
 import Head from 'next/head'
 import Link from 'next/link'
-import { demoAdminDashboard } from '@/lib/demo-data'
+import { useEffect, useState } from 'react'
 import { money } from '@/lib/api-client'
 
+interface AdminDashboardDto {
+  metrics: {
+    communities: number
+    publishers: number
+    monthlyStars: number
+    paymentsCents: number
+    accessFailures: number
+    aiRequests: number
+  }
+  communities: {
+    id: number
+    name: string
+    owner: string
+    status: string
+    members: number
+    revenueCents: number
+    healthScore: number
+  }[]
+  payments: {
+    id: number
+    community: string
+    buyer: string
+    stars: number
+    status: string
+    createdAt: string
+  }[]
+  issues: {
+    id: number
+    title: string
+    community: string
+    severity: string
+    status: string
+  }[]
+}
+
+const emptyDashboard: AdminDashboardDto = {
+  metrics: { communities: 0, publishers: 0, monthlyStars: 0, paymentsCents: 0, accessFailures: 0, aiRequests: 0 },
+  communities: [],
+  payments: [],
+  issues: [],
+}
+
 export default function AdminDashboard() {
-  const data = demoAdminDashboard
+  const [data, setData] = useState<AdminDashboardDto | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/dashboard')
+      .then((res) => {
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+        return res.json()
+      })
+      .then((json) => setData(json))
+      .catch((err) => setError(err.message || 'Failed to load admin dashboard'))
+  }, [])
+
+  const d = data ?? emptyDashboard
 
   return (
     <>
@@ -23,19 +78,31 @@ export default function AdminDashboard() {
           </Link>
         </header>
 
+        {error && (
+          <section className="co-admin-panel">
+            <p style={{ color: 'var(--co-red)', padding: '1rem' }}>{error}</p>
+          </section>
+        )}
+
+        {!data && !error && (
+          <section className="co-admin-panel">
+            <p style={{ padding: '1rem', opacity: 0.5 }}>Loading…</p>
+          </section>
+        )}
+
         <section className="co-admin-grid">
-          <AdminMetric label="Communities" value={String(data.metrics.communities)} />
-          <AdminMetric label="Publishers" value={String(data.metrics.publishers)} />
-          <AdminMetric label="Stars" value={`${data.metrics.monthlyStars.toLocaleString()} XTR`} />
-          <AdminMetric label="Revenue" value={money(data.metrics.paymentsCents)} />
-          <AdminMetric label="Access failures" value={String(data.metrics.accessFailures)} />
-          <AdminMetric label="AI requests" value={data.metrics.aiRequests.toLocaleString()} />
+          <AdminMetric label="Communities" value={String(d.metrics.communities)} />
+          <AdminMetric label="Publishers" value={String(d.metrics.publishers)} />
+          <AdminMetric label="Stars" value={`${d.metrics.monthlyStars.toLocaleString()} XTR`} />
+          <AdminMetric label="Revenue" value={money(d.metrics.paymentsCents)} />
+          <AdminMetric label="Access failures" value={String(d.metrics.accessFailures)} />
+          <AdminMetric label="AI requests" value={d.metrics.aiRequests.toLocaleString()} />
         </section>
 
         <section className="co-admin-panel">
           <div className="co-admin-panel-header">
             <h2>Communities</h2>
-            <span className="co-pill">{data.communities.length}</span>
+            <span className="co-pill">{d.communities.length}</span>
           </div>
           <table className="co-admin-table">
             <thead>
@@ -49,7 +116,7 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {data.communities.map((community) => (
+              {d.communities.map((community) => (
                 <tr key={community.id}>
                   <td>{community.name}</td>
                   <td>{community.owner}</td>
@@ -59,6 +126,9 @@ export default function AdminDashboard() {
                   <td>{community.healthScore}</td>
                 </tr>
               ))}
+              {d.communities.length === 0 && (
+                <tr><td colSpan={6} style={{ opacity: 0.5, textAlign: 'center' }}>No communities yet</td></tr>
+              )}
             </tbody>
           </table>
         </section>
@@ -80,7 +150,7 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {data.payments.map((payment) => (
+              {d.payments.map((payment) => (
                 <tr key={payment.id}>
                   <td>#{payment.id}</td>
                   <td>{payment.community}</td>
@@ -90,6 +160,9 @@ export default function AdminDashboard() {
                   <td>{formatAdminDate(payment.createdAt)}</td>
                 </tr>
               ))}
+              {d.payments.length === 0 && (
+                <tr><td colSpan={6} style={{ opacity: 0.5, textAlign: 'center' }}>No payments yet</td></tr>
+              )}
             </tbody>
           </table>
         </section>
@@ -97,7 +170,7 @@ export default function AdminDashboard() {
         <section className="co-admin-panel">
           <div className="co-admin-panel-header">
             <h2>Operational Issues</h2>
-            <span className="co-pill warn">{data.issues.length} open</span>
+            <span className="co-pill warn">{d.issues.length} open</span>
           </div>
           <table className="co-admin-table">
             <thead>
@@ -109,7 +182,7 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {data.issues.map((issue) => (
+              {d.issues.map((issue) => (
                 <tr key={issue.id}>
                   <td>{issue.title}</td>
                   <td>{issue.community}</td>
@@ -117,6 +190,9 @@ export default function AdminDashboard() {
                   <td>{issue.status}</td>
                 </tr>
               ))}
+              {d.issues.length === 0 && (
+                <tr><td colSpan={4} style={{ opacity: 0.5, textAlign: 'center' }}>No open issues</td></tr>
+              )}
             </tbody>
           </table>
         </section>

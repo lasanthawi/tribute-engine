@@ -17,7 +17,6 @@ import {
   emptyDashboardForCommunity,
   money,
 } from '@/lib/api-client'
-import { demoDashboard } from '@/lib/demo-data'
 import { copyText, haptic, initTelegramShell, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
 
 type Mode = 'publisher' | 'member'
@@ -64,7 +63,7 @@ export default function Home() {
   const [memberProfile, setMemberProfile] = useState<MemberProfileDto | null>(null)
   const [ownedCommunities, setOwnedCommunities] = useState<DashboardDto['community'][]>([])
   const [communityId, setCommunityId] = useState<number | null>(null)
-  const [previewMode, setPreviewMode] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [membershipTitle, setMembershipTitle] = useState('Premium Circle')
@@ -98,7 +97,6 @@ export default function Home() {
           setData(dashboardFromMemberProfile(profile))
           setMode('member')
           setScreen('home')
-          setPreviewMode(false)
           return
         }
 
@@ -106,7 +104,7 @@ export default function Home() {
         if (cancelled) return
         setOwnedCommunities(me.communities)
 
-        // If no communities yet, go to intro without trying (and failing) to load dashboard
+        // New user: no communities yet, show intro without fetching a dashboard
         if (!routeCommunityId && me.communities.length === 0) {
           setMode('publisher')
           setScreen('intro')
@@ -123,17 +121,16 @@ export default function Home() {
         if (cancelled) return
         setCommunityId(dashboard.community.id)
         setData(normalizeDashboard(dashboard))
-        setPreviewMode(false)
         setMode('publisher')
         setScreen(routeCommunityId ? 'home' : 'intro')
-      } catch {
+      } catch (err: any) {
         if (cancelled) return
-        setOwnedCommunities([demoDashboard.community])
-        setCommunityId(demoDashboard.community.id)
-        setData(demoDashboard)
-        setPreviewMode(true)
-        setMode(isMemberRoute ? 'member' : 'publisher')
-        setScreen(isMemberRoute ? 'home' : 'intro')
+        const status = err?.status ?? err?.statusCode ?? 0
+        setAuthError(
+          status === 401 || status === 403
+            ? 'Open this app in Telegram to sign in.'
+            : 'Could not connect to CommunityOS. Please try again.'
+        )
       }
     }
 
@@ -171,11 +168,6 @@ export default function Home() {
   }
 
   async function selectCommunity(id: number) {
-    if (previewMode) {
-      setCommunityId(id)
-      setScreen('home')
-      return
-    }
     try {
       const dashboard = await api.getDashboard(id)
       setCommunityId(id)
@@ -187,7 +179,7 @@ export default function Home() {
   }
 
   async function refreshDashboard() {
-    if (!communityId || previewMode) return
+    if (!communityId) return
     const dashboard = await api.getDashboard(communityId)
     setData(normalizeDashboard(dashboard))
   }
@@ -205,50 +197,29 @@ export default function Home() {
     }
 
     try {
-      if (previewMode) {
-        const plan: PlanDto = {
-          id: Date.now(),
-          ...body,
-          currency: 'XTR',
-          status: 'active',
-          subscribers: 0,
-        }
-        setCreatedPlan(plan)
-        setData({ ...data, plans: [plan, ...data.plans] })
-      } else {
-        const response = await api.createPlan(communityId, body)
-        const plan = {
-          ...response.plan,
-          name: body.name,
-          description: body.description,
-          priceCents: body.priceCents,
-          stars,
-          interval: body.interval,
-        }
-        setCreatedPlan(plan)
-        await refreshDashboard()
+      const response = await api.createPlan(communityId, body)
+      const plan = {
+        ...response.plan,
+        name: body.name,
+        description: body.description,
+        priceCents: body.priceCents,
+        stars,
+        interval: body.interval,
       }
+      setCreatedPlan(plan)
+      await refreshDashboard()
       setScreen('publish')
-      showToast(previewMode ? 'Preview membership created' : 'Membership created')
+      showToast('Membership created')
     } catch (error: any) {
       showToast(error.message || 'Membership creation failed')
     }
   }
 
   async function grantAccess(row: MemberRowDto) {
-    if (!data || !communityId) return
+    if (!communityId) return
     try {
-      if (previewMode) {
-        setData({
-          ...data,
-          members: data.members.map((memberRow) =>
-            memberRow.id === row.id ? { ...memberRow, accessStatus: 'granted', lastActiveAt: new Date().toISOString() } : memberRow
-          ),
-        })
-      } else {
-        await api.grantAccess(communityId, row.id)
-        await refreshDashboard()
-      }
+      await api.grantAccess(communityId, row.id)
+      await refreshDashboard()
       showToast(`Access granted to @${row.username}`)
     } catch (error: any) {
       showToast(error.message || 'Access grant failed')
@@ -256,19 +227,10 @@ export default function Home() {
   }
 
   async function revokeAccess(row: MemberRowDto) {
-    if (!data || !communityId) return
+    if (!communityId) return
     try {
-      if (previewMode) {
-        setData({
-          ...data,
-          members: data.members.map((memberRow) =>
-            memberRow.id === row.id ? { ...memberRow, accessStatus: 'revoked', lastActiveAt: new Date().toISOString() } : memberRow
-          ),
-        })
-      } else {
-        await api.revokeAccess(communityId, row.id)
-        await refreshDashboard()
-      }
+      await api.revokeAccess(communityId, row.id)
+      await refreshDashboard()
       showToast(`Access revoked for @${row.username}`)
     } catch (error: any) {
       showToast(error.message || 'Access revoke failed')
@@ -284,9 +246,7 @@ export default function Home() {
       status: 'active' as const,
     }
     try {
-      const campaign: ReferralCampaignDto = previewMode
-        ? { id: Date.now(), ...body, clicks: 0, joins: 0, purchases: 0, revenueCents: 0 }
-        : (await api.createReferralCampaign(communityId, body)).campaign
+      const { campaign } = await api.createReferralCampaign(communityId, body)
       setData({ ...data, referralCampaigns: [campaign, ...data.referralCampaigns] })
       setCampaignTitle('')
       showToast('Referral campaign created')
@@ -305,7 +265,7 @@ export default function Home() {
       status: 'active' as const,
     }
     try {
-      const rule: RewardRuleDto = previewMode ? { id: Date.now(), ...body } : (await api.createRewardRule(communityId, body)).rule
+      const { rule } = await api.createRewardRule(communityId, body)
       setData({ ...data, rewardRules: [rule, ...data.rewardRules] })
       setRewardTitle('')
       showToast('Reward rule created')
@@ -323,9 +283,7 @@ export default function Home() {
       priceStars: 0,
     }
     try {
-      const event: EventDto = previewMode
-        ? { id: Date.now(), ...body, registrations: 0 }
-        : (await api.createEvent(communityId, body)).event
+      const { event } = await api.createEvent(communityId, body)
       setData({ ...data, events: [event, ...data.events] })
       showToast('Event draft created')
     } catch (error: any) {
@@ -341,9 +299,7 @@ export default function Home() {
       priceStars: 199,
     }
     try {
-      const product: ProductDto = previewMode
-        ? { id: Date.now(), ...body, status: 'draft', purchases: 0 }
-        : (await api.createProduct(communityId, body)).product
+      const { product } = await api.createProduct(communityId, body)
       setData({ ...data, products: [product, ...data.products] })
       showToast('Product draft created')
     } catch (error: any) {
@@ -375,9 +331,9 @@ export default function Home() {
   async function syncAccessNow() {
     if (!communityId) return
     try {
-      const result = previewMode ? { scanned: 3, synced: 2, demo: true } : await api.syncAccess(communityId)
-      if (!previewMode) await refreshDashboard()
-      showToast(`Synced ${result.synced ?? 0} of ${result.scanned ?? 0} pending members${result.demo ? ' in preview' : ''}`)
+      const result = await api.syncAccess(communityId)
+      await refreshDashboard()
+      showToast(`Synced ${result.synced ?? 0} of ${result.scanned ?? 0} pending members`)
     } catch (error: any) {
       showToast(error.message || 'Access sync failed')
     }
@@ -395,10 +351,6 @@ export default function Home() {
   async function buyProduct(product: ProductDto) {
     if (!communityId || !data) return
     try {
-      if (previewMode) {
-        showToast('Telegram invoice opens after bot setup')
-        return
-      }
       const response = await api.createInvoice(communityId, {
         title: product.title,
         description: `${product.title} from ${data.community.name}`,
@@ -416,14 +368,80 @@ export default function Home() {
     }
   }
 
+  // Auth failed — must open in Telegram
+  if (authError) {
+    return (
+      <>
+        <Head>
+          <title>CommunityOS</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        </Head>
+        <main className="tg-app">
+          <header className="tg-topbar">
+            <button className="tg-nav-button" type="button" disabled aria-label="Back" />
+            <div className="tg-title">
+              <strong>CommunityOS</strong>
+              <span>mini app</span>
+            </div>
+            <MenuButton communityId={1} />
+          </header>
+          <section className="tg-screen centered">
+            <div className="tg-hero-mark">TG</div>
+            <h1>Open in Telegram</h1>
+            <p className="tg-subtitle">{authError}</p>
+          </section>
+        </main>
+        {toast && <div className="tg-toast">{toast}</div>}
+      </>
+    )
+  }
+
+  // No dashboard yet — allow onboarding screens to render, spinner for everything else
   if (!data) {
     return (
-      <AppFrame title="CommunityOS" subtitle="mini app" hideBack menuCommunityId={communityId ?? 1}>
-        <div className="tg-loading">
-          <div className="tg-loader" />
-          <p>Loading CommunityOS</p>
-        </div>
-      </AppFrame>
+      <>
+        <Head>
+          <title>CommunityOS</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        </Head>
+        {screen === 'intro' ? (
+          <IntroScreen
+            index={introIndex}
+            onBack={introIndex > 0 ? () => setIntroIndex((v) => v - 1) : undefined}
+            menuCommunityId={communityId ?? 1}
+            onNext={() => {
+              if (introIndex < introSlides.length - 1) setIntroIndex((v) => v + 1)
+              else go('start')
+            }}
+          />
+        ) : (
+          <AppFrame
+            title="CommunityOS"
+            subtitle="mini app"
+            hideBack={screen === 'start'}
+            menuCommunityId={communityId ?? 1}
+            onBack={() => { if (screen === 'communities') go('start') }}
+          >
+            {screen === 'start' && <StartPicker onSelect={go} />}
+            {screen === 'communities' && (
+              <CommunityPicker
+                communities={filteredCommunities}
+                search={search}
+                onSearch={setSearch}
+                onSelect={selectCommunity}
+                onAdd={() => showToast('Telegram group connection flow opened')}
+              />
+            )}
+            {screen !== 'start' && screen !== 'communities' && (
+              <div className="tg-loading">
+                <div className="tg-loader" />
+                <p>Loading CommunityOS</p>
+              </div>
+            )}
+          </AppFrame>
+        )}
+        {toast && <div className="tg-toast">{toast}</div>}
+      </>
     )
   }
 
@@ -456,7 +474,7 @@ export default function Home() {
       ) : (
         <AppFrame
           title="CommunityOS"
-          subtitle={previewMode ? 'preview mode' : 'mini app'}
+          subtitle="mini app"
           hideBack={screen === 'start'}
           menuCommunityId={communityId ?? 1}
           onBack={() => {

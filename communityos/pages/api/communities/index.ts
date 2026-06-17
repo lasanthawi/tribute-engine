@@ -1,27 +1,14 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { createCommunity, listOwnedCommunities } from '@/lib/communities'
-import { demoDashboard } from '@/lib/demo-data'
-import { isDemoMode } from '@/lib/supabase'
 
-function toDto(community: { id: number; name: string; handle: string | null; description: string | null; status: string }) {
-  return {
-    id: community.id,
-    name: community.name,
-    handle: community.handle,
-    description: community.description,
-    status: community.status,
-  }
+function toDto(c: { id: number; name: string; handle: string | null; description: string | null; status: string }) {
+  return { id: c.id, name: c.name, handle: c.handle, description: c.description, status: c.status }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userId = await requireUser(req, res)
   if (userId === null) return
-
-  if (isDemoMode) {
-    if (req.method === 'GET') return res.status(200).json({ communities: [demoDashboard.community] })
-    if (req.method === 'POST') return res.status(201).json({ community: demoDashboard.community })
-  }
 
   try {
     if (req.method === 'GET') {
@@ -32,7 +19,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'POST') {
       const { name, handle, description, telegramChatId, telegramInviteUrl } = req.body ?? {}
       if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name is required' })
-
       const community = await createCommunity(userId, {
         name,
         handle: typeof handle === 'string' ? handle : null,

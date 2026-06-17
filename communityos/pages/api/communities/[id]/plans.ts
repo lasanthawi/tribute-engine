@@ -1,9 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
-import { demoDashboard } from '@/lib/demo-data'
 import { createPlan, listPlans } from '@/lib/memberships'
-import { isDemoMode } from '@/lib/supabase'
 
 interface PlanRow {
   id: number
@@ -38,11 +36,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const communityId = Number(req.query.id)
   if (Number.isNaN(communityId)) return res.status(400).json({ error: 'Invalid community id' })
-
-  if (isDemoMode) {
-    if (req.method === 'GET') return res.status(200).json({ plans: demoDashboard.plans })
-    if (req.method === 'POST') return res.status(201).json({ plan: demoDashboard.plans[1] })
-  }
 
   try {
     const allowed = await requireCommunityOwner(userId, communityId)

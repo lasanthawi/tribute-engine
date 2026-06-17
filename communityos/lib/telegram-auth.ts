@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { isDemoMode, supabase } from './supabase'
+import { supabase } from './supabase'
 
 export interface TelegramWebAppUser {
   id: number
@@ -58,8 +58,6 @@ export async function getOrCreateUser(tgUser: TelegramWebAppUser): Promise<{ id:
 }
 
 export async function authenticateRequest(initData: string | undefined): Promise<number | null> {
-  if (isDemoMode) return 1
-
   const botToken = process.env.TELEGRAM_BOT_TOKEN
   if (!initData || !botToken) return null
 

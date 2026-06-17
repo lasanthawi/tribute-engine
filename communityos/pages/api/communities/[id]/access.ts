@@ -2,8 +2,6 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { grantMemberAccess, listAccessLogs, listChats, revokeMemberAccess, syncPendingAccess } from '@/lib/access-control'
 import { listMembers, requireCommunityOwner } from '@/lib/communities'
-import { demoDashboard } from '@/lib/demo-data'
-import { isDemoMode } from '@/lib/supabase'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userId = await requireUser(req, res)
@@ -11,16 +9,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const communityId = Number(req.query.id)
   if (Number.isNaN(communityId)) return res.status(400).json({ error: 'Invalid community id' })
-
-  if (isDemoMode) {
-    if (req.method === 'GET')
-      return res.status(200).json({
-        chats: demoDashboard.chats,
-        queue: demoDashboard.members.filter((m) => m.accessStatus === 'pending' || m.accessStatus === 'failed'),
-        logs: demoDashboard.accessLogs,
-      })
-    if (req.method === 'POST') return res.status(200).json({ ok: true, scanned: 3, synced: 2, demo: true })
-  }
 
   try {
     const allowed = await requireCommunityOwner(userId, communityId)

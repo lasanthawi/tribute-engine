@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { createInvoice } from '@/lib/payments'
-import { isDemoMode } from '@/lib/supabase'
 import { createTelegramInvoiceLink } from '@/lib/telegram'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -19,20 +18,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const stars = Math.max(1, Number(req.body?.stars ?? 1))
   const title = String(req.body?.title ?? 'CommunityOS purchase')
   const productId = typeof req.body?.productId === 'number' ? req.body.productId : null
-
-  if (isDemoMode) {
-    const invoice = {
-      title,
-      description: req.body?.description ?? 'Telegram Stars purchase for CommunityOS.',
-      payload: `co-demo:${communityId}:${Date.now()}`,
-      currency: 'XTR',
-      prices: [{ label: title, amount: stars }],
-      invoiceLink: null,
-    }
-    return res.status(200).json({
-      invoice,
-    })
-  }
 
   try {
     const invoice = await createInvoice(communityId, {
