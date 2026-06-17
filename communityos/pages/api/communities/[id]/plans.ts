@@ -18,11 +18,13 @@ interface PlanRow {
 }
 
 function toDto(plan: PlanRow) {
+  const priceCents = plan.price_cents ?? plan.priceCents ?? 0
   return {
     id: plan.id,
     name: plan.name,
     description: plan.description,
-    priceCents: plan.price_cents ?? plan.priceCents,
+    priceCents,
+    stars: Math.round(priceCents / 10),
     currency: plan.currency,
     interval: plan.interval,
     status: plan.status,

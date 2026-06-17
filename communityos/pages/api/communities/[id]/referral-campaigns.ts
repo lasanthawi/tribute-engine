@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
-import { generateWeeklyReport, getAiManager } from '@/lib/ai'
 import { requireCommunityOwner } from '@/lib/communities'
 import { demoDashboard } from '@/lib/demo-data'
+import { createReferralCampaign, listReferralCampaigns } from '@/lib/growth'
 import { isDemoMode } from '@/lib/supabase'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -13,27 +13,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (Number.isNaN(communityId)) return res.status(400).json({ error: 'Invalid community id' })
 
   if (isDemoMode) {
-    if (req.method === 'GET') return res.status(200).json({ ai: demoDashboard.ai })
-    if (req.method === 'POST')
-      return res.status(200).json({ ok: true, report: { status: 'ready', summary: 'Demo weekly report generated.' } })
+    if (req.method === 'GET') return res.status(200).json({ campaigns: demoDashboard.referralCampaigns })
+    if (req.method === 'POST') return res.status(201).json({ campaign: demoDashboard.referralCampaigns[0] })
   }
 
   try {
     const allowed = await requireCommunityOwner(userId, communityId)
     if (!allowed) return res.status(403).json({ error: 'Forbidden' })
 
-    if (req.method === 'GET') {
-      return res.status(200).json({ ai: await getAiManager(communityId) })
-    }
+    if (req.method === 'GET') return res.status(200).json({ campaigns: await listReferralCampaigns(communityId) })
+
     if (req.method === 'POST') {
-      const report = await generateWeeklyReport(communityId)
-      return res.status(200).json({ ok: true, report })
+      const { title, reward, status } = req.body ?? {}
+      if (!title || typeof title !== 'string') return res.status(400).json({ error: 'title is required' })
+      const campaign = await createReferralCampaign(communityId, {
+        title,
+        reward: typeof reward === 'string' ? reward : undefined,
+        status,
+      })
+      return res.status(201).json({ campaign })
     }
 
     res.setHeader('Allow', ['GET', 'POST'])
     return res.status(405).json({ error: 'Method not allowed' })
   } catch (error) {
-    console.error('communities/[id]/ai error:', error)
+    console.error('communities/[id]/referral-campaigns error:', error)
     res.status(500).json({ error: 'Internal error' })
   }
 }

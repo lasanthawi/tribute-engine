@@ -1,4 +1,4 @@
-import { CommunityMemberRow, CommunityRow, supabase, UserRow } from './supabase'
+import { CommunityMemberRow, CommunityRow, sb, supabase, UserRow } from './supabase'
 import { creditCommunityXp, getCommunityXp, levelForXp } from './xp'
 
 export interface CreateCommunityInput {
@@ -130,6 +130,19 @@ export async function listMembers(communityId: number) {
     : { data: [] as { id: number; name: string }[], error: null }
   if (planErr) throw planErr
 
+  // Per-member revenue (paid Stars purchases) and referral counts.
+  const { data: purchaseRows } = userIds.length
+    ? await sb.from('purchases').select('buyer_user_id, amount_cents').eq('community_id', communityId).eq('status', 'paid').in('buyer_user_id', userIds)
+    : { data: [] }
+  const { data: referralRows } = userIds.length
+    ? await sb.from('community_referrals').select('referrer_id').eq('community_id', communityId).in('referrer_id', userIds)
+    : { data: [] }
+
+  const revenueMap = new Map<number, number>()
+  for (const row of purchaseRows ?? []) revenueMap.set(row.buyer_user_id, (revenueMap.get(row.buyer_user_id) ?? 0) + (row.amount_cents ?? 0))
+  const referralCountMap = new Map<number, number>()
+  for (const row of referralRows ?? []) referralCountMap.set(row.referrer_id, (referralCountMap.get(row.referrer_id) ?? 0) + 1)
+
   const userRows = (users ?? []) as Pick<UserRow, 'id' | 'username' | 'telegram_id'>[]
   const userMap = new Map(userRows.map((user) => [user.id, user]))
   const planMap = new Map((plans ?? []).map((plan) => [plan.id, plan.name]))
@@ -153,6 +166,8 @@ export async function listMembers(communityId: number) {
       planName: subscription?.plan_id ? planMap.get(subscription.plan_id) ?? null : null,
       joinedAt: member.joined_at,
       lastActiveAt: member.last_active_at,
+      revenueCents: revenueMap.get(member.user_id) ?? 0,
+      referralCount: referralCountMap.get(member.user_id) ?? 0,
     }
   })
 }

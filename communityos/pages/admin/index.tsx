@@ -87,7 +87,7 @@ export default function AdminDashboard() {
                   <td>{payment.buyer}</td>
                   <td>{payment.stars} XTR</td>
                   <td><span className={`co-state ${payment.status === 'paid' ? 'granted' : 'pending'}`}>{payment.status}</span></td>
-                  <td>{new Date(payment.createdAt).toLocaleString()}</td>
+                  <td>{formatAdminDate(payment.createdAt)}</td>
                 </tr>
               ))}
             </tbody>
@@ -132,4 +132,9 @@ function AdminMetric({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </article>
   )
+}
+
+function formatAdminDate(value: string) {
+  const date = new Date(value)
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')} ${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')} UTC`
 }

@@ -7,6 +7,12 @@ export const isDemoMode = !process.env.SUPABASE_URL || !process.env.SUPABASE_SER
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
 
+// Loosely-typed view of the same client for the platform-expansion tables
+// (migration 0002) that are not yet part of the generated `Database` types.
+// Using this keeps the new data-access modules build-safe under `strict` while
+// the generated types catch up.
+export const sb: any = supabase
+
 export type CommunityStatus = 'active' | 'paused' | 'archived'
 export type CommunityRole = 'owner' | 'admin' | 'member'
 export type AccessStatus = 'pending' | 'granted' | 'revoked' | 'expired' | 'failed'

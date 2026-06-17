@@ -226,6 +226,44 @@ export interface AdminDashboardDto {
   issues: Array<{ id: number; title: string; community: string; severity: 'high' | 'medium' | 'low'; status: string }>
 }
 
+export function emptyDashboardForCommunity(community: CommunitySummaryDto): DashboardDto {
+  return {
+    community,
+    setup: [],
+    metrics: {
+      healthScore: 0,
+      members: 0,
+      activeSubscriptions: 0,
+      pendingRenewals: 0,
+      referralActivations: 0,
+      monthlyRevenueCents: 0,
+      monthlyStars: 0,
+      xpIssued: 0,
+      accessIssues: 0,
+      productsSold: 0,
+    },
+    healthSignals: [],
+    nextActions: [],
+    members: [],
+    chats: [],
+    plans: [],
+    referrals: [],
+    referralCampaigns: [],
+    rewards: [],
+    rewardRules: [],
+    activity: [],
+    accessLogs: [],
+    ai: {
+      healthScore: 0,
+      weeklyReportStatus: 'not_configured',
+      faqCount: 0,
+      suggestions: [],
+    },
+    events: [],
+    products: [],
+  }
+}
+
 export const api = {
   getMe: () => request<MeDto>('/api/me'),
   listCommunities: () => request<{ communities: CommunitySummaryDto[] }>('/api/communities'),
@@ -238,6 +276,30 @@ export const api = {
   ) => request<{ plan: PlanDto }>(`/api/communities/${communityId}/plans`, { method: 'POST', body: JSON.stringify(body) }),
   addMember: (communityId: number | string, body: { userId: number; source?: string }) =>
     request<{ member: unknown }>(`/api/communities/${communityId}/members`, { method: 'POST', body: JSON.stringify(body) }),
+  grantAccess: (communityId: number | string, userId: number) =>
+    request<{ ok: boolean; inviteLink?: string | null }>(`/api/communities/${communityId}/access`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'grant', userId }),
+    }),
+  revokeAccess: (communityId: number | string, userId: number) =>
+    request<{ ok: boolean }>(`/api/communities/${communityId}/access`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'revoke', userId }),
+    }),
+  createReferralCampaign: (communityId: number | string, body: { title: string; reward?: string; status?: 'draft' | 'active' | 'paused' }) =>
+    request<{ campaign: ReferralCampaignDto }>(`/api/communities/${communityId}/referral-campaigns`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  createRewardRule: (communityId: number | string, body: { title: string; trigger?: string; reward?: string; status?: 'draft' | 'active' }) =>
+    request<{ rule: RewardRuleDto }>(`/api/communities/${communityId}/rewards`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'create_rule', ...body }),
+    }),
+  createEvent: (communityId: number | string, body: { title: string; type?: EventDto['type']; startsAt?: string; priceStars?: number }) =>
+    request<{ event: EventDto }>(`/api/communities/${communityId}/events`, { method: 'POST', body: JSON.stringify(body) }),
+  createProduct: (communityId: number | string, body: { title: string; type?: ProductDto['type']; priceStars?: number }) =>
+    request<{ product: ProductDto }>(`/api/communities/${communityId}/products`, { method: 'POST', body: JSON.stringify(body) }),
   getMemberProfile: (communityId: number | string) => request<MemberProfileDto>(`/api/member/${communityId}`),
   claimReward: (communityId: number | string, rewardId: number) =>
     request<{ ok: boolean }>(`/api/communities/${communityId}/rewards`, {

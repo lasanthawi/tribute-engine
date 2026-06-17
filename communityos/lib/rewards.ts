@@ -1,5 +1,6 @@
-import { CommunityRewardRow, supabase } from './supabase'
+import { CommunityRewardRow, sb, supabase } from './supabase'
 import { getCommunityXp } from './xp'
+import type { RewardRuleDto } from './api-client'
 
 export interface CreateRewardInput {
   type?: 'badge' | 'certificate' | 'digital_product' | 'premium_access' | 'sponsor' | 'manual'
@@ -77,4 +78,51 @@ export async function claimReward(communityId: number, userId: number, rewardId:
   }
 
   return { ok: true, alreadyClaimed: false }
+}
+
+// Reward rules describe how XP/badges are earned. They are stored in `xp_rules`
+// and surfaced to the publisher UI as RewardRuleDto.
+export interface CreateRewardRuleInput {
+  title: string
+  trigger?: string
+  xpReward?: number
+  status?: 'active' | 'draft'
+}
+
+export async function listRewardRules(communityId: number): Promise<RewardRuleDto[]> {
+  const { data, error } = await sb
+    .from('xp_rules')
+    .select('*')
+    .eq('community_id', communityId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return ((data ?? []) as any[]).map((row) => ({
+    id: row.id,
+    title: row.title,
+    trigger: row.trigger,
+    reward: `+${row.xp_reward} XP`,
+    status: (row.status === 'draft' ? 'draft' : 'active') as RewardRuleDto['status'],
+  }))
+}
+
+export async function createRewardRule(communityId: number, input: CreateRewardRuleInput): Promise<RewardRuleDto> {
+  const { data, error } = await sb
+    .from('xp_rules')
+    .insert({
+      community_id: communityId,
+      title: input.title,
+      trigger: input.trigger ?? 'Manual or XP-based unlock',
+      xp_reward: Math.max(0, Math.round(input.xpReward ?? 0)),
+      status: input.status ?? 'active',
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return {
+    id: data.id,
+    title: data.title,
+    trigger: data.trigger,
+    reward: `+${data.xp_reward} XP`,
+    status: data.status === 'draft' ? 'draft' : 'active',
+  }
 }

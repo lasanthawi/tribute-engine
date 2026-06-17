@@ -2,9 +2,11 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { getCommunity, getMemberProfile, listMembers } from '@/lib/communities'
 import { demoMemberProfile } from '@/lib/demo-data'
+import { listEvents } from '@/lib/events'
+import { listProducts } from '@/lib/payments'
 import { referralLink } from '@/lib/referrals'
 import { listRewards } from '@/lib/rewards'
-import { isDemoMode } from '@/lib/supabase'
+import { isDemoMode, supabase } from '@/lib/supabase'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
@@ -22,7 +24,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!community) return res.status(404).json({ error: 'Community not found' })
 
     await getMemberProfile(communityId, userId)
-    const [members, rewards] = await Promise.all([listMembers(communityId), listRewards(communityId, userId)])
+    const [members, rewards, events, products, activityRows] = await Promise.all([
+      listMembers(communityId),
+      listRewards(communityId, userId),
+      listEvents(communityId),
+      listProducts(communityId),
+      supabase
+        .from('community_activity_events')
+        .select('*')
+        .eq('community_id', communityId)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ])
     const member = members.find((row) => row.id === userId)
     if (!member) return res.status(404).json({ error: 'Member not found' })
 
@@ -43,7 +57,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         description: reward.description,
         claimed: reward.claimed,
       })),
-      activity: [],
+      events,
+      products,
+      activity: ((activityRows.data ?? []) as Array<{ id: number; title: string; event_type: string; created_at: string }>).map((event) => ({
+        id: event.id,
+        title: event.title,
+        eventType: event.event_type,
+        createdAt: event.created_at,
+      })),
     })
   } catch (error) {
     console.error('member/[communityId] error:', error)

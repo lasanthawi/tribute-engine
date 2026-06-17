@@ -1,4 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
+import { grantMemberAccess } from '@/lib/access-control'
+import { findInvoiceByPayload, recordSuccessfulPayment } from '@/lib/payments'
+import { recordClickByCode, registerReferredJoin } from '@/lib/referrals'
+import { isDemoMode } from '@/lib/supabase'
 import { answerPreCheckoutQuery, sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
 import { getOrCreateUser } from '@/lib/telegram-auth'
 
@@ -15,17 +19,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const update: TelegramUpdate = req.body
     if (update.pre_checkout_query) {
-      await answerPreCheckoutQuery(BOT_TOKEN, update.pre_checkout_query.id, update.pre_checkout_query.currency === 'XTR')
+      const isStars = update.pre_checkout_query.currency === 'XTR'
+      const invoice = isDemoMode ? true : await findInvoiceByPayload(update.pre_checkout_query.invoice_payload)
+      const ok = !!isStars && !!invoice
+      await answerPreCheckoutQuery(
+        BOT_TOKEN,
+        update.pre_checkout_query.id,
+        ok,
+        ok ? undefined : 'This CommunityOS invoice is no longer valid.'
+      )
       return res.status(200).json({ ok: true })
     }
 
     const message = update.message
     if (message?.successful_payment && message.from) {
-      await getOrCreateUser(message.from)
+      const user = await getOrCreateUser(message.from)
+      const payment = message.successful_payment
+      const result = isDemoMode
+        ? { ok: true as const, communityId: null }
+        : await recordSuccessfulPayment({
+            payload: payment.invoice_payload,
+            stars: payment.total_amount,
+            buyerUserId: user.id,
+            telegramChargeId: payment.telegram_payment_charge_id ?? null,
+            providerChargeId: payment.provider_payment_charge_id ?? null,
+          })
+
+      if (result.ok && result.communityId) {
+        await grantMemberAccess(result.communityId, user.id)
+      }
+
       await sendTelegramMessage(
         BOT_TOKEN,
         message.chat.id,
-        '*Payment confirmed*\n\nYour CommunityOS access, product, event, or consultation purchase is being activated.',
+        result.ok
+          ? '*Payment confirmed*\n\nYour CommunityOS access, product, event, or consultation purchase is being activated.'
+          : '*Payment received, review needed*\n\nWe could not match the invoice automatically. Support will review it.',
         'Markdown',
         inlineKeyboard()
       )
@@ -36,7 +65,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (message.text.startsWith('/start')) {
       const startParam = message.text.split(/\s+/)[1]
-      await getOrCreateUser(message.from)
+      const user = await getOrCreateUser(message.from)
+      if (startParam && !isDemoMode) {
+        await recordClickByCode(startParam, String(message.from.id))
+        await registerReferredJoin(startParam, user.id)
+      }
       await sendTelegramMessage(
         BOT_TOKEN,
         message.chat.id,

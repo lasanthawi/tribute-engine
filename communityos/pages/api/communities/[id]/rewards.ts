@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
 import { demoDashboard } from '@/lib/demo-data'
-import { claimReward, createReward, listRewards } from '@/lib/rewards'
+import { claimReward, createReward, createRewardRule, listRewards } from '@/lib/rewards'
 import { isDemoMode } from '@/lib/supabase'
 
 interface RewardRow {
@@ -54,6 +54,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const allowed = await requireCommunityOwner(userId, communityId)
       if (!allowed) return res.status(403).json({ error: 'Forbidden' })
+
+      if (action === 'create_rule') {
+        const { title, trigger, reward, status } = req.body ?? {}
+        if (!title || typeof title !== 'string') return res.status(400).json({ error: 'title is required' })
+        const rule = await createRewardRule(communityId, {
+          title,
+          trigger: typeof trigger === 'string' ? trigger : 'Manual unlock',
+          xpReward: typeof reward === 'string' ? Number(reward.replace(/[^0-9]/g, '')) || 0 : 0,
+          status: status === 'draft' ? 'draft' : 'active',
+        })
+        return res.status(201).json({ rule })
+      }
+
       const { title, description, type, criteria } = req.body ?? {}
       if (!title || typeof title !== 'string') return res.status(400).json({ error: 'title is required' })
       const reward = await createReward(communityId, {
