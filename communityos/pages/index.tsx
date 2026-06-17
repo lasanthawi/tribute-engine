@@ -106,7 +106,19 @@ export default function Home() {
         if (cancelled) return
         setOwnedCommunities(me.communities)
 
-        const targetId = routeCommunityId ?? me.communities[0]?.id ?? 1
+        // If no communities yet, go to intro without trying (and failing) to load dashboard
+        if (!routeCommunityId && me.communities.length === 0) {
+          setMode('publisher')
+          setScreen('intro')
+          return
+        }
+
+        const targetId = routeCommunityId ?? me.communities[0]?.id
+        if (!targetId) {
+          setMode('publisher')
+          setScreen('intro')
+          return
+        }
         const dashboard = await api.getDashboard(targetId)
         if (cancelled) return
         setCommunityId(dashboard.community.id)
@@ -159,11 +171,15 @@ export default function Home() {
   }
 
   async function selectCommunity(id: number) {
+    if (previewMode) {
+      setCommunityId(id)
+      setScreen('home')
+      return
+    }
     try {
       const dashboard = await api.getDashboard(id)
       setCommunityId(id)
       setData(normalizeDashboard(dashboard))
-      setPreviewMode(false)
       setScreen('home')
     } catch (error: any) {
       showToast(error.message || 'Community could not be loaded')
@@ -171,10 +187,9 @@ export default function Home() {
   }
 
   async function refreshDashboard() {
-    if (!communityId) return
+    if (!communityId || previewMode) return
     const dashboard = await api.getDashboard(communityId)
     setData(normalizeDashboard(dashboard))
-    setPreviewMode(false)
   }
 
   async function createMembership(event?: FormEvent) {

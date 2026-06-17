@@ -25,7 +25,7 @@ export function verifyInitData(initData: string, botToken: string): VerifiedInit
       .map(([key, value]) => `${key}=${value}`)
       .join('\n')
 
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest()
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken.trim()).digest()
     const computedHash = crypto.createHmac('sha256', Uint8Array.from(secretKey)).update(dataCheckString).digest('hex')
     if (computedHash !== hash) return null
 
