@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { grantMemberAccess } from '@/lib/access-control'
+import { autoLinkChatToCommunity, findCommunityForChat, grantMemberAccess, upsertTelegramChat } from '@/lib/access-control'
 import { findInvoiceByPayload, recordSuccessfulPayment } from '@/lib/payments'
 import { recordClickByCode, registerReferredJoin } from '@/lib/referrals'
 import { isDemoMode } from '@/lib/supabase'
@@ -15,6 +15,10 @@ function inlineKeyboard() {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(200).json({ ok: true })
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET
+  if (expectedSecret && req.headers['x-telegram-bot-api-secret-token'] !== expectedSecret) {
+    return res.status(401).json({ error: 'Invalid Telegram webhook secret' })
+  }
 
   try {
     const update: TelegramUpdate = req.body
@@ -45,19 +49,61 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             providerChargeId: payment.provider_payment_charge_id ?? null,
           })
 
+      let inviteLink: string | null = null
       if (result.ok && result.communityId) {
-        await grantMemberAccess(result.communityId, user.id)
+        const grant = await grantMemberAccess(result.communityId, user.id)
+        inviteLink = grant.inviteLink
       }
 
-      await sendTelegramMessage(
-        BOT_TOKEN,
-        message.chat.id,
-        result.ok
-          ? '*Payment confirmed*\n\nYour CommunityOS access, product, event, or consultation purchase is being activated.'
-          : '*Payment received, review needed*\n\nWe could not match the invoice automatically. Support will review it.',
-        'Markdown',
-        inlineKeyboard()
-      )
+      const confirmText = result.ok
+        ? inviteLink
+          ? `*Payment confirmed* ✅\n\nHere is your invite link:\n${inviteLink}\n\n_This link is single-use — do not share it._`
+          : '*Payment confirmed* ✅\n\nYour access is being activated. The community admin will share an invite link shortly.'
+        : '*Payment received, review needed*\n\nWe could not match the invoice automatically. Support will review it shortly.'
+
+      await sendTelegramMessage(BOT_TOKEN, message.chat.id, confirmText, 'Markdown', inlineKeyboard())
+      return res.status(200).json({ ok: true })
+    }
+
+    // Bot added to / removed from a chat
+    if (update.my_chat_member) {
+      const mcm = update.my_chat_member
+      const telegramChatId = String(mcm.chat.id)
+      const newStatus = mcm.new_chat_member.status
+      const botIsAdmin = newStatus === 'administrator' || newStatus === 'creator'
+      const botRemoved = newStatus === 'left' || newStatus === 'kicked'
+
+      if (!isDemoMode && mcm.chat.type !== 'private') {
+        let communityId = await findCommunityForChat(telegramChatId)
+        if (!communityId && botIsAdmin) {
+          communityId = await autoLinkChatToCommunity(mcm.from.id, telegramChatId)
+        }
+
+        if (communityId) {
+          await upsertTelegramChat({
+            communityId,
+            telegramChatId,
+            title: mcm.chat.title,
+            handle: mcm.chat.username ?? null,
+            chatType: mcm.chat.type as 'group' | 'supergroup' | 'channel',
+            botStatus: botIsAdmin ? 'admin' : 'not_connected',
+          })
+
+          if (botIsAdmin) {
+            await sendTelegramMessage(
+              BOT_TOKEN,
+              mcm.chat.id,
+              '*CommunityOS connected* ✅\n\nAccess control is active. Paying members will receive invite links automatically.',
+              'Markdown'
+            )
+          }
+        }
+
+        if (botRemoved) {
+          console.log(`Bot removed from chat ${telegramChatId} (community ${communityId ?? 'unknown'})`)
+        }
+      }
+
       return res.status(200).json({ ok: true })
     }
 

@@ -18,6 +18,13 @@ export interface TelegramUpdate {
     total_amount: number
     invoice_payload: string
   }
+  /** Fired when the bot's membership status changes in a chat (added as admin, removed, etc.) */
+  my_chat_member?: {
+    chat: { id: number; title: string; type: 'group' | 'supergroup' | 'channel' | 'private'; username?: string }
+    from: { id: number; username?: string; first_name?: string }
+    new_chat_member: { status: 'administrator' | 'creator' | 'member' | 'restricted' | 'left' | 'kicked' }
+    old_chat_member: { status: 'administrator' | 'creator' | 'member' | 'restricted' | 'left' | 'kicked' }
+  }
 }
 
 export async function sendTelegramMessage(
@@ -84,4 +91,77 @@ export async function answerPreCheckoutQuery(botToken: string, preCheckoutQueryI
   if (!res.ok) {
     throw new Error(`Telegram answerPreCheckoutQuery failed: ${res.status}`)
   }
+}
+
+export async function createTelegramInvoiceLink(
+  botToken: string,
+  invoice: { title: string; description: string; payload: string; currency: string; prices: Array<{ label: string; amount: number }> }
+): Promise<string | null> {
+  if (!botToken) return null
+
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/createInvoiceLink`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: invoice.title,
+      description: invoice.description,
+      payload: invoice.payload,
+      currency: invoice.currency,
+      prices: invoice.prices,
+    }),
+  })
+
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) {
+    throw new Error(`Telegram createInvoiceLink failed: ${res.status} ${body?.description ?? ''}`)
+  }
+  return body.result as string
+}
+
+export async function setTelegramWebhook(botToken: string, url: string, secretToken?: string): Promise<void> {
+  if (!botToken || !url) return
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url,
+      allowed_updates: ['message', 'pre_checkout_query', 'chat_join_request', 'my_chat_member'],
+      secret_token: secretToken || undefined,
+    }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram setWebhook failed: ${res.status} ${body?.description ?? ''}`)
+}
+
+export async function setTelegramMenuButton(botToken: string, miniAppUrl: string): Promise<void> {
+  if (!botToken || !miniAppUrl) return
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/setChatMenuButton`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      menu_button: {
+        type: 'web_app',
+        text: 'Open CommunityOS',
+        web_app: { url: miniAppUrl },
+      },
+    }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram setChatMenuButton failed: ${res.status} ${body?.description ?? ''}`)
+}
+
+export async function setTelegramCommands(botToken: string): Promise<void> {
+  if (!botToken) return
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      commands: [
+        { command: 'start', description: 'Open CommunityOS' },
+        { command: 'help', description: 'How CommunityOS works' },
+      ],
+    }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram setMyCommands failed: ${res.status} ${body?.description ?? ''}`)
 }

@@ -23,44 +23,107 @@ export async function logAccessEvent(
   return data as AccessLogRow
 }
 
-export async function syncPendingAccess() {
-  const { data: pending, error } = await supabase
+export async function syncPendingAccess(communityId?: number) {
+  let query = supabase
     .from('community_members')
     .select('community_id, user_id')
     .eq('access_status', 'pending')
-    .limit(100)
+    .limit(50)
+
+  if (communityId) query = query.eq('community_id', communityId)
+
+  const { data: pending, error } = await query
   if (error) throw error
 
   let synced = 0
   for (const member of pending ?? []) {
-    const { data: community } = await supabase
-      .from('communities')
-      .select('telegram_chat_id')
-      .eq('id', member.community_id)
-      .maybeSingle()
-
-    if (!community?.telegram_chat_id) {
+    try {
+      await grantMemberAccess(member.community_id, member.user_id)
+      synced++
+    } catch (err) {
+      console.error('syncPendingAccess: grant failed for member', member, err)
       await logAccessEvent(member.community_id, 'sync', 'failed', {
         userId: member.user_id,
-        message: 'Missing telegram_chat_id. Manual invite required.',
+        message: err instanceof Error ? err.message : 'Unknown error',
       })
-      continue
     }
-
-    await supabase
-      .from('community_members')
-      .update({ access_status: 'granted', last_active_at: new Date().toISOString() })
-      .eq('community_id', member.community_id)
-      .eq('user_id', member.user_id)
-
-    await logAccessEvent(member.community_id, 'grant', 'success', {
-      userId: member.user_id,
-      message: 'Access marked granted by beta sync.',
-    })
-    synced++
   }
 
   return { scanned: pending?.length ?? 0, synced }
+}
+
+// ---------------------------------------------------------------------------
+// Telegram chat registration helpers
+// ---------------------------------------------------------------------------
+
+export async function upsertTelegramChat(opts: {
+  communityId: number
+  telegramChatId: string
+  title: string
+  handle?: string | null
+  chatType: 'group' | 'supergroup' | 'channel'
+  botStatus: 'admin' | 'not_connected'
+}) {
+  const { error } = await sb.from('telegram_chats').upsert(
+    {
+      community_id: opts.communityId,
+      telegram_chat_id: opts.telegramChatId,
+      title: opts.title,
+      handle: opts.handle ?? null,
+      chat_type: opts.chatType === 'channel' ? 'channel' : 'group',
+      bot_status: opts.botStatus,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'community_id,telegram_chat_id' }
+  )
+  if (error) throw error
+}
+
+export async function findCommunityForChat(telegramChatId: string): Promise<number | null> {
+  // Check the legacy direct-link column first
+  const { data: community } = await supabase
+    .from('communities')
+    .select('id')
+    .eq('telegram_chat_id', Number(telegramChatId))
+    .maybeSingle()
+  if (community) return community.id
+
+  // Then check the multi-chat table
+  const { data: chat } = await sb
+    .from('telegram_chats')
+    .select('community_id')
+    .eq('telegram_chat_id', telegramChatId)
+    .maybeSingle()
+  return chat?.community_id ?? null
+}
+
+// When the bot is added as admin to a group and no community is linked yet,
+// try to auto-link it to the single community owned by the user who added it.
+export async function autoLinkChatToCommunity(
+  telegramUserId: number,
+  telegramChatId: string
+): Promise<number | null> {
+  const { data: user } = await supabase
+    .from('users')
+    .select('id')
+    .eq('telegram_id', telegramUserId)
+    .maybeSingle()
+  if (!user) return null
+
+  const { data: communities } = await supabase
+    .from('communities')
+    .select('id')
+    .eq('owner_id', user.id)
+    .is('telegram_chat_id', null)
+  if (!communities || communities.length !== 1) return null
+
+  const communityId = communities[0].id
+  await supabase
+    .from('communities')
+    .update({ telegram_chat_id: Number(telegramChatId) })
+    .eq('id', communityId)
+
+  return communityId
 }
 
 export async function listAccessLogs(communityId: number): Promise<AccessLogRow[]> {

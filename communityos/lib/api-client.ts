@@ -226,6 +226,15 @@ export interface AdminDashboardDto {
   issues: Array<{ id: number; title: string; community: string; severity: 'high' | 'medium' | 'low'; status: string }>
 }
 
+export interface InvoiceDto {
+  title: string
+  description: string
+  payload: string
+  currency: string
+  prices: Array<{ label: string; amount: number }>
+  invoiceLink?: string | null
+}
+
 export function emptyDashboardForCommunity(community: CommunitySummaryDto): DashboardDto {
   return {
     community,
@@ -285,6 +294,19 @@ export const api = {
     request<{ ok: boolean }>(`/api/communities/${communityId}/access`, {
       method: 'POST',
       body: JSON.stringify({ action: 'revoke', userId }),
+    }),
+  syncAccess: (communityId: number | string) =>
+    request<{ ok: boolean; scanned?: number; synced?: number; demo?: boolean }>(`/api/communities/${communityId}/access`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'sync' }),
+    }),
+  createInvoice: (
+    communityId: number | string,
+    body: { title: string; description?: string; stars: number; productId?: number | null }
+  ) =>
+    request<{ invoice: InvoiceDto }>(`/api/communities/${communityId}/payments/invoices`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
   createReferralCampaign: (communityId: number | string, body: { title: string; reward?: string; status?: 'draft' | 'active' | 'paused' }) =>
     request<{ campaign: ReferralCampaignDto }>(`/api/communities/${communityId}/referral-campaigns`, {

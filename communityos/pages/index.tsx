@@ -18,7 +18,7 @@ import {
   money,
 } from '@/lib/api-client'
 import { demoDashboard } from '@/lib/demo-data'
-import { haptic, initTelegramShell } from '@/lib/telegram-webapp'
+import { copyText, haptic, initTelegramShell, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
 
 type Mode = 'publisher' | 'member'
 type Screen =
@@ -336,6 +336,71 @@ export default function Home() {
     }
   }
 
+  async function copyOrOpenTelegramUrl(url: string, successMessage: string) {
+    if (!url) {
+      showToast('Set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME first')
+      return
+    }
+    await copyText(url).catch(() => false)
+    openTelegramLink(url)
+    showToast(successMessage)
+  }
+
+  async function shareCommunity() {
+    if (!data || !communityId) return
+    await copyOrOpenTelegramUrl(communityStartLink(communityId), 'Community link copied')
+  }
+
+  async function copyMembershipLink() {
+    if (!communityId) return
+    const planId = activePlan?.id ?? 'new'
+    await copyOrOpenTelegramUrl(membershipStartLink(communityId, planId), 'Membership link copied')
+  }
+
+  async function syncAccessNow() {
+    if (!communityId) return
+    try {
+      const result = previewMode ? { scanned: 3, synced: 2, demo: true } : await api.syncAccess(communityId)
+      if (!previewMode) await refreshDashboard()
+      showToast(`Synced ${result.synced ?? 0} of ${result.scanned ?? 0} pending members${result.demo ? ' in preview' : ''}`)
+    } catch (error: any) {
+      showToast(error.message || 'Access sync failed')
+    }
+  }
+
+  async function copyReferralLink() {
+    if (!communityId) return
+    await copyOrOpenTelegramUrl(referralStartLink(communityId, member?.id), 'Referral link copied')
+  }
+
+  async function openSupport() {
+    await copyOrOpenTelegramUrl(botUrl(), 'Support chat opened')
+  }
+
+  async function buyProduct(product: ProductDto) {
+    if (!communityId || !data) return
+    try {
+      if (previewMode) {
+        showToast('Telegram invoice opens after bot setup')
+        return
+      }
+      const response = await api.createInvoice(communityId, {
+        title: product.title,
+        description: `${product.title} from ${data.community.name}`,
+        stars: product.priceStars,
+        productId: product.id,
+      })
+      if (response.invoice.invoiceLink) {
+        openInvoiceLink(response.invoice.invoiceLink, (status) => showToast(`Payment ${status}`))
+        showToast('Opening Telegram invoice')
+      } else {
+        showToast('Invoice stored, but bot invoice link is not configured')
+      }
+    } catch (error: any) {
+      showToast(error.message || 'Invoice creation failed')
+    }
+  }
+
   if (!data) {
     return (
       <AppFrame title="CommunityOS" subtitle="mini app" hideBack menuCommunityId={communityId ?? 1}>
@@ -356,7 +421,7 @@ export default function Home() {
 
       {mode === 'member' ? (
         <AppFrame title="CommunityOS" subtitle="member app" hideBack={screen === 'home'} onBack={() => go('home')} menuCommunityId={communityId ?? 1}>
-          <MemberHome data={data} member={member} onToast={showToast} />
+          <MemberHome data={data} member={member} onReferral={copyReferralLink} onSupport={openSupport} onBuyProduct={buyProduct} />
         </AppFrame>
       ) : screen === 'intro' ? (
         <IntroScreen
@@ -414,13 +479,13 @@ export default function Home() {
               data={data}
               nextSetupStep={nextSetupStep}
               onNavigate={go}
-              onToast={showToast}
               onCreateMembership={() => go('createDetails')}
+              onShareCommunity={shareCommunity}
             />
           )}
           {screen === 'members' && <MembersScreen members={data.members} onGrant={grantAccess} onRevoke={revokeAccess} />}
           {screen === 'access' && (
-            <AccessScreen data={data} onGrant={grantAccess} onRevoke={revokeAccess} onToast={showToast} />
+            <AccessScreen data={data} onGrant={grantAccess} onRevoke={revokeAccess} onSync={syncAccessNow} />
           )}
           {screen === 'growth' && (
             <GrowthScreen
@@ -483,6 +548,7 @@ export default function Home() {
               description={membershipDescription}
               onEdit={() => go('createDetails')}
               onShare={() => go('shareGuide')}
+              onCopyLink={copyMembershipLink}
               onToast={showToast}
             />
           )}
@@ -620,13 +686,13 @@ function CommunityHome({
   nextSetupStep,
   onNavigate,
   onCreateMembership,
-  onToast,
+  onShareCommunity,
 }: {
   data: DashboardDto
   nextSetupStep: DashboardDto['setup'][number] | null
   onNavigate: (screen: Screen) => void
   onCreateMembership: () => void
-  onToast: (message: string) => void
+  onShareCommunity: () => void
 }) {
   return (
     <section className="tg-screen with-fixed-button">
@@ -679,7 +745,7 @@ function CommunityHome({
         {data.activity.length === 0 && <EmptyBlock title="No activity yet" detail="Payments, joins, access changes, and reward grants will show here." />}
       </ListGroup>
 
-      <FixedButton label={data.plans.length ? 'Share' : 'Create Membership'} onClick={data.plans.length ? () => onToast('Share sheet opened') : onCreateMembership} />
+      <FixedButton label={data.plans.length ? 'Share' : 'Create Membership'} onClick={data.plans.length ? onShareCommunity : onCreateMembership} />
     </section>
   )
 }
@@ -724,12 +790,12 @@ function AccessScreen({
   data,
   onGrant,
   onRevoke,
-  onToast,
+  onSync,
 }: {
   data: DashboardDto
   onGrant: (member: MemberRowDto) => void
   onRevoke: (member: MemberRowDto) => void
-  onToast: (message: string) => void
+  onSync: () => void
 }) {
   const pendingMembers = data.members.filter((member) => member.accessStatus !== 'granted')
   return (
@@ -747,7 +813,7 @@ function AccessScreen({
         ))}
         {pendingMembers.length === 0 && <EmptyBlock title="Access is clean" detail="No pending grants or failed syncs right now." />}
       </ListGroup>
-      <FixedButton label="Sync Access" onClick={() => onToast('Access sync started')} />
+      <FixedButton label="Sync Access" onClick={onSync} />
     </section>
   )
 }
@@ -987,6 +1053,7 @@ function PublishScreen({
   description,
   onEdit,
   onShare,
+  onCopyLink,
   onToast,
 }: {
   community: DashboardDto['community']
@@ -995,6 +1062,7 @@ function PublishScreen({
   description: string
   onEdit: () => void
   onShare: () => void
+  onCopyLink: () => void
   onToast: (message: string) => void
 }) {
   return (
@@ -1009,7 +1077,7 @@ function PublishScreen({
       </div>
       <div className="tg-action-grid">
         <ActionTile label="Edit" icon="edit" onClick={onEdit} />
-        <ActionTile label="Links" icon="link" onClick={() => onToast('Link copied')} />
+        <ActionTile label="Links" icon="link" onClick={onCopyLink} />
         <ActionTile label="More" icon="more" onClick={() => onToast('More options opened')} />
       </div>
       <ListGroup>
@@ -1029,9 +1097,10 @@ function PublishScreen({
 
 function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; onDone: () => void; menuCommunityId: number }) {
   const [step, setStep] = useState(0)
+  const botUsername = configuredBotUsername() || 'CommunityOSBot'
   const slides = [
     { title: 'How to share a membership', art: 'Share' },
-    { title: 'Type @CommunityOSBot in any channel or chat', art: '@bot' },
+    { title: `Type @${botUsername} in any channel or chat`, art: '@bot' },
     { title: 'Select a membership to share', art: 'Pick' },
   ]
   return (
@@ -1070,7 +1139,19 @@ function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; o
   )
 }
 
-function MemberHome({ data, member, onToast }: { data: DashboardDto; member?: MemberRowDto; onToast: (message: string) => void }) {
+function MemberHome({
+  data,
+  member,
+  onReferral,
+  onSupport,
+  onBuyProduct,
+}: {
+  data: DashboardDto
+  member?: MemberRowDto
+  onReferral: () => void
+  onSupport: () => void
+  onBuyProduct: (product: ProductDto) => void
+}) {
   const progress = member ? Math.min(100, Math.round((member.xp % 1200) / 12)) : 0
   return (
     <section className="tg-screen with-fixed-button">
@@ -1092,13 +1173,13 @@ function MemberHome({ data, member, onToast }: { data: DashboardDto; member?: Me
       </section>
       <ListGroup>
         <ListRow tone="blue" icon="A" title="Telegram Access" detail={member?.accessStatus ?? 'Pending'} />
-        <ListRow tone="green" icon="R" title="Referral Link" detail="Invite friends and unlock rewards" onClick={() => onToast('Referral link copied')} />
+        <ListRow tone="green" icon="R" title="Referral Link" detail="Invite friends and unlock rewards" onClick={onReferral} />
         <ListRow tone="amber" icon="XP" title="Rewards" detail={`${data.rewards.length} available`} />
       </ListGroup>
       <SectionLabel>Premium Content</SectionLabel>
       <ListGroup>
         {data.products.map((product) => (
-          <ListRow key={product.id} title={product.title} detail={product.type.replace('_', ' ')} meta={`${product.priceStars} XTR`} />
+          <ListRow key={product.id} title={product.title} detail={product.type.replace('_', ' ')} meta={`${product.priceStars} XTR`} onClick={() => onBuyProduct(product)} />
         ))}
         {data.products.length === 0 && <EmptyBlock title="No premium content yet" detail="Products and downloads from this community will appear here." />}
       </ListGroup>
@@ -1109,7 +1190,7 @@ function MemberHome({ data, member, onToast }: { data: DashboardDto; member?: Me
         ))}
         {data.events.length === 0 && <EmptyBlock title="No upcoming events" detail="Webinars, AMAs, and meetups will appear here." />}
       </ListGroup>
-      <FixedButton label="Get Support" onClick={() => onToast('Support opened')} />
+      <FixedButton label="Get Support" onClick={onSupport} />
     </section>
   )
 }
@@ -1290,6 +1371,27 @@ function normalizeDashboard(dashboard: DashboardDto): DashboardDto {
     events: dashboard.events ?? [],
     products: dashboard.products ?? [],
   }
+}
+
+function configuredBotUsername() {
+  return (process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
+}
+
+function botUrl(path = '') {
+  const username = configuredBotUsername()
+  return username ? `https://t.me/${username}${path}` : ''
+}
+
+function communityStartLink(communityId: number) {
+  return botUrl(`?startapp=community_${communityId}`)
+}
+
+function membershipStartLink(communityId: number, planId: number | string) {
+  return botUrl(`?start=co_${communityId}_plan_${planId}`)
+}
+
+function referralStartLink(communityId: number, userId?: number) {
+  return botUrl(`?start=co_${communityId}_${userId ?? 'member'}`)
 }
 
 function dashboardFromMemberProfile(profile: MemberProfileDto): DashboardDto {

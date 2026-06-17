@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { createInvoice } from '@/lib/payments'
 import { isDemoMode } from '@/lib/supabase'
+import { createTelegramInvoiceLink } from '@/lib/telegram'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -20,14 +21,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const productId = typeof req.body?.productId === 'number' ? req.body.productId : null
 
   if (isDemoMode) {
+    const invoice = {
+      title,
+      description: req.body?.description ?? 'Telegram Stars purchase for CommunityOS.',
+      payload: `co-demo:${communityId}:${Date.now()}`,
+      currency: 'XTR',
+      prices: [{ label: title, amount: stars }],
+      invoiceLink: null,
+    }
     return res.status(200).json({
-      invoice: {
-        title,
-        description: req.body?.description ?? 'Telegram Stars purchase for CommunityOS.',
-        payload: `co-demo:${communityId}:${Date.now()}`,
-        currency: 'XTR',
-        prices: [{ label: title, amount: stars }],
-      },
+      invoice,
     })
   }
 
@@ -39,7 +42,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       productId,
       buyerUserId: userId,
     })
-    res.status(200).json({ invoice })
+    const invoiceLink = await createTelegramInvoiceLink(process.env.TELEGRAM_BOT_TOKEN || '', invoice).catch((error) => {
+      console.error('createInvoiceLink failed:', error)
+      return null
+    })
+    res.status(200).json({ invoice: { ...invoice, invoiceLink } })
   } catch (error) {
     console.error('communities/[id]/payments/invoices error:', error)
     res.status(500).json({ error: 'Internal error' })
