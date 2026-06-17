@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
+import { answerPreCheckoutQuery, sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
 import { getOrCreateUser } from '@/lib/telegram-auth'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
@@ -14,15 +14,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const update: TelegramUpdate = req.body
-    const message = update.message
-    if (!message?.text || !message.from) return res.status(200).json({ ok: true })
+    if (update.pre_checkout_query) {
+      await answerPreCheckoutQuery(BOT_TOKEN, update.pre_checkout_query.id, update.pre_checkout_query.currency === 'XTR')
+      return res.status(200).json({ ok: true })
+    }
 
-    if (message.text.startsWith('/start')) {
+    const message = update.message
+    if (message?.successful_payment && message.from) {
       await getOrCreateUser(message.from)
       await sendTelegramMessage(
         BOT_TOKEN,
         message.chat.id,
-        '*CommunityOS*\n\nManage memberships, referrals, rewards, and member access for Telegram communities.',
+        '*Payment confirmed*\n\nYour CommunityOS access, product, event, or consultation purchase is being activated.',
+        'Markdown',
+        inlineKeyboard()
+      )
+      return res.status(200).json({ ok: true })
+    }
+
+    if (!message?.text || !message.from) return res.status(200).json({ ok: true })
+
+    if (message.text.startsWith('/start')) {
+      const startParam = message.text.split(/\s+/)[1]
+      await getOrCreateUser(message.from)
+      await sendTelegramMessage(
+        BOT_TOKEN,
+        message.chat.id,
+        startParam
+          ? `*CommunityOS*\n\nReferral code received: \`${startParam}\`.\nOpen the Mini App to continue.`
+          : '*CommunityOS*\n\nManage memberships, referrals, rewards, and member access for Telegram communities.',
         'Markdown',
         inlineKeyboard()
       )
