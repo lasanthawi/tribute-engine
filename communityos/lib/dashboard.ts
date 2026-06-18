@@ -11,9 +11,32 @@ import { listReferrals } from './referrals'
 import { listRewardRules, listRewards } from './rewards'
 import { computeSetup } from './setup'
 import type { DashboardDto } from './api-client'
+import type { CommunityMetrics } from './analytics'
 
 export function planStarsFromCents(priceCents: number): number {
   return Math.round(priceCents / 10)
+}
+
+const emptyMetrics: CommunityMetrics = {
+  healthScore: 0,
+  members: 0,
+  activeSubscriptions: 0,
+  pendingRenewals: 0,
+  referralActivations: 0,
+  monthlyRevenueCents: 0,
+  monthlyStars: 0,
+  xpIssued: 0,
+  accessIssues: 0,
+  productsSold: 0,
+}
+
+async function optionalSection<T>(label: string, fallback: T, loader: () => Promise<T>): Promise<T> {
+  try {
+    return await loader()
+  } catch (error) {
+    console.error(`buildDashboard optional section failed: ${label}`, error)
+    return fallback
+  }
 }
 
 // Aggregates every dashboard section from real tables into the full DashboardDto
@@ -24,20 +47,22 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
 
   const [metrics, members, chats, plans, referrals, referralCampaigns, rewards, rewardRules, activity, accessLogs, ai, events, products, setup] =
     await Promise.all([
-      getCommunityMetrics(communityId),
-      listMembers(communityId),
-      listChats(communityId),
-      listPlans(communityId),
-      listReferrals(communityId),
-      listReferralCampaigns(communityId),
-      listRewards(communityId),
-      listRewardRules(communityId),
-      listActivity(communityId),
-      listAccessLogs(communityId),
-      getAiManager(communityId),
-      listEvents(communityId),
-      listProducts(communityId),
-      computeSetup(communityId),
+      optionalSection('metrics', emptyMetrics, () => getCommunityMetrics(communityId)),
+      optionalSection('members', [], () => listMembers(communityId)),
+      optionalSection('chats', [], () => listChats(communityId)),
+      optionalSection('plans', [], () => listPlans(communityId)),
+      optionalSection('referrals', [], () => listReferrals(communityId)),
+      optionalSection('referralCampaigns', [], () => listReferralCampaigns(communityId)),
+      optionalSection('rewards', [], () => listRewards(communityId)),
+      optionalSection('rewardRules', [], () => listRewardRules(communityId)),
+      optionalSection('activity', [], () => listActivity(communityId)),
+      optionalSection('accessLogs', [], () => listAccessLogs(communityId)),
+      optionalSection('ai', { healthScore: 0, weeklyReportStatus: 'not_configured', faqCount: 0, suggestions: [] }, () =>
+        getAiManager(communityId)
+      ),
+      optionalSection('events', [], () => listEvents(communityId)),
+      optionalSection('products', [], () => listProducts(communityId)),
+      optionalSection('setup', [], () => computeSetup(communityId)),
     ])
 
   return {
