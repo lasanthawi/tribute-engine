@@ -17,7 +17,7 @@ import {
   emptyDashboardForCommunity,
   money,
 } from '@/lib/api-client'
-import { copyText, haptic, initTelegramShell, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
+import { copyText, getInitData, haptic, initTelegramShell, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
 
 type Mode = 'publisher' | 'member'
 type Screen =
@@ -87,6 +87,13 @@ export default function Home() {
       const routeCommunityId = getRouteCommunityId(router.query.id ?? router.query.communityId)
       const isMemberRoute = router.pathname.startsWith('/member')
 
+      // Not inside Telegram — initData is always empty outside the WebApp
+      if (!getInitData()) {
+        if (cancelled) return
+        setAuthError('not_in_telegram')
+        return
+      }
+
       try {
         if (isMemberRoute) {
           const targetId = routeCommunityId ?? 1
@@ -125,12 +132,13 @@ export default function Home() {
         setScreen(routeCommunityId ? 'home' : 'intro')
       } catch (err: any) {
         if (cancelled) return
-        const status = err?.status ?? err?.statusCode ?? 0
-        setAuthError(
-          status === 401 || status === 403
-            ? 'Open this app in Telegram to sign in.'
-            : 'Could not connect to CommunityOS. Please try again.'
-        )
+        const status = err?.status ?? 0
+        if (status === 401 || status === 403) {
+          // initData present but verification failed — usually wrong/missing TELEGRAM_BOT_TOKEN
+          setAuthError('auth_failed')
+        } else {
+          setAuthError(err?.message || 'unknown_error')
+        }
       }
     }
 
@@ -368,8 +376,16 @@ export default function Home() {
     }
   }
 
-  // Auth failed — must open in Telegram
+  // Error — show appropriate message based on error type
   if (authError) {
+    const isNotInTelegram = authError === 'not_in_telegram'
+    const isAuthFailed = authError === 'auth_failed'
+    const heading = isNotInTelegram ? 'Open in Telegram' : isAuthFailed ? 'Authentication failed' : 'Something went wrong'
+    const detail = isNotInTelegram
+      ? 'This app runs inside Telegram. Open it via the bot menu or a t.me link.'
+      : isAuthFailed
+      ? 'The server could not verify your identity. Check that TELEGRAM_BOT_TOKEN is set in Vercel env vars.'
+      : authError
     return (
       <>
         <Head>
@@ -387,8 +403,8 @@ export default function Home() {
           </header>
           <section className="tg-screen centered">
             <div className="tg-hero-mark">TG</div>
-            <h1>Open in Telegram</h1>
-            <p className="tg-subtitle">{authError}</p>
+            <h1>{heading}</h1>
+            <p className="tg-subtitle">{detail}</p>
           </section>
         </main>
         {toast && <div className="tg-toast">{toast}</div>}
