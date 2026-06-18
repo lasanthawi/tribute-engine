@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
-import { listOwnedCommunities } from '@/lib/communities'
+import { getAccountOverview } from '@/lib/account'
 import { supabase } from '@/lib/supabase'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -13,17 +13,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { data: user, error } = await supabase.from('users').select('id, username').eq('id', userId).single()
     if (error) throw error
 
-    const communities = await listOwnedCommunities(userId)
+    const overview = await getAccountOverview(userId)
     res.status(200).json({
       id: user.id,
       username: user.username,
-      communities: communities.map((c) => ({
-        id: c.id,
-        name: c.name,
-        handle: c.handle,
-        description: c.description,
-        status: c.status,
-      })),
+      ...overview,
     })
   } catch (error) {
     console.error('me/index error:', error)

@@ -25,6 +25,11 @@ export interface TelegramUpdate {
     new_chat_member: { status: 'administrator' | 'creator' | 'member' | 'restricted' | 'left' | 'kicked' }
     old_chat_member: { status: 'administrator' | 'creator' | 'member' | 'restricted' | 'left' | 'kicked' }
   }
+  chat_join_request?: {
+    chat: { id: number; title: string; type: 'group' | 'supergroup' | 'channel'; username?: string }
+    from: { id: number; username?: string; first_name?: string; last_name?: string }
+    invite_link?: { invite_link?: string; creates_join_request?: boolean }
+  }
 }
 
 export async function sendTelegramMessage(
@@ -73,6 +78,50 @@ export async function createChatInviteLink(
     throw new Error(`Telegram createChatInviteLink failed: ${res.status} ${body?.description ?? ''}`)
   }
   return body.result.invite_link as string
+}
+
+export async function approveChatJoinRequest(botToken: string, chatId: number | string, userId: number | string): Promise<void> {
+  if (!botToken) return
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/approveChatJoinRequest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, user_id: userId }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram approveChatJoinRequest failed: ${res.status} ${body?.description ?? ''}`)
+}
+
+export async function declineChatJoinRequest(botToken: string, chatId: number | string, userId: number | string): Promise<void> {
+  if (!botToken) return
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/declineChatJoinRequest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, user_id: userId }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram declineChatJoinRequest failed: ${res.status} ${body?.description ?? ''}`)
+}
+
+export async function banChatMember(botToken: string, chatId: number | string, userId: number | string): Promise<void> {
+  if (!botToken) return
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/banChatMember`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, user_id: userId }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram banChatMember failed: ${res.status} ${body?.description ?? ''}`)
+}
+
+export async function unbanChatMember(botToken: string, chatId: number | string, userId: number | string): Promise<void> {
+  if (!botToken) return
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/unbanChatMember`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, user_id: userId, only_if_banned: true }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram unbanChatMember failed: ${res.status} ${body?.description ?? ''}`)
 }
 
 export async function answerPreCheckoutQuery(botToken: string, preCheckoutQueryId: string, ok: boolean, errorMessage?: string): Promise<void> {

@@ -1,13 +1,14 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { syncPendingAccess } from '@/lib/access-control'
 import { rejectUnauthorizedCron } from '@/lib/cron-auth'
+import { expirePastDueSubscriptions } from '@/lib/memberships'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (rejectUnauthorizedCron(req, res)) return
 
   try {
-    const result = await syncPendingAccess()
-    res.status(200).json({ ok: true, ...result })
+    const [access, subscriptions] = await Promise.all([syncPendingAccess(), expirePastDueSubscriptions()])
+    res.status(200).json({ ok: true, access, subscriptions })
   } catch (error: unknown) {
     if (
       error &&

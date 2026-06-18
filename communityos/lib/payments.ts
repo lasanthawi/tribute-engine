@@ -1,6 +1,7 @@
 import { sb } from './supabase'
 import { creditCommunityXp } from './xp'
 import { signedAssetUrl } from './assets'
+import { createOrUpdateSubscription, createSubscriptionPeriod } from './memberships'
 
 // Telegram Stars are priced 1:1 in the invoice; we persist an approximate cash
 // value so revenue rolls up alongside manual/fiat plans. ~1 Star ≈ $0.013.
@@ -146,28 +147,38 @@ export interface CreateInvoiceInput {
   title: string
   description?: string
   stars: number
+  kind?: 'plan' | 'product' | 'event'
+  planId?: number | null
   productId?: number | null
   eventId?: number | null
   buyerUserId?: number | null
+  interval?: string | null
 }
 
 export async function createInvoice(communityId: number, input: CreateInvoiceInput) {
   const stars = Math.max(1, Math.round(input.stars))
-  const invoiceKind = input.eventId ? `event_${input.eventId}` : input.productId ? `product_${input.productId}` : 'plan'
+  const invoiceKind = input.eventId ? `event_${input.eventId}` : input.productId ? `product_${input.productId}` : input.planId ? `plan_${input.planId}` : 'plan'
+  const kind = input.kind ?? (input.eventId ? 'event' : input.productId ? 'product' : 'plan')
   const payload = `co:${communityId}:${invoiceKind}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
 
   const invoiceRow: Record<string, unknown> = {
     community_id: communityId,
+    invoice_kind: kind,
+    plan_id: input.planId ?? null,
     product_id: input.productId ?? null,
     event_id: input.eventId ?? null,
     buyer_user_id: input.buyerUserId ?? null,
+    period_interval: input.interval ?? null,
     payload,
     stars,
     status: 'created',
   }
   let { error } = await sb.from('telegram_star_invoices').insert(invoiceRow)
-  if (error && input.eventId) {
+  if (error) {
     delete invoiceRow.event_id
+    delete invoiceRow.plan_id
+    delete invoiceRow.invoice_kind
+    delete invoiceRow.period_interval
     const fallback = await sb.from('telegram_star_invoices').insert(invoiceRow)
     error = fallback.error
   }
@@ -205,7 +216,9 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
 
   const communityId = invoice.community_id as number
   const parsedEventId = /^co:\d+:event_(\d+):/.exec(String(input.payload))?.[1]
+  const parsedPlanId = /^co:\d+:plan_(\d+):/.exec(String(input.payload))?.[1]
   const eventId = invoice.event_id ?? (parsedEventId ? Number(parsedEventId) : null)
+  const planId = invoice.plan_id ?? (parsedPlanId ? Number(parsedPlanId) : null)
   const amountCents = starsToCents(input.stars)
 
   await sb
@@ -222,6 +235,7 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
   const purchaseRow: Record<string, unknown> = {
     community_id: communityId,
     buyer_user_id: input.buyerUserId,
+    plan_id: planId,
     product_id: invoice.product_id ?? null,
     event_id: eventId,
     invoice_id: invoice.id,
@@ -236,11 +250,45 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
     .insert(purchaseRow)
     .select('id')
     .single()
-  if (purchaseInsert.error && eventId) {
+  if (purchaseInsert.error) {
     delete purchaseRow.event_id
+    delete purchaseRow.plan_id
     purchaseInsert = await sb.from('purchases').insert(purchaseRow).select('id').single()
   }
-  const purchase = purchaseInsert.data
+  if (purchaseInsert.error) throw purchaseInsert.error
+  const purchase = purchaseInsert.data as any
+
+  if (planId) {
+    const subscription = (await createOrUpdateSubscription(communityId, input.buyerUserId, planId, 'active', {
+      interval: invoice.period_interval ?? 'month',
+      paymentProvider: 'telegram_stars',
+      paymentReference: input.telegramChargeId ?? input.payload,
+    })) as any
+    await createSubscriptionPeriod({
+      communityId,
+      subscriptionId: subscription.id,
+      purchaseId: purchase?.id ?? null,
+      startsAt: subscription.current_period_start,
+      endsAt: subscription.current_period_end,
+      status: 'active',
+    })
+    await sb.from('renewal_events').insert({
+      community_id: communityId,
+      member_subscription_id: subscription.id,
+      status: 'paid',
+      message: `Subscription activated with ${input.stars} XTR.`,
+    })
+  }
+
+  await sb.from('community_balance_ledger').insert({
+    community_id: communityId,
+    user_id: input.buyerUserId,
+    purchase_id: purchase?.id ?? null,
+    entry_type: planId ? 'membership_payment' : eventId ? 'event_payment' : invoice.product_id ? 'product_payment' : 'stars_payment',
+    stars_delta: input.stars,
+    cents_delta: amountCents,
+    status: 'available',
+  })
 
   if (eventId) {
     const { data: member } = await sb
@@ -293,6 +341,7 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
     ok: true as const,
     communityId,
     purchaseId: purchase?.id ?? null,
+    planId,
     productId: invoice.product_id ?? null,
     eventId,
   }

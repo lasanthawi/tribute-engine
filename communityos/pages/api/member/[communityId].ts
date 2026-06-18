@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/api-auth'
 import { getCommunity, getMemberProfile, listMembers } from '@/lib/communities'
 import { listEvents } from '@/lib/events'
 import { getReferralCampaignProgress } from '@/lib/growth'
+import { listPlans } from '@/lib/memberships'
 import { listProducts } from '@/lib/payments'
 import { referralLink } from '@/lib/referrals'
 import { listRewards } from '@/lib/rewards'
@@ -31,8 +32,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!community) return res.status(404).json({ error: 'Community not found' })
 
     await getMemberProfile(communityId, userId)
-    const [members, rewards, events, products, referralProgress, activityRows] = await Promise.all([
+    const [members, plans, rewards, events, products, referralProgress, activityRows] = await Promise.all([
       optional('members', [], () => listMembers(communityId)),
+      optional('plans', [], () => listPlans(communityId)),
       optional('rewards', [], () => listRewards(communityId, userId)),
       optional('events', [], () => listEvents(communityId, userId)),
       optional('products', [], () => listProducts(communityId, userId)),
@@ -74,6 +76,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       member,
       referralLink: referralLink(communityId, userId),
+      plans: plans.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        description: plan.description,
+        priceCents: plan.price_cents,
+        stars: Math.round(plan.price_cents / 10),
+        currency: plan.currency,
+        interval: plan.interval,
+        status: plan.status,
+        subscribers: plan.subscribers,
+      })),
       referralCampaigns: referralProgress.map((item) => ({
         ...item.campaign,
         metric: item.metric,

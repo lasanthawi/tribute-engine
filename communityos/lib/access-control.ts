@@ -1,6 +1,6 @@
 import { AccessLogRow, sb, supabase } from './supabase'
-import type { TelegramChatDto } from './api-client'
-import { createChatInviteLink } from './telegram'
+import type { JoinRequestDto, TelegramChatDto } from './api-client'
+import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, unbanChatMember } from './telegram'
 import { createCommunity } from './communities'
 
 export async function logAccessEvent(
@@ -171,6 +171,76 @@ export async function listChats(communityId: number): Promise<TelegramChatDto[]>
   }))
 }
 
+export async function listJoinRequests(communityId: number): Promise<JoinRequestDto[]> {
+  const { data, error } = await sb
+    .from('telegram_join_requests')
+    .select('*')
+    .eq('community_id', communityId)
+    .order('created_at', { ascending: false })
+    .limit(30)
+  if (error) throw error
+  return ((data ?? []) as any[]).map((row) => ({
+    id: row.id,
+    telegramUserId: row.telegram_user_id,
+    username: row.username,
+    status: row.status,
+    referralCode: row.referral_code,
+    createdAt: row.created_at,
+  }))
+}
+
+async function getTelegramUserId(userId: number): Promise<number | null> {
+  const { data } = await supabase.from('users').select('telegram_id').eq('id', userId).maybeSingle()
+  return data?.telegram_id ?? null
+}
+
+async function connectedChatIds(communityId: number): Promise<Array<number | string>> {
+  const { data: chats } = await sb.from('telegram_chats').select('telegram_chat_id').eq('community_id', communityId).eq('bot_status', 'admin')
+  const ids = (chats ?? []).map((chat: any) => chat.telegram_chat_id).filter(Boolean)
+  if (ids.length) return ids
+  const { data: community } = await supabase.from('communities').select('telegram_chat_id').eq('id', communityId).maybeSingle()
+  return community?.telegram_chat_id ? [community.telegram_chat_id] : []
+}
+
+export async function recordJoinRequest(opts: {
+  communityId: number
+  telegramChatId: string
+  telegramUserId: string
+  username?: string | null
+  referralCode?: string | null
+}) {
+  const { data: chat } = await sb
+    .from('telegram_chats')
+    .select('id')
+    .eq('community_id', opts.communityId)
+    .eq('telegram_chat_id', opts.telegramChatId)
+    .maybeSingle()
+
+  const { data: existing } = await sb
+    .from('telegram_join_requests')
+    .select('*')
+    .eq('community_id', opts.communityId)
+    .eq('telegram_user_id', opts.telegramUserId)
+    .eq('status', 'pending')
+    .maybeSingle()
+  if (existing) return existing
+
+  const { data, error } = await sb
+    .from('telegram_join_requests')
+    .insert({
+      community_id: opts.communityId,
+      telegram_chat_id: chat?.id ?? null,
+      telegram_user_id: opts.telegramUserId,
+      username: opts.username ?? null,
+      referral_code: opts.referralCode ?? null,
+      status: 'pending',
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data
+}
+
 // Grants a member access: marks them granted, records a grant row, and — when a
 // chat + bot token are available — issues a single-use Telegram invite link.
 export async function grantMemberAccess(communityId: number, userId: number) {
@@ -212,5 +282,85 @@ export async function revokeMemberAccess(communityId: number, userId: number) {
     .eq('user_id', userId)
 
   await logAccessEvent(communityId, 'revoke', 'success', { userId, message: 'Access revoked.' })
+  return { ok: true as const }
+}
+
+export async function suspendMemberAccess(communityId: number, userId: number) {
+  await supabase
+    .from('community_members')
+    .update({ access_status: 'suspended' as any })
+    .eq('community_id', communityId)
+    .eq('user_id', userId)
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  const telegramUserId = await getTelegramUserId(userId)
+  if (botToken && telegramUserId) {
+    for (const chatId of await connectedChatIds(communityId)) {
+      await banChatMember(botToken, chatId, telegramUserId).catch((error) => {
+        console.error('banChatMember failed:', error)
+      })
+    }
+  }
+
+  await logAccessEvent(communityId, 'revoke', 'success', { userId, message: 'Access suspended.' })
+  return { ok: true as const }
+}
+
+export async function restoreMemberAccess(communityId: number, userId: number) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  const telegramUserId = await getTelegramUserId(userId)
+  if (botToken && telegramUserId) {
+    for (const chatId of await connectedChatIds(communityId)) {
+      await unbanChatMember(botToken, chatId, telegramUserId).catch((error) => {
+        console.error('unbanChatMember failed:', error)
+      })
+    }
+  }
+  return grantMemberAccess(communityId, userId)
+}
+
+export async function approveJoinRequest(communityId: number, joinRequestId: number, decidedBy?: number | null) {
+  const { data: request, error } = await sb
+    .from('telegram_join_requests')
+    .select('*, telegram_chats(telegram_chat_id)')
+    .eq('community_id', communityId)
+    .eq('id', joinRequestId)
+    .maybeSingle()
+  if (error) throw error
+  if (!request) return { ok: false as const, reason: 'Join request not found' }
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  const chatId = request.telegram_chats?.telegram_chat_id
+  if (botToken && chatId) await approveChatJoinRequest(botToken, chatId, request.telegram_user_id)
+
+  await sb
+    .from('telegram_join_requests')
+    .update({ status: 'approved', decided_at: new Date().toISOString(), decided_by: decidedBy ?? null })
+    .eq('id', joinRequestId)
+
+  await logAccessEvent(communityId, 'grant', 'success', { message: `Join request approved for @${request.username ?? request.telegram_user_id}` })
+  return { ok: true as const }
+}
+
+export async function declineJoinRequest(communityId: number, joinRequestId: number, decidedBy?: number | null) {
+  const { data: request, error } = await sb
+    .from('telegram_join_requests')
+    .select('*, telegram_chats(telegram_chat_id)')
+    .eq('community_id', communityId)
+    .eq('id', joinRequestId)
+    .maybeSingle()
+  if (error) throw error
+  if (!request) return { ok: false as const, reason: 'Join request not found' }
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  const chatId = request.telegram_chats?.telegram_chat_id
+  if (botToken && chatId) await declineChatJoinRequest(botToken, chatId, request.telegram_user_id)
+
+  await sb
+    .from('telegram_join_requests')
+    .update({ status: 'declined', decided_at: new Date().toISOString(), decided_by: decidedBy ?? null })
+    .eq('id', joinRequestId)
+
+  await logAccessEvent(communityId, 'revoke', 'success', { message: `Join request declined for @${request.username ?? request.telegram_user_id}` })
   return { ok: true as const }
 }

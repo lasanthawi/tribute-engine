@@ -1,4 +1,4 @@
-import { listChats, listAccessLogs } from './access-control'
+import { listChats, listAccessLogs, listJoinRequests } from './access-control'
 import { getAiManager } from './ai'
 import { getCommunityMetrics, listActivity } from './analytics'
 import { getCommunity, listMembers } from './communities'
@@ -45,7 +45,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
   const community = await getCommunity(communityId)
   if (!community) return null
 
-  const [metrics, members, chats, plans, referrals, referralCampaigns, rewards, rewardRules, activity, accessLogs, ai, events, products, setup] =
+  const [metrics, members, chats, plans, referrals, referralCampaigns, rewards, rewardRules, activity, accessLogs, joinRequests, ai, events, products, setup] =
     await Promise.all([
       optionalSection('metrics', emptyMetrics, () => getCommunityMetrics(communityId)),
       optionalSection('members', [], () => listMembers(communityId)),
@@ -57,6 +57,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       optionalSection('rewardRules', [], () => listRewardRules(communityId)),
       optionalSection('activity', [], () => listActivity(communityId)),
       optionalSection('accessLogs', [], () => listAccessLogs(communityId)),
+      optionalSection('joinRequests', [], () => listJoinRequests(communityId)),
       optionalSection('ai', { healthScore: 0, weeklyReportStatus: 'not_configured', faqCount: 0, suggestions: [] }, () =>
         getAiManager(communityId)
       ),
@@ -113,6 +114,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       message: log.message,
       createdAt: log.created_at,
     })),
+    joinRequests,
     ai,
     events,
     products,

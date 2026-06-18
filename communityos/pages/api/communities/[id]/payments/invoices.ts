@@ -17,16 +17,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const stars = Math.max(1, Number(req.body?.stars ?? 1))
   const title = String(req.body?.title ?? 'CommunityOS purchase')
+  const kind = ['plan', 'product', 'event'].includes(req.body?.kind) ? req.body.kind : undefined
+  const planId = typeof req.body?.planId === 'number' ? req.body.planId : null
   const productId = typeof req.body?.productId === 'number' ? req.body.productId : null
   const eventId = typeof req.body?.eventId === 'number' ? req.body.eventId : null
+  const interval = typeof req.body?.interval === 'string' ? req.body.interval : null
 
   try {
     const invoice = await createInvoice(communityId, {
       title,
       description: req.body?.description,
       stars,
+      kind,
+      planId,
       productId,
       eventId,
+      interval,
       buyerUserId: userId,
     })
     const invoiceLink = await createTelegramInvoiceLink(process.env.TELEGRAM_BOT_TOKEN || '', invoice).catch((error) => {

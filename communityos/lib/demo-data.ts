@@ -205,6 +205,9 @@ export const demoDashboard: DashboardDto = {
     { id: 2, action: 'sync', status: 'failed', message: 'Missing admin permission for Builder Circle Updates', createdAt: new Date(now - 3600000).toISOString() },
     { id: 3, action: 'renewal', status: 'pending', message: '@sam trial access needs review', createdAt: new Date(now - day).toISOString() },
   ],
+  joinRequests: [
+    { id: 1, telegramUserId: '123456', username: 'new_member', status: 'pending', referralCode: null, createdAt: new Date(now - 1000 * 60 * 12).toISOString() },
+  ],
   ai: {
     healthScore: 82,
     weeklyReportStatus: 'ready',
@@ -229,6 +232,7 @@ export const demoMemberProfile: MemberProfileDto = {
   community: demoDashboard.community,
   member: demoDashboard.members[1],
   referralLink: 'https://t.me/communityos_bot?start=co_1_2',
+  plans: demoDashboard.plans,
   rewards: demoDashboard.rewards,
   referralCampaigns: demoDashboard.referralCampaigns.map((campaign) => ({
     ...campaign,

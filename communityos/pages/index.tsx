@@ -6,6 +6,7 @@ import {
   ActivityDto,
   DashboardDto,
   EventDto,
+  MeDto,
   MemberProfileDto,
   MemberRowDto,
   PlanDto,
@@ -24,6 +25,7 @@ type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
 type Screen =
   | 'intro'
   | 'start'
+  | 'account'
   | 'communities'
   | 'home'
   | 'members'
@@ -67,6 +69,7 @@ export default function Home() {
   const [introIndex, setIntroIndex] = useState(0)
   const [data, setData] = useState<DashboardDto | null>(null)
   const [memberProfile, setMemberProfile] = useState<MemberProfileDto | null>(null)
+  const [me, setMe] = useState<MeDto | null>(null)
   const [ownedCommunities, setOwnedCommunities] = useState<DashboardDto['community'][]>([])
   const [communityId, setCommunityId] = useState<number | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
@@ -134,19 +137,25 @@ export default function Home() {
 
         const me = await api.getMe()
         if (cancelled) return
+        setMe(me)
         setOwnedCommunities(me.communities)
 
-        // New user: no communities yet, show intro without fetching a dashboard
-        if (!routeCommunityId && me.communities.length === 0) {
+        if (!routeCommunityId && me.isFirstCommunityOSLogin) {
           setMode('publisher')
           setScreen('intro')
           return
         }
 
-        const targetId = routeCommunityId ?? me.communities[0]?.id
+        if (!routeCommunityId) {
+          setMode('publisher')
+          setScreen('account')
+          return
+        }
+
+        const targetId = routeCommunityId
         if (!targetId) {
           setMode('publisher')
-          setScreen('intro')
+          setScreen('account')
           return
         }
         const dashboard = await api.getDashboard(targetId)
@@ -207,19 +216,25 @@ export default function Home() {
     setScreen(next)
   }
 
-  async function selectCommunity(id: number) {
+  async function selectCommunity(id: number, target: Screen = screenForModel(pendingModel)) {
     try {
       const dashboard = await api.getDashboard(id)
       setCommunityId(id)
       setData(normalizeDashboard(dashboard))
-      setScreen(screenForModel(pendingModel))
+      setScreen(target)
     } catch (error: any) {
       showToast(error.message || 'Community could not be loaded')
     }
   }
 
+  async function finishIntro() {
+    await api.completeOnboarding().catch(() => undefined)
+    go('start')
+  }
+
   function chooseRevenueModel(model: RevenueModel) {
     setPendingModel(model)
+    api.completeOnboarding({ revenueModel: model }).catch(() => undefined)
     if (data && communityId) {
       go(screenForModel(model))
     } else {
@@ -489,6 +504,39 @@ export default function Home() {
     }
   }
 
+  async function suspendAccess(row: MemberRowDto) {
+    if (!communityId) return
+    try {
+      await api.suspendAccess(communityId, row.id)
+      await refreshDashboard()
+      showToast(`Access suspended for @${row.username}`)
+    } catch (error: any) {
+      showToast(error.message || 'Access suspend failed')
+    }
+  }
+
+  async function restoreAccess(row: MemberRowDto) {
+    if (!communityId) return
+    try {
+      await api.restoreAccess(communityId, row.id)
+      await refreshDashboard()
+      showToast(`Access restored for @${row.username}`)
+    } catch (error: any) {
+      showToast(error.message || 'Access restore failed')
+    }
+  }
+
+  async function decideJoinRequest(joinRequestId: number, decision: 'approve_join' | 'decline_join') {
+    if (!communityId) return
+    try {
+      await api.decideJoinRequest(communityId, joinRequestId, decision)
+      await refreshDashboard()
+      showToast(decision === 'approve_join' ? 'Join request approved' : 'Join request declined')
+    } catch (error: any) {
+      showToast(error.message || 'Join request action failed')
+    }
+  }
+
   async function createCampaign(event: FormEvent) {
     event.preventDefault()
     if (!data || !communityId || !campaignTitle.trim()) return
@@ -650,10 +698,34 @@ export default function Home() {
       }
 
       const response = await api.createInvoice(communityId, {
+        kind: 'product',
         title: product.title,
         description: `${product.title} from ${data.community.name}`,
         stars: product.priceStars,
         productId: product.id,
+      })
+      if (response.invoice.invoiceLink) {
+        openInvoiceLink(response.invoice.invoiceLink, (status) => showToast(`Payment ${status}`))
+        showToast('Opening Telegram invoice')
+      } else {
+        showToast('Invoice stored, but bot invoice link is not configured')
+      }
+    } catch (error: any) {
+      showToast(error.message || 'Invoice creation failed')
+    }
+  }
+
+  async function buyPlan(plan: PlanDto) {
+    if (!communityId || !data) return
+    try {
+      const stars = plan.stars || Math.max(1, Math.round(plan.priceCents / 10))
+      const response = await api.createInvoice(communityId, {
+        kind: 'plan',
+        planId: plan.id,
+        title: plan.name,
+        description: `${plan.name} membership for ${data.community.name}`,
+        stars,
+        interval: plan.interval,
       })
       if (response.invoice.invoiceLink) {
         openInvoiceLink(response.invoice.invoiceLink, (status) => showToast(`Payment ${status}`))
@@ -671,6 +743,7 @@ export default function Home() {
     try {
       if (event.priceStars > 0 && !event.registered) {
         const response = await api.createInvoice(communityId, {
+          kind: 'event',
           title: event.title,
           description: `${event.title} from ${data.community.name}`,
           stars: event.priceStars,
@@ -753,17 +826,25 @@ export default function Home() {
             menuCommunityId={communityId ?? 1}
             onNext={() => {
               if (introIndex < introSlides.length - 1) setIntroIndex((v) => v + 1)
-              else go('start')
+              else finishIntro()
             }}
           />
         ) : (
           <AppFrame
             title="CommunityOS"
             subtitle="mini app"
-            hideBack={screen === 'start'}
+            hideBack={screen === 'start' || screen === 'account'}
             menuCommunityId={communityId ?? 1}
-            onBack={() => { if (screen === 'communities') go('start') }}
+            onBack={() => { if (screen === 'communities') go('account') }}
           >
+            {screen === 'account' && me && (
+              <AccountHome
+                me={me}
+                onSelectModel={chooseRevenueModel}
+                onOpenCommunity={(id) => selectCommunity(id, 'home')}
+                onAddCommunity={handleAddCommunity}
+              />
+            )}
             {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
             {screen === 'communities' && (
               <CommunityPicker
@@ -774,7 +855,7 @@ export default function Home() {
                 onAdd={handleAddCommunity}
               />
             )}
-            {screen !== 'start' && screen !== 'communities' && (
+            {screen !== 'account' && screen !== 'start' && screen !== 'communities' && (
               <div className="tg-loading">
                 <div className="tg-loader" />
                 <p>Loading CommunityOS</p>
@@ -796,7 +877,7 @@ export default function Home() {
 
       {mode === 'member' ? (
         <AppFrame title="CommunityOS" subtitle="member app" hideBack={screen === 'home'} onBack={() => go('home')} menuCommunityId={communityId ?? 1}>
-          <MemberHome data={data} member={member} onReferral={copyReferralLink} onSupport={openSupport} onBuyProduct={buyProduct} onEvent={registerOrBuyEvent} onToast={showToast} />
+          <MemberHome data={data} member={member} onReferral={copyReferralLink} onSupport={openSupport} onBuyPlan={buyPlan} onBuyProduct={buyProduct} onEvent={registerOrBuyEvent} onToast={showToast} />
         </AppFrame>
       ) : screen === 'intro' ? (
         <IntroScreen
@@ -807,7 +888,7 @@ export default function Home() {
             if (introIndex < introSlides.length - 1) {
               setIntroIndex((value) => value + 1)
             } else {
-              go('start')
+              finishIntro()
             }
           }}
         />
@@ -823,8 +904,9 @@ export default function Home() {
             const previous: Record<Screen, Screen> = {
               intro: 'intro',
               start: 'intro',
+              account: 'account',
               communities: 'start',
-              home: 'communities',
+              home: 'account',
               members: 'home',
               access: 'home',
               growth: 'home',
@@ -845,6 +927,14 @@ export default function Home() {
           }}
         >
           {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
+          {screen === 'account' && me && (
+            <AccountHome
+              me={me}
+              onSelectModel={chooseRevenueModel}
+              onOpenCommunity={(id) => selectCommunity(id, 'home')}
+              onAddCommunity={handleAddCommunity}
+            />
+          )}
           {screen === 'communities' && (
             <CommunityPicker
               communities={filteredCommunities}
@@ -874,9 +964,17 @@ export default function Home() {
               }}
             />
           )}
-          {screen === 'members' && <MembersScreen members={data.members} onGrant={grantAccess} onRevoke={revokeAccess} />}
+          {screen === 'members' && <MembersScreen members={data.members} onGrant={grantAccess} onRevoke={revokeAccess} onSuspend={suspendAccess} onRestore={restoreAccess} />}
           {screen === 'access' && (
-            <AccessScreen data={data} onGrant={grantAccess} onRevoke={revokeAccess} onSync={syncAccessNow} />
+            <AccessScreen
+              data={data}
+              onGrant={grantAccess}
+              onRevoke={revokeAccess}
+              onSuspend={suspendAccess}
+              onRestore={restoreAccess}
+              onDecideJoin={decideJoinRequest}
+              onSync={syncAccessNow}
+            />
           )}
           {screen === 'growth' && (
             <GrowthScreen
@@ -1167,6 +1265,79 @@ function CommunityPicker({
   )
 }
 
+function AccountHome({
+  me,
+  onSelectModel,
+  onOpenCommunity,
+  onAddCommunity,
+}: {
+  me: MeDto
+  onSelectModel: (model: RevenueModel) => void
+  onOpenCommunity: (id: number) => void
+  onAddCommunity: () => void
+}) {
+  return (
+    <section className="tg-screen with-fixed-button">
+      <div className="tg-community-header">
+        <div className="tg-large-avatar">{initials(me.username ?? 'CommunityOS')}</div>
+        <h1>{me.username ? `@${me.username}` : 'CommunityOS'}</h1>
+        <p>{me.accountStats.communities} owned communities</p>
+        <div className="tg-mini-stats">
+          <span>{me.accountStats.balanceStars.toLocaleString()} XTR balance</span>
+          <span>{me.accountStats.totalMembers} members</span>
+        </div>
+      </div>
+
+      <div className="tg-action-grid">
+        <ActionTile label="Membership" icon="plus" onClick={() => onSelectModel('membership')} />
+        <ActionTile label="Product" icon="link" onClick={() => onSelectModel('product')} />
+        <ActionTile label="More" icon="more" onClick={() => onSelectModel('event')} />
+      </div>
+
+      <SectionLabel>Account Stats</SectionLabel>
+      <ListGroup>
+        <ListRow tone="blue" icon="X" title="Stars Revenue" detail={`${me.accountStats.monthlyStars.toLocaleString()} XTR collected`} meta={`${me.accountStats.activeSubscriptions} subs`} />
+        <ListRow tone={me.accountStats.accessIssues > 0 ? 'amber' : 'green'} icon="A" title="Access Health" detail={`${me.accountStats.accessIssues} access issue(s)`} />
+      </ListGroup>
+
+      <SectionLabel>Start Something New</SectionLabel>
+      <ListGroup>
+        <ListRow tone="blue" icon="M" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelectModel('membership')} />
+        <ListRow tone="red" icon="D" title="Digital Product" detail="Sell files, courses, downloads, or guides." onClick={() => onSelectModel('product')} />
+        <ListRow tone="purple" icon="E" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelectModel('event')} />
+        <ListRow tone="green" icon="R" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelectModel('referral')} />
+      </ListGroup>
+
+      <SectionLabel>Your Communities</SectionLabel>
+      <ListGroup>
+        {me.communities.map((community) => (
+          <ListRow
+            key={community.id}
+            avatar={initials(community.name)}
+            title={community.name}
+            detail={`${community.status === 'active' ? 'Active' : 'Setup'} community`}
+            onClick={() => onOpenCommunity(community.id)}
+          />
+        ))}
+        {me.communities.length === 0 && <EmptyBlock title="No community connected" detail="Add the bot to a group or channel to start." />}
+      </ListGroup>
+
+      {me.memberCommunities.length > 0 && (
+        <>
+          <SectionLabel>Member Access</SectionLabel>
+          <ListGroup>
+            {me.memberCommunities.map((community) => (
+              <ListRow key={community.id} avatar={initials(community.name)} title={community.name} detail="Open member view" onClick={() => onOpenCommunity(community.id)} />
+            ))}
+          </ListGroup>
+        </>
+      )}
+
+      <FixedButton label={me.communities.length ? 'Add Community' : 'Connect Telegram'} onClick={onAddCommunity} />
+    </section>
+  )
+}
+
 function CommunityHome({
   data,
   nextSetupStep,
@@ -1292,17 +1463,21 @@ function MembersScreen({
   members,
   onGrant,
   onRevoke,
+  onSuspend,
+  onRestore,
 }: {
   members: MemberRowDto[]
   onGrant: (member: MemberRowDto) => void
   onRevoke: (member: MemberRowDto) => void
+  onSuspend: (member: MemberRowDto) => void
+  onRestore: (member: MemberRowDto) => void
 }) {
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">Members</h1>
       <ListGroup>
         {members.map((member) => (
-          <MemberRow key={member.id} member={member} onGrant={() => onGrant(member)} onRevoke={() => onRevoke(member)} />
+          <MemberRow key={member.id} member={member} onGrant={() => onGrant(member)} onRevoke={() => onRevoke(member)} onSuspend={() => onSuspend(member)} onRestore={() => onRestore(member)} />
         ))}
         {members.length === 0 && <EmptyBlock title="No members yet" detail="Members will appear when they join through Telegram or a referral link." />}
       </ListGroup>
@@ -1314,14 +1489,21 @@ function AccessScreen({
   data,
   onGrant,
   onRevoke,
+  onSuspend,
+  onRestore,
+  onDecideJoin,
   onSync,
 }: {
   data: DashboardDto
   onGrant: (member: MemberRowDto) => void
   onRevoke: (member: MemberRowDto) => void
+  onSuspend: (member: MemberRowDto) => void
+  onRestore: (member: MemberRowDto) => void
+  onDecideJoin: (joinRequestId: number, decision: 'approve_join' | 'decline_join') => void
   onSync: () => void
 }) {
   const pendingMembers = data.members.filter((member) => member.accessStatus !== 'granted')
+  const pendingJoins = data.joinRequests.filter((request) => request.status === 'pending')
   return (
     <section className="tg-screen with-fixed-button">
       <h1 className="tg-left-title">Access</h1>
@@ -1333,9 +1515,21 @@ function AccessScreen({
       <SectionLabel>Pending Access</SectionLabel>
       <ListGroup>
         {pendingMembers.map((member) => (
-          <MemberRow key={member.id} member={member} onGrant={() => onGrant(member)} onRevoke={() => onRevoke(member)} compact />
+          <MemberRow key={member.id} member={member} onGrant={() => onGrant(member)} onRevoke={() => onRevoke(member)} onSuspend={() => onSuspend(member)} onRestore={() => onRestore(member)} compact />
         ))}
         {pendingMembers.length === 0 && <EmptyBlock title="Access is clean" detail="No pending grants or failed syncs right now." />}
+      </ListGroup>
+      <SectionLabel>Join Requests</SectionLabel>
+      <ListGroup>
+        {pendingJoins.map((request) => (
+          <JoinRequestRow
+            key={request.id}
+            request={request}
+            onApprove={() => onDecideJoin(request.id, 'approve_join')}
+            onDecline={() => onDecideJoin(request.id, 'decline_join')}
+          />
+        ))}
+        {pendingJoins.length === 0 && <EmptyBlock title="No join requests" detail="Telegram join requests will appear here when access requires review." />}
       </ListGroup>
       <FixedButton label="Sync Access" onClick={onSync} />
     </section>
@@ -1992,6 +2186,7 @@ function MemberHome({
   member,
   onReferral,
   onSupport,
+  onBuyPlan,
   onBuyProduct,
   onEvent,
   onToast,
@@ -2000,6 +2195,7 @@ function MemberHome({
   member?: MemberRowDto
   onReferral: () => void
   onSupport: () => void
+  onBuyPlan: (plan: PlanDto) => void
   onBuyProduct: (product: ProductDto) => void
   onEvent: (event: EventDto) => void
   onToast: (message: string) => void
@@ -2027,6 +2223,21 @@ function MemberHome({
         <ListRow tone="blue" icon="A" title="Telegram Access" detail={member?.accessStatus ?? 'Pending'} />
         <ListRow tone="green" icon="R" title="Referral Link" detail="Invite friends and unlock rewards" onClick={onReferral} />
         <ListRow tone="amber" icon="XP" title="Rewards" detail={`${data.rewards.length} available`} />
+      </ListGroup>
+      <SectionLabel>Memberships</SectionLabel>
+      <ListGroup>
+        {data.plans.map((plan) => (
+          <ListRow
+            key={plan.id}
+            tone="blue"
+            icon="M"
+            title={plan.name}
+            detail={plan.description ?? `${plan.interval} membership`}
+            meta={`${plan.stars || Math.round(plan.priceCents / 10)} XTR`}
+            onClick={() => onBuyPlan(plan)}
+          />
+        ))}
+        {data.plans.length === 0 && <EmptyBlock title="No memberships yet" detail="Membership plans from this community will appear here." />}
       </ListGroup>
       <SectionLabel>Premium Content</SectionLabel>
       <ListGroup>
@@ -2125,11 +2336,15 @@ function MemberRow({
   member,
   onGrant,
   onRevoke,
+  onSuspend,
+  onRestore,
   compact,
 }: {
   member: MemberRowDto
   onGrant: () => void
   onRevoke: () => void
+  onSuspend?: () => void
+  onRestore?: () => void
   compact?: boolean
 }) {
   return (
@@ -2142,8 +2357,43 @@ function MemberRow({
         </small>
       </div>
       <div className="tg-member-actions">
-        <button type="button" onClick={onGrant}>Grant</button>
-        <button type="button" onClick={onRevoke}>Revoke</button>
+        {member.accessStatus === 'granted' ? (
+          <>
+            <button type="button" onClick={onSuspend ?? onRevoke}>Suspend</button>
+            <button type="button" onClick={onRevoke}>Revoke</button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={onGrant}>Grant</button>
+            <button type="button" onClick={onRestore ?? onGrant}>Restore</button>
+          </>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function JoinRequestRow({
+  request,
+  onApprove,
+  onDecline,
+}: {
+  request: DashboardDto['joinRequests'][number]
+  onApprove: () => void
+  onDecline: () => void
+}) {
+  return (
+    <article className="tg-member-row compact">
+      <div className="tg-row-icon green">{initials(request.username ?? request.telegramUserId)}</div>
+      <div>
+        <strong>@{request.username ?? request.telegramUserId}</strong>
+        <small>
+          Join request · {request.referralCode ? `ref ${request.referralCode}` : dateShort(request.createdAt)}
+        </small>
+      </div>
+      <div className="tg-member-actions">
+        <button type="button" onClick={onApprove}>Approve</button>
+        <button type="button" onClick={onDecline}>Decline</button>
       </div>
     </article>
   )
@@ -2267,6 +2517,7 @@ function normalizeDashboard(dashboard: DashboardDto): DashboardDto {
     rewardRules: dashboard.rewardRules ?? [],
     activity: dashboard.activity ?? [],
     accessLogs: dashboard.accessLogs ?? [],
+    joinRequests: dashboard.joinRequests ?? [],
     events: dashboard.events ?? [],
     products: dashboard.products ?? [],
   }
@@ -2310,6 +2561,7 @@ function dashboardFromMemberProfile(profile: MemberProfileDto): DashboardDto {
       healthScore: profile.member.accessStatus === 'granted' ? 100 : 60,
     },
     members: [profile.member],
+    plans: profile.plans ?? [],
     rewards: profile.rewards,
     referralCampaigns: profile.referralCampaigns ?? [],
     events: profile.events,

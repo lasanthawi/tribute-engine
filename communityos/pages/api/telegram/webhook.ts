@@ -1,9 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { autoLinkChatToCommunity, findCommunityForChat, grantMemberAccess, upsertTelegramChat } from '@/lib/access-control'
+import { approveJoinRequest, autoLinkChatToCommunity, findCommunityForChat, grantMemberAccess, recordJoinRequest, upsertTelegramChat } from '@/lib/access-control'
 import { findInvoiceByPayload, recordSuccessfulPayment } from '@/lib/payments'
 import { recordClickByCode, registerReferredJoin } from '@/lib/referrals'
 import { answerPreCheckoutQuery, sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
 import { getOrCreateUser } from '@/lib/telegram-auth'
+import { supabase } from '@/lib/supabase'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const MINI_APP_URL = process.env.MINI_APP_URL || ''
@@ -108,6 +109,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
+      return res.status(200).json({ ok: true })
+    }
+
+    if (update.chat_join_request) {
+      const join = update.chat_join_request
+      const communityId = await findCommunityForChat(String(join.chat.id))
+      if (communityId) {
+        await upsertTelegramChat({
+          communityId,
+          telegramChatId: String(join.chat.id),
+          title: join.chat.title,
+          handle: join.chat.username ?? null,
+          chatType: join.chat.type,
+          botStatus: 'admin',
+        }).catch(() => undefined)
+
+        const user = await getOrCreateUser(join.from)
+        const { data: activeSub } = await supabase
+          .from('member_subscriptions')
+          .select('id')
+          .eq('community_id', communityId)
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle()
+
+        const request = await recordJoinRequest({
+          communityId,
+          telegramChatId: String(join.chat.id),
+          telegramUserId: String(join.from.id),
+          username: join.from.username ?? null,
+        })
+
+        if (activeSub?.id) {
+          await approveJoinRequest(communityId, request.id, null).catch((error) => console.error('auto approve join failed:', error))
+          await grantMemberAccess(communityId, user.id)
+        }
+      }
       return res.status(200).json({ ok: true })
     }
 

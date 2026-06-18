@@ -145,6 +145,15 @@ export interface AccessLogDto {
   createdAt: string
 }
 
+export interface JoinRequestDto {
+  id: number
+  telegramUserId: string
+  username: string | null
+  status: 'pending' | 'approved' | 'declined'
+  referralCode: string | null
+  createdAt: string
+}
+
 export interface AiManagerDto {
   healthScore: number
   weeklyReportStatus: 'ready' | 'scheduled' | 'not_configured'
@@ -208,6 +217,7 @@ export interface DashboardDto {
   rewardRules: RewardRuleDto[]
   activity: ActivityDto[]
   accessLogs: AccessLogDto[]
+  joinRequests: JoinRequestDto[]
   ai: AiManagerDto
   events: EventDto[]
   products: ProductDto[]
@@ -218,6 +228,7 @@ export interface MemberProfileDto {
   member: MemberRowDto
   referralLink: string | null
   referralCampaigns: ReferralCampaignDto[]
+  plans: PlanDto[]
   rewards: RewardDto[]
   events: EventDto[]
   products: ProductDto[]
@@ -227,7 +238,20 @@ export interface MemberProfileDto {
 export interface MeDto {
   id: number
   username: string | null
+  isFirstCommunityOSLogin: boolean
+  onboardedAt: string | null
+  lastRevenueModel: string | null
+  accountStats: {
+    communities: number
+    memberCommunities: number
+    totalMembers: number
+    activeSubscriptions: number
+    monthlyStars: number
+    balanceStars: number
+    accessIssues: number
+  }
   communities: CommunitySummaryDto[]
+  memberCommunities: CommunitySummaryDto[]
 }
 
 export interface AdminDashboardDto {
@@ -288,6 +312,7 @@ export function emptyDashboardForCommunity(community: CommunitySummaryDto): Dash
     rewardRules: [],
     activity: [],
     accessLogs: [],
+    joinRequests: [],
     ai: {
       healthScore: 0,
       weeklyReportStatus: 'not_configured',
@@ -301,6 +326,8 @@ export function emptyDashboardForCommunity(community: CommunitySummaryDto): Dash
 
 export const api = {
   getMe: () => request<MeDto>('/api/me'),
+  completeOnboarding: (body: { revenueModel?: string | null } = {}) =>
+    request<{ ok: boolean }>('/api/me/onboarding', { method: 'POST', body: JSON.stringify(body) }),
   listCommunities: () => request<{ communities: CommunitySummaryDto[] }>('/api/communities'),
   createCommunity: (body: { name: string; handle?: string; description?: string }) =>
     request<{ community: CommunitySummaryDto }>('/api/communities', { method: 'POST', body: JSON.stringify(body) }),
@@ -328,6 +355,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ action: 'revoke', userId }),
     }),
+  suspendAccess: (communityId: number | string, userId: number) =>
+    request<{ ok: boolean }>(`/api/communities/${communityId}/access`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'suspend', userId }),
+    }),
+  restoreAccess: (communityId: number | string, userId: number) =>
+    request<{ ok: boolean; inviteLink?: string | null }>(`/api/communities/${communityId}/access`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'restore', userId }),
+    }),
+  decideJoinRequest: (communityId: number | string, joinRequestId: number, decision: 'approve_join' | 'decline_join') =>
+    request<{ ok: boolean }>(`/api/communities/${communityId}/access`, {
+      method: 'POST',
+      body: JSON.stringify({ action: decision, joinRequestId }),
+    }),
   syncAccess: (communityId: number | string) =>
     request<{ ok: boolean; scanned?: number; synced?: number; demo?: boolean }>(`/api/communities/${communityId}/access`, {
       method: 'POST',
@@ -335,7 +377,7 @@ export const api = {
     }),
   createInvoice: (
     communityId: number | string,
-    body: { title: string; description?: string; stars: number; productId?: number | null; eventId?: number | null }
+    body: { title: string; description?: string; stars: number; kind?: 'plan' | 'product' | 'event'; planId?: number | null; productId?: number | null; eventId?: number | null; interval?: string }
   ) =>
     request<{ invoice: InvoiceDto }>(`/api/communities/${communityId}/payments/invoices`, {
       method: 'POST',
