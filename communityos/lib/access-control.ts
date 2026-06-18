@@ -1,6 +1,7 @@
 import { AccessLogRow, sb, supabase } from './supabase'
 import type { TelegramChatDto } from './api-client'
 import { createChatInviteLink } from './telegram'
+import { createCommunity } from './communities'
 
 export async function logAccessEvent(
   communityId: number,
@@ -117,24 +118,22 @@ export async function autoLinkChatToCommunity(
     .eq('owner_id', user.id)
     .is('telegram_chat_id', null)
 
-  let communityId: number
-
   if (!unlinked || unlinked.length === 0) {
-    // No existing community — auto-create one named after the chat
-    const { data: created, error } = await supabase
-      .from('communities')
-      .insert({ owner_id: user.id, name: chatTitle || 'My Community', status: 'active' as const })
-      .select('id')
-      .single()
-    if (error || !created) return null
-    communityId = created.id
-  } else if (unlinked.length === 1) {
-    communityId = unlinked[0].id
-  } else {
+    // No existing community — auto-create a fully initialised one (includes community_members owner row)
+    const community = await createCommunity(user.id, {
+      name: chatTitle || 'My Community',
+      telegramChatId: Number(telegramChatId),
+    })
+    return community.id
+  }
+
+  if (unlinked.length > 1) {
     // Multiple unlinked communities — can't auto-pick, admin must connect manually
     return null
   }
 
+  // Exactly one unlinked community — link it
+  const communityId = unlinked[0].id
   await supabase
     .from('communities')
     .update({ telegram_chat_id: Number(telegramChatId) })

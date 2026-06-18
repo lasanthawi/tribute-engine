@@ -87,13 +87,6 @@ export default function Home() {
       const routeCommunityId = getRouteCommunityId(router.query.id ?? router.query.communityId)
       const isMemberRoute = router.pathname.startsWith('/member')
 
-      // Not inside Telegram — initData is always empty outside the WebApp
-      if (!getInitData()) {
-        if (cancelled) return
-        setAuthError('not_in_telegram')
-        return
-      }
-
       try {
         if (isMemberRoute) {
           const targetId = routeCommunityId ?? 1
@@ -134,8 +127,13 @@ export default function Home() {
         if (cancelled) return
         const status = err?.status ?? 0
         if (status === 401 || status === 403) {
-          // initData present but verification failed — usually wrong/missing TELEGRAM_BOT_TOKEN
-          setAuthError('auth_failed')
+          // Empty initData → user opened outside Telegram (or SDK hasn't loaded yet)
+          if (!getInitData()) {
+            setAuthError('not_in_telegram')
+          } else {
+            // initData present but server rejected it — usually wrong/missing TELEGRAM_BOT_TOKEN
+            setAuthError('auth_failed')
+          }
         } else {
           setAuthError(err?.message || 'unknown_error')
         }
