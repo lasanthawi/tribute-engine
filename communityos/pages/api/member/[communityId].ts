@@ -7,6 +7,15 @@ import { referralLink } from '@/lib/referrals'
 import { listRewards } from '@/lib/rewards'
 import { supabase } from '@/lib/supabase'
 
+async function optional<T>(label: string, fallback: T, loader: () => Promise<T>): Promise<T> {
+  try {
+    return await loader()
+  } catch (error) {
+    console.warn(`member/[communityId] optional ${label} failed:`, error)
+    return fallback
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -22,20 +31,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     await getMemberProfile(communityId, userId)
     const [members, rewards, events, products, activityRows] = await Promise.all([
-      listMembers(communityId),
-      listRewards(communityId, userId),
-      listEvents(communityId),
-      listProducts(communityId),
-      supabase
-        .from('community_activity_events')
-        .select('*')
-        .eq('community_id', communityId)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(20),
+      optional('members', [], () => listMembers(communityId)),
+      optional('rewards', [], () => listRewards(communityId, userId)),
+      optional('events', [], () => listEvents(communityId)),
+      optional('products', [], () => listProducts(communityId)),
+      optional('activity', { data: [], error: null, count: null, status: 200, statusText: 'OK', success: true } as any, async () => {
+        return await supabase
+          .from('community_activity_events')
+          .select('*')
+          .eq('community_id', communityId)
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(20)
+      }),
     ])
-    const member = members.find((row) => row.id === userId)
-    if (!member) return res.status(404).json({ error: 'Member not found' })
+    const member =
+      members.find((row) => row.id === userId) ?? {
+        id: userId,
+        username: `member_${userId}`,
+        role: 'member',
+        accessStatus: 'pending',
+        source: 'direct',
+        xp: 0,
+        level: 1,
+        subscriptionStatus: 'none',
+        planName: null,
+        joinedAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        revenueCents: 0,
+        referralCount: 0,
+      }
 
     res.status(200).json({
       community: {

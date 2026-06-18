@@ -284,6 +284,13 @@ export const api = {
     communityId: number | string,
     body: { name: string; description?: string; priceCents?: number; stars?: number; interval?: string }
   ) => request<{ plan: PlanDto }>(`/api/communities/${communityId}/plans`, { method: 'POST', body: JSON.stringify(body) }),
+  deletePlan: (communityId: number | string, planId: number) =>
+    request<{ ok: boolean; plan: PlanDto }>(`/api/communities/${communityId}/plans?planId=${planId}`, { method: 'DELETE' }),
+  sharePlanCard: (communityId: number | string, body: { planId: number; buttonText?: string }) =>
+    request<{ ok: boolean; target: 'community_chat' | 'owner_chat'; url: string }>(`/api/communities/${communityId}/plans/share`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   addMember: (communityId: number | string, body: { userId: number; source?: string }) =>
     request<{ member: unknown }>(`/api/communities/${communityId}/members`, { method: 'POST', body: JSON.stringify(body) }),
   grantAccess: (communityId: number | string, userId: number) =>

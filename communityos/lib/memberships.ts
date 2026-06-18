@@ -15,6 +15,7 @@ export async function listPlans(communityId: number) {
     .from('membership_plans')
     .select('*')
     .eq('community_id', communityId)
+    .neq('status', 'archived')
     .order('price_cents', { ascending: true })
   if (error) throw error
 
@@ -46,6 +47,18 @@ export async function createPlan(communityId: number, input: CreatePlanInput) {
       benefits: input.benefits ?? [],
       status: 'active',
     })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as MembershipPlanRow
+}
+
+export async function archivePlan(communityId: number, planId: number) {
+  const { data, error } = await supabase
+    .from('membership_plans')
+    .update({ status: 'archived' })
+    .eq('community_id', communityId)
+    .eq('id', planId)
     .select('*')
     .single()
   if (error) throw error

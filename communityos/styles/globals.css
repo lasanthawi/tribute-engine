@@ -336,6 +336,17 @@ a {
   font-size: 18px;
 }
 
+.tg-text-button {
+  justify-self: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--tg-blue);
+  font-size: 17px;
+  font-weight: 600;
+}
+
 .tg-section-label {
   margin: 12px 20px 0;
   color: var(--tg-muted);
@@ -678,9 +689,19 @@ a {
 
 .tg-upload-card {
   background: white;
+  cursor: pointer;
+}
+
+.tg-upload-card input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .tg-upload-card div {
+  overflow: hidden;
   display: grid;
   place-items: center;
   width: 100%;
@@ -690,6 +711,29 @@ a {
   background: #e5f4ff;
   color: var(--tg-blue);
   font-weight: 800;
+}
+
+.tg-upload-card small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--tg-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tg-cover-preview,
+.tg-preview-cover.has-image > span,
+.tg-description-cover {
+  display: block;
+  width: 100%;
+  background-position: center;
+  background-size: cover;
+}
+
+.tg-cover-preview {
+  min-height: 132px;
+  border-radius: 14px;
 }
 
 .tg-message-preview {
@@ -708,6 +752,15 @@ a {
   color: white;
   font-size: 26px;
   font-weight: 900;
+}
+
+.tg-preview-cover.has-image {
+  padding: 0;
+  background: #0a84ff;
+}
+
+.tg-preview-cover.has-image > span {
+  min-height: 250px;
 }
 
 .tg-preview-body {
@@ -745,6 +798,11 @@ a {
   display: grid;
   gap: 16px;
   padding: 20px;
+}
+
+.tg-description-cover {
+  min-height: 160px;
+  border-radius: 18px;
 }
 
 .tg-description-card > div {

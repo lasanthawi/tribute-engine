@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
-import { createPlan, listPlans } from '@/lib/memberships'
+import { archivePlan, createPlan, listPlans } from '@/lib/memberships'
 
 interface PlanRow {
   id: number
@@ -56,6 +56,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         interval: typeof interval === 'string' ? interval : 'month',
       })
       return res.status(201).json({ plan: toDto({ ...plan, subscribers: 0 }) })
+    }
+
+    if (req.method === 'DELETE') {
+      const planId = Number(req.query.planId ?? req.body?.planId)
+      if (!Number.isFinite(planId)) return res.status(400).json({ error: 'planId is required' })
+
+      const plan = await archivePlan(communityId, planId)
+      return res.status(200).json({ plan: toDto(plan), ok: true })
     }
 
     return res.status(405).json({ error: 'Method not allowed' })

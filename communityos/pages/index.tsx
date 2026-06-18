@@ -73,6 +73,8 @@ export default function Home() {
   const [buttonText, setButtonText] = useState('Subscribe')
   const [monthlyStars, setMonthlyStars] = useState('299')
   const [yearlyStars, setYearlyStars] = useState('2990')
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
+  const [coverName, setCoverName] = useState<string | null>(null)
   const [createdPlan, setCreatedPlan] = useState<PlanDto | null>(null)
   const [campaignTitle, setCampaignTitle] = useState('Invite 3 members')
   const [rewardTitle, setRewardTitle] = useState('Founding Member Badge')
@@ -218,6 +220,60 @@ export default function Home() {
       showToast('Membership created')
     } catch (error: any) {
       showToast(error.message || 'Membership creation failed')
+    }
+  }
+
+  function handleCoverFile(file: File | null) {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      showToast('Choose an image file')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setCoverPreview(reader.result)
+        setCoverName(file.name)
+        showToast('Cover added')
+      }
+    }
+    reader.onerror = () => showToast('Cover could not be loaded')
+    reader.readAsDataURL(file)
+  }
+
+  async function deleteMembershipPackage() {
+    if (!communityId || !activePlan) {
+      showToast('No membership package selected')
+      return
+    }
+    const confirmed = window.confirm(`Delete "${activePlan.name}"? Existing subscriptions are kept, but this package will no longer be offered.`)
+    if (!confirmed) return
+
+    try {
+      await api.deletePlan(communityId, activePlan.id)
+      setCreatedPlan((plan) => (plan?.id === activePlan.id ? null : plan))
+      await refreshDashboard()
+      setScreen('home')
+      showToast('Membership package deleted')
+    } catch (error: any) {
+      showToast(error.message || 'Delete failed')
+    }
+  }
+
+  async function shareMembershipCard() {
+    if (!communityId || !activePlan) {
+      showToast('Create a membership first')
+      return
+    }
+
+    try {
+      const result = await api.sharePlanCard(communityId, { planId: activePlan.id, buttonText })
+      await copyText(result.url).catch(() => false)
+      showToast(result.target === 'community_chat' ? 'Subscription card sent to community' : 'Subscription card sent to bot chat')
+    } catch (error: any) {
+      await copyMembershipLink()
+      showToast(error.message || 'Card send failed. Link copied instead')
     }
   }
 
@@ -585,9 +641,13 @@ export default function Home() {
               title={membershipTitle}
               description={membershipDescription}
               buttonText={buttonText}
+              coverPreview={coverPreview}
+              coverName={coverName}
               onTitle={setMembershipTitle}
               onDescription={setMembershipDescription}
               onButtonText={setButtonText}
+              onCoverFile={handleCoverFile}
+              onCancel={() => go('home')}
               onSubmit={() => go('preview')}
             />
           )}
@@ -597,6 +657,7 @@ export default function Home() {
               title={membershipTitle}
               description={membershipDescription}
               buttonText={buttonText}
+              coverPreview={coverPreview}
               onNext={() => go('payments')}
             />
           )}
@@ -606,6 +667,7 @@ export default function Home() {
               yearlyStars={yearlyStars}
               onMonthlyStars={setMonthlyStars}
               onYearlyStars={setYearlyStars}
+              onCancel={() => go('preview')}
               onCreate={createMembership}
             />
           )}
@@ -616,8 +678,11 @@ export default function Home() {
               title={membershipTitle}
               description={membershipDescription}
               onEdit={() => go('createDetails')}
-              onShare={() => go('shareGuide')}
+              coverPreview={coverPreview}
+              onShare={shareMembershipCard}
+              onGuide={() => go('shareGuide')}
               onCopyLink={copyMembershipLink}
+              onDelete={deleteMembershipPackage}
               onToast={showToast}
             />
           )}
@@ -998,17 +1063,25 @@ function CreateDetailsScreen({
   title,
   description,
   buttonText,
+  coverPreview,
+  coverName,
   onTitle,
   onDescription,
   onButtonText,
+  onCoverFile,
+  onCancel,
   onSubmit,
 }: {
   title: string
   description: string
   buttonText: string
+  coverPreview: string | null
+  coverName: string | null
   onTitle: (value: string) => void
   onDescription: (value: string) => void
   onButtonText: (value: string) => void
+  onCoverFile: (file: File | null) => void
+  onCancel: () => void
   onSubmit: () => void
 }) {
   return (
@@ -1022,6 +1095,9 @@ function CreateDetailsScreen({
       <div className="tg-form-title">
         <h1>Create Membership</h1>
         <p>Add clear details. New members will see this in Telegram before they subscribe.</p>
+        <button className="tg-text-button" type="button" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
       <SectionLabel>Title and Description</SectionLabel>
       <div className="tg-input-group">
@@ -1033,9 +1109,13 @@ function CreateDetailsScreen({
         <input value={buttonText} onChange={(event) => onButtonText(event.target.value)} aria-label="Button text" />
       </div>
       <SectionLabel>Membership Cover</SectionLabel>
-      <div className="tg-upload-card">
-        <div>Upload Cover</div>
-      </div>
+      <label className="tg-upload-card">
+        <input type="file" accept="image/*" onChange={(event) => onCoverFile(event.currentTarget.files?.[0] ?? null)} />
+        <div>
+          {coverPreview ? <span className="tg-cover-preview" style={{ backgroundImage: `url(${coverPreview})` }} /> : <span>Upload Cover</span>}
+        </div>
+        {coverName && <small>{coverName}</small>}
+      </label>
       <FixedButton label="Done" submit />
     </form>
   )
@@ -1046,20 +1126,22 @@ function PreviewScreen({
   title,
   description,
   buttonText,
+  coverPreview,
   onNext,
 }: {
   communityName: string
   title: string
   description: string
   buttonText: string
+  coverPreview: string | null
   onNext: () => void
 }) {
   return (
     <section className="tg-screen with-fixed-button">
       <h1 className="tg-center-title">Membership Preview</h1>
       <div className="tg-message-preview">
-        <div className="tg-preview-cover">
-          <span>CommunityOS</span>
+        <div className={coverPreview ? 'tg-preview-cover has-image' : 'tg-preview-cover'}>
+          {coverPreview ? <span style={{ backgroundImage: `url(${coverPreview})` }} /> : <span>CommunityOS</span>}
         </div>
         <div className="tg-preview-body">
           <small>{communityName}</small>
@@ -1078,12 +1160,14 @@ function PaymentScreen({
   yearlyStars,
   onMonthlyStars,
   onYearlyStars,
+  onCancel,
   onCreate,
 }: {
   monthlyStars: string
   yearlyStars: string
   onMonthlyStars: (value: string) => void
   onYearlyStars: (value: string) => void
+  onCancel: () => void
   onCreate: (event?: FormEvent) => void
 }) {
   return (
@@ -1091,6 +1175,9 @@ function PaymentScreen({
       <div className="tg-form-title">
         <h1>Set Up Payments</h1>
         <p>Set your Stars price, billing periods, and checkout options.</p>
+        <button className="tg-text-button" type="button" onClick={onCancel}>
+          Back
+        </button>
       </div>
       <ListGroup>
         <ListRow title="Currency" detail="Telegram Stars" meta="XTR" />
@@ -1120,24 +1207,31 @@ function PublishScreen({
   plan,
   title,
   description,
+  coverPreview,
   onEdit,
   onShare,
+  onGuide,
   onCopyLink,
+  onDelete,
   onToast,
 }: {
   community: DashboardDto['community']
   plan: PlanDto | null
   title: string
   description: string
+  coverPreview: string | null
   onEdit: () => void
   onShare: () => void
+  onGuide: () => void
   onCopyLink: () => void
+  onDelete: () => void
   onToast: (message: string) => void
 }) {
   return (
     <section className="tg-screen with-fixed-button">
       <h1 className="tg-publish-title">{plan?.name ?? title}</h1>
       <div className="tg-description-card">
+        {coverPreview && <span className="tg-description-cover" style={{ backgroundImage: `url(${coverPreview})` }} />}
         <p>{plan?.description ?? description}</p>
         <div>
           <span>{community.name}</span>
@@ -1153,11 +1247,15 @@ function PublishScreen({
         <ListRow tone="green" icon="C" title="Comment Access" detail="Off" onClick={() => onToast('Comment access opened')} />
         <ListRow tone="blue" icon="A" title="Auto-posting" detail="Off" onClick={() => onToast('Auto-posting opened')} />
         <ListRow tone="purple" icon="R" title="Referral Reward" detail="Invite 3 friends" onClick={() => onToast('Referral reward opened')} />
+        {plan && <ListRow tone="red" icon="D" title="Delete Membership" detail="Remove this package from active offers" onClick={onDelete} />}
       </ListGroup>
       <div className="tg-empty-illustration">
         <div>Share</div>
         <h2>Share to get first subscribers</h2>
-        <p>Share with the button, copy the link, or set up auto-posting to start earning.</p>
+        <p>Send a Telegram card with a Subscribe button, copy the link, or open the publishing guide.</p>
+        <button className="tg-link-button" type="button" onClick={onGuide}>
+          How to publish
+        </button>
       </div>
       <FixedButton label="Share" onClick={onShare} />
     </section>
