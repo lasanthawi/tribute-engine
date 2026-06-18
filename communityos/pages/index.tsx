@@ -18,10 +18,11 @@ import {
   emptyDashboardForCommunity,
   money,
 } from '@/lib/api-client'
-import { copyText, getInitData, haptic, initTelegramShell, openExternalLink, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
+import { copyText, getInitData, getStartParam, haptic, initTelegramShell, openExternalLink, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
 
 type Mode = 'publisher' | 'member'
 type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
+type CheckoutIntent = { kind: 'plan' | 'product' | 'event'; id: number } | null
 type Screen =
   | 'intro'
   | 'start'
@@ -69,6 +70,7 @@ export default function Home() {
   const [introIndex, setIntroIndex] = useState(0)
   const [data, setData] = useState<DashboardDto | null>(null)
   const [memberProfile, setMemberProfile] = useState<MemberProfileDto | null>(null)
+  const [checkoutIntent, setCheckoutIntent] = useState<CheckoutIntent>(null)
   const [me, setMe] = useState<MeDto | null>(null)
   const [ownedCommunities, setOwnedCommunities] = useState<DashboardDto['community'][]>([])
   const [communityId, setCommunityId] = useState<number | null>(null)
@@ -111,6 +113,11 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<EventDto | null>(null)
   const [referralThreshold, setReferralThreshold] = useState('3')
   const [referralReward, setReferralReward] = useState('Unlock bonus content')
+  const routeIdQuery = router.query.id
+  const routeCommunityIdQuery = router.query.communityId
+  const routePlanQuery = router.query.plan
+  const routeProductQuery = router.query.product
+  const routeEventQuery = router.query.event
 
   useEffect(() => {
     if (!router.isReady) return
@@ -119,15 +126,20 @@ export default function Home() {
 
     async function load() {
       initTelegramShell()
-      const routeCommunityId = getRouteCommunityId(router.query.id ?? router.query.communityId)
+      const routeCommunityId = getRouteCommunityId(routeIdQuery ?? routeCommunityIdQuery)
+      const startIntent = parseStartParam(getStartParam())
+      const queryIntent = parseCheckoutIntent({ plan: routePlanQuery, product: routeProductQuery, event: routeEventQuery })
+      const resolvedIntent = queryIntent ?? startIntent.intent
       const isMemberRoute = router.pathname.startsWith('/member')
+      const shouldOpenMemberMode = isMemberRoute || (!!startIntent.communityId && !routeCommunityId)
 
       try {
-        if (isMemberRoute) {
-          const targetId = routeCommunityId ?? 1
+        if (shouldOpenMemberMode) {
+          const targetId = routeCommunityId ?? startIntent.communityId ?? 1
           const profile = await api.getMemberProfile(targetId)
           if (cancelled) return
           setMemberProfile(profile)
+          setCheckoutIntent(resolvedIntent)
           setCommunityId(profile.community.id)
           setData(dashboardFromMemberProfile(profile))
           setMode('member')
@@ -141,12 +153,14 @@ export default function Home() {
         setOwnedCommunities(me.communities)
 
         if (!routeCommunityId && me.isFirstCommunityOSLogin) {
+          setCheckoutIntent(null)
           setMode('publisher')
           setScreen('intro')
           return
         }
 
         if (!routeCommunityId) {
+          setCheckoutIntent(null)
           setMode('publisher')
           setScreen('account')
           return
@@ -162,6 +176,7 @@ export default function Home() {
         if (cancelled) return
         setCommunityId(dashboard.community.id)
         setData(normalizeDashboard(dashboard))
+        setCheckoutIntent(null)
         setMode('publisher')
         setScreen('home')
       } catch (err: any) {
@@ -186,7 +201,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [router.isReady, router.pathname, router.query.id, router.query.communityId])
+  }, [router.isReady, router.pathname, routeIdQuery, routeCommunityIdQuery, routePlanQuery, routeProductQuery, routeEventQuery])
 
   useEffect(() => {
     if (!toast) return
@@ -246,6 +261,13 @@ export default function Home() {
     if (!communityId) return
     const dashboard = await api.getDashboard(communityId)
     setData(normalizeDashboard(dashboard))
+  }
+
+  async function refreshMemberDashboard(targetCommunityId = communityId) {
+    if (!targetCommunityId) return
+    const profile = await api.getMemberProfile(targetCommunityId)
+    setMemberProfile(profile)
+    setData(dashboardFromMemberProfile(profile))
   }
 
   async function createMembership(event?: FormEvent) {
@@ -693,7 +715,7 @@ export default function Home() {
       }
 
       if (product.priceStars <= 0) {
-        showToast('Free product delivery is not configured yet')
+        showToast('Free product unlock is not configured yet')
         return
       }
 
@@ -705,7 +727,10 @@ export default function Home() {
         productId: product.id,
       })
       if (response.invoice.invoiceLink) {
-        openInvoiceLink(response.invoice.invoiceLink, (status) => showToast(`Payment ${status}`))
+        openInvoiceLink(response.invoice.invoiceLink, async (status) => {
+          showToast(`Payment ${status}`)
+          if (status === 'paid') await refreshMemberDashboard()
+        })
         showToast('Opening Telegram invoice')
       } else {
         showToast('Invoice stored, but bot invoice link is not configured')
@@ -728,7 +753,10 @@ export default function Home() {
         interval: plan.interval,
       })
       if (response.invoice.invoiceLink) {
-        openInvoiceLink(response.invoice.invoiceLink, (status) => showToast(`Payment ${status}`))
+        openInvoiceLink(response.invoice.invoiceLink, async (status) => {
+          showToast(`Payment ${status}`)
+          if (status === 'paid') await refreshMemberDashboard()
+        })
         showToast('Opening Telegram invoice')
       } else {
         showToast('Invoice stored, but bot invoice link is not configured')
@@ -750,7 +778,10 @@ export default function Home() {
           eventId: event.id,
         })
         if (response.invoice.invoiceLink) {
-          openInvoiceLink(response.invoice.invoiceLink, (status) => showToast(`Payment ${status}`))
+          openInvoiceLink(response.invoice.invoiceLink, async (status) => {
+            showToast(`Payment ${status}`)
+            if (status === 'paid') await refreshMemberDashboard()
+          })
           showToast('Opening Telegram invoice')
         } else {
           showToast('Invoice stored, but bot invoice link is not configured')
@@ -877,7 +908,17 @@ export default function Home() {
 
       {mode === 'member' ? (
         <AppFrame title="CommunityOS" subtitle="member app" hideBack={screen === 'home'} onBack={() => go('home')} menuCommunityId={communityId ?? 1}>
-          <MemberHome data={data} member={member} onReferral={copyReferralLink} onSupport={openSupport} onBuyPlan={buyPlan} onBuyProduct={buyProduct} onEvent={registerOrBuyEvent} onToast={showToast} />
+          <MemberHome
+            data={data}
+            member={member}
+            checkoutIntent={checkoutIntent}
+            onReferral={copyReferralLink}
+            onSupport={openSupport}
+            onBuyPlan={buyPlan}
+            onBuyProduct={buyProduct}
+            onEvent={registerOrBuyEvent}
+            onToast={showToast}
+          />
         </AppFrame>
       ) : screen === 'intro' ? (
         <IntroScreen
@@ -2184,6 +2225,7 @@ function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; o
 function MemberHome({
   data,
   member,
+  checkoutIntent,
   onReferral,
   onSupport,
   onBuyPlan,
@@ -2193,6 +2235,7 @@ function MemberHome({
 }: {
   data: DashboardDto
   member?: MemberRowDto
+  checkoutIntent: CheckoutIntent
   onReferral: () => void
   onSupport: () => void
   onBuyPlan: (plan: PlanDto) => void
@@ -2201,6 +2244,10 @@ function MemberHome({
   onToast: (message: string) => void
 }) {
   const progress = member ? Math.min(100, Math.round((member.xp % 1200) / 12)) : 0
+  const checkoutPlan = checkoutIntent?.kind === 'plan' ? data.plans.find((plan) => plan.id === checkoutIntent.id) ?? null : null
+  const checkoutProduct = checkoutIntent?.kind === 'product' ? data.products.find((product) => product.id === checkoutIntent.id) ?? null : null
+  const checkoutEvent = checkoutIntent?.kind === 'event' ? data.events.find((event) => event.id === checkoutIntent.id) ?? null : null
+  const checkoutMissing = checkoutIntent && !checkoutPlan && !checkoutProduct && !checkoutEvent
   return (
     <section className="tg-screen with-fixed-button">
       <div className="tg-community-header">
@@ -2212,6 +2259,45 @@ function MemberHome({
           <span>Level {member?.level ?? 1}</span>
         </div>
       </div>
+      {checkoutPlan && (
+        <CheckoutPrompt
+          tone="blue"
+          eyebrow="Membership"
+          title={checkoutPlan.name}
+          detail={checkoutPlan.description ?? `${checkoutPlan.interval} access to ${data.community.name}`}
+          meta={`${checkoutPlan.stars || Math.round(checkoutPlan.priceCents / 10)} XTR`}
+          cta={member?.subscriptionStatus === 'active' ? 'Manage Subscription' : 'Continue to Subscribe'}
+          onClick={() => onBuyPlan(checkoutPlan)}
+        />
+      )}
+      {checkoutProduct && (
+        <CheckoutPrompt
+          tone={checkoutProduct.owned ? 'green' : 'red'}
+          eyebrow="Digital Product"
+          title={checkoutProduct.title}
+          detail={checkoutProduct.owned ? 'Already unlocked on your dashboard.' : checkoutProduct.description ?? checkoutProduct.type.replace('_', ' ')}
+          meta={checkoutProduct.owned ? 'Unlocked' : `${checkoutProduct.priceStars} XTR`}
+          cta={checkoutProduct.owned ? 'Open Product' : `Continue to ${checkoutProduct.buttonText ?? 'Buy'}`}
+          onClick={() => onBuyProduct(checkoutProduct)}
+        />
+      )}
+      {checkoutEvent && (
+        <CheckoutPrompt
+          tone={checkoutEvent.registered ? 'green' : 'purple'}
+          eyebrow="Event"
+          title={checkoutEvent.title}
+          detail={`${checkoutEvent.type} on ${dateShort(checkoutEvent.startsAt)}`}
+          meta={checkoutEvent.registered ? 'Registered' : checkoutEvent.priceStars ? `${checkoutEvent.priceStars} XTR` : 'Free'}
+          cta={checkoutEvent.registered ? 'Open Event' : checkoutEvent.priceStars ? 'Continue to Get Ticket' : 'Continue to Register'}
+          onClick={() => onEvent(checkoutEvent)}
+        />
+      )}
+      {checkoutMissing && (
+        <div className="tg-empty-block compact">
+          <strong>Offer unavailable</strong>
+          <p>This shared link points to an offer that is no longer active.</p>
+        </div>
+      )}
       <section className="tg-progress-card">
         <div>
           <strong>{member?.xp ?? 0} XP</strong>
@@ -2290,6 +2376,38 @@ function MemberHome({
 
 function ListGroup({ children }: { children: React.ReactNode }) {
   return <div className="tg-list-group">{children}</div>
+}
+
+function CheckoutPrompt({
+  tone,
+  eyebrow,
+  title,
+  detail,
+  meta,
+  cta,
+  onClick,
+}: {
+  tone: 'blue' | 'red' | 'purple' | 'green' | 'amber'
+  eyebrow: string
+  title: string
+  detail: string
+  meta: string
+  cta: string
+  onClick: () => void
+}) {
+  return (
+    <section className={`tg-checkout-prompt ${tone}`}>
+      <div>
+        <small>{eyebrow}</small>
+        <h2>{title}</h2>
+        <p>{detail}</p>
+      </div>
+      <strong>{meta}</strong>
+      <button type="button" onClick={onClick}>
+        {cta}
+      </button>
+    </section>
+  )
 }
 
 function ListRow({
@@ -2496,6 +2614,37 @@ function getRouteCommunityId(value: string | string[] | undefined): number | nul
   if (!raw) return null
   const id = Number(raw)
   return Number.isFinite(id) ? id : null
+}
+
+function parseCheckoutIntent(query: Record<string, string | string[] | undefined>): CheckoutIntent {
+  const planId = getRouteCommunityId(query.plan)
+  if (planId) return { kind: 'plan', id: planId }
+  const productId = getRouteCommunityId(query.product)
+  if (productId) return { kind: 'product', id: productId }
+  const eventId = getRouteCommunityId(query.event)
+  if (eventId) return { kind: 'event', id: eventId }
+  return null
+}
+
+function parseStartParam(value: string): { communityId: number | null; intent: CheckoutIntent } {
+  if (!value) return { communityId: null, intent: null }
+
+  const offer = /^co_(\d+)_(plan|product|event)_(\d+)$/.exec(value)
+  if (offer) {
+    const communityId = Number(offer[1])
+    const id = Number(offer[3])
+    if (Number.isFinite(communityId) && Number.isFinite(id)) {
+      return { communityId, intent: { kind: offer[2] as 'plan' | 'product' | 'event', id } }
+    }
+  }
+
+  const community = /^(?:community_|co_)(\d+)(?:_\d+)?$/.exec(value)
+  if (community) {
+    const communityId = Number(community[1])
+    if (Number.isFinite(communityId)) return { communityId, intent: null }
+  }
+
+  return { communityId: null, intent: null }
 }
 
 function normalizeDashboard(dashboard: DashboardDto): DashboardDto {

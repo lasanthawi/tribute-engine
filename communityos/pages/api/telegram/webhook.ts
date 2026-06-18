@@ -9,8 +9,53 @@ import { supabase } from '@/lib/supabase'
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const MINI_APP_URL = process.env.MINI_APP_URL || ''
 
-function inlineKeyboard() {
-  return MINI_APP_URL ? { inline_keyboard: [[{ text: 'Open CommunityOS', web_app: { url: MINI_APP_URL } }]] } : undefined
+function miniAppBaseUrl() {
+  return MINI_APP_URL.replace(/\/$/, '')
+}
+
+function inlineKeyboard(url = MINI_APP_URL, label = 'Open CommunityOS') {
+  return url ? { inline_keyboard: [[{ text: label, web_app: { url } }]] } : undefined
+}
+
+function parseStartParam(value?: string) {
+  if (!value) return null
+  const offer = /^co_(\d+)_(plan|product|event)_(\d+)$/.exec(value)
+  if (offer) {
+    return {
+      communityId: Number(offer[1]),
+      kind: offer[2] as 'plan' | 'product' | 'event',
+      itemId: Number(offer[3]),
+    }
+  }
+  const community = /^(?:community_|co_)(\d+)(?:_\d+)?$/.exec(value)
+  if (community) return { communityId: Number(community[1]), kind: null, itemId: null }
+  return null
+}
+
+function miniAppUrlForStartParam(startParam?: string) {
+  const base = miniAppBaseUrl()
+  if (!base) return ''
+  const parsed = parseStartParam(startParam)
+  if (!parsed?.communityId) return base
+  if (parsed.kind && parsed.itemId) return `${base}/member/${parsed.communityId}?${parsed.kind}=${parsed.itemId}`
+  return `${base}/member/${parsed.communityId}`
+}
+
+function buttonTextForStartParam(startParam?: string) {
+  const parsed = parseStartParam(startParam)
+  if (parsed?.kind === 'plan') return 'Continue to Subscribe'
+  if (parsed?.kind === 'product') return 'Continue to Buy'
+  if (parsed?.kind === 'event') return 'Continue to Register'
+  return 'Open CommunityOS'
+}
+
+function textForStartParam(startParam?: string) {
+  const parsed = parseStartParam(startParam)
+  if (parsed?.kind === 'plan') return '*CommunityOS*\n\nOpen the Mini App to review and continue your subscription.'
+  if (parsed?.kind === 'product') return '*CommunityOS*\n\nOpen the Mini App to review and continue your product purchase.'
+  if (parsed?.kind === 'event') return '*CommunityOS*\n\nOpen the Mini App to review and continue your event registration.'
+  if (parsed?.communityId) return '*CommunityOS*\n\nOpen the Mini App to view this community as a member.'
+  return '*CommunityOS*\n\nManage memberships, referrals, rewards, and member access for Telegram communities.'
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -66,7 +111,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? '*Registration confirmed*\n\nYour event access is unlocked in CommunityOS. Open the Mini App for details.'
           : confirmText
 
-      await sendTelegramMessage(BOT_TOKEN, message.chat.id, finalConfirmText, 'Markdown', inlineKeyboard())
+      const baseUrl = miniAppBaseUrl()
+      const resultUrl = result.ok && result.communityId && baseUrl ? `${baseUrl}/member/${result.communityId}` : MINI_APP_URL
+      await sendTelegramMessage(BOT_TOKEN, message.chat.id, finalConfirmText, 'Markdown', inlineKeyboard(resultUrl, 'Open Member Dashboard'))
       return res.status(200).json({ ok: true })
     }
 
@@ -161,11 +208,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await sendTelegramMessage(
         BOT_TOKEN,
         message.chat.id,
-        startParam
-          ? `*CommunityOS*\n\nReferral code received: \`${startParam}\`.\nOpen the Mini App to continue.`
-          : '*CommunityOS*\n\nManage memberships, referrals, rewards, and member access for Telegram communities.',
+        textForStartParam(startParam),
         'Markdown',
-        inlineKeyboard()
+        inlineKeyboard(miniAppUrlForStartParam(startParam), buttonTextForStartParam(startParam))
       )
     }
 

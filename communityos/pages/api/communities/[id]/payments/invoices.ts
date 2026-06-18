@@ -1,6 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
+import { ensureMember } from '@/lib/communities'
+import { listEvents } from '@/lib/events'
+import { listPlans } from '@/lib/memberships'
 import { createInvoice } from '@/lib/payments'
+import { listProducts } from '@/lib/payments'
 import { createTelegramInvoiceLink } from '@/lib/telegram'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -24,6 +28,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const interval = typeof req.body?.interval === 'string' ? req.body.interval : null
 
   try {
+    await ensureMember(communityId, userId, { accessStatus: 'pending', source: 'checkout' })
+
+    if (kind === 'plan') {
+      if (!planId) return res.status(400).json({ error: 'planId is required' })
+      const plan = (await listPlans(communityId)).find((item) => item.id === planId && item.status !== 'archived')
+      if (!plan) return res.status(404).json({ error: 'Plan not found' })
+    }
+
+    if (kind === 'product') {
+      if (!productId) return res.status(400).json({ error: 'productId is required' })
+      const product = (await listProducts(communityId, userId)).find((item) => item.id === productId && item.status !== 'archived')
+      if (!product) return res.status(404).json({ error: 'Product not found' })
+      if (product.owned) return res.status(409).json({ error: 'Product already unlocked' })
+    }
+
+    if (kind === 'event') {
+      if (!eventId) return res.status(400).json({ error: 'eventId is required' })
+      const event = (await listEvents(communityId, userId)).find((item) => item.id === eventId)
+      if (!event) return res.status(404).json({ error: 'Event not found' })
+      if (event.registered) return res.status(409).json({ error: 'Event already registered' })
+    }
+
     const invoice = await createInvoice(communityId, {
       title,
       description: req.body?.description,

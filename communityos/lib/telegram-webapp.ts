@@ -27,6 +27,10 @@ export function getInitData(): string {
   return getTelegramWebApp()?.initData ?? ''
 }
 
+export function getStartParam(): string {
+  return getTelegramWebApp()?.initDataUnsafe?.start_param ?? ''
+}
+
 export function initTelegramShell() {
   const tg = getTelegramWebApp()
   tg?.ready?.()
