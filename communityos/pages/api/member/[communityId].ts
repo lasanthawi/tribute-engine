@@ -3,8 +3,8 @@ import { requireUser } from '@/lib/api-auth'
 import { getCommunity, getMemberProfile, listMembers } from '@/lib/communities'
 import { listEvents } from '@/lib/events'
 import { getReferralCampaignProgress } from '@/lib/growth'
-import { listPlans } from '@/lib/memberships'
-import { listProducts } from '@/lib/payments'
+import { listMemberSubscriptions, listPlans } from '@/lib/memberships'
+import { listMemberPurchases, listProducts } from '@/lib/payments'
 import { referralLink } from '@/lib/referrals'
 import { listRewards } from '@/lib/rewards'
 import { supabase } from '@/lib/supabase'
@@ -32,12 +32,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!community) return res.status(404).json({ error: 'Community not found' })
 
     await getMemberProfile(communityId, userId)
-    const [members, plans, rewards, events, products, referralProgress, activityRows] = await Promise.all([
+    const [members, plans, subscriptions, rewards, events, products, purchases, referralProgress, activityRows] = await Promise.all([
       optional('members', [], () => listMembers(communityId)),
       optional('plans', [], () => listPlans(communityId)),
+      optional('subscriptions', [], () => listMemberSubscriptions(communityId, userId)),
       optional('rewards', [], () => listRewards(communityId, userId)),
       optional('events', [], () => listEvents(communityId, userId)),
       optional('products', [], () => listProducts(communityId, userId)),
+      optional('purchases', [], () => listMemberPurchases(communityId, userId)),
       optional('referralProgress', [], () => getReferralCampaignProgress(communityId, userId)),
       optional('activity', { data: [], error: null, count: null, status: 200, statusText: 'OK', success: true } as any, async () => {
         return await supabase
@@ -87,6 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: plan.status,
         subscribers: plan.subscribers,
       })),
+      subscriptions,
       referralCampaigns: referralProgress.map((item) => ({
         ...item.campaign,
         metric: item.metric,
@@ -103,6 +106,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })),
       events,
       products,
+      purchases,
       activity: ((activityRows.data ?? []) as Array<{ id: number; title: string; event_type: string; created_at: string }>).map((event) => ({
         id: event.id,
         title: event.title,

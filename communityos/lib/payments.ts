@@ -1,7 +1,9 @@
 import { sb } from './supabase'
 import { creditCommunityXp } from './xp'
 import { signedAssetUrl } from './assets'
+import { ensureMember } from './communities'
 import { createOrUpdateSubscription, createSubscriptionPeriod } from './memberships'
+import type { PurchaseDto } from './api-client'
 
 // Telegram Stars are priced 1:1 in the invoice; we persist an approximate cash
 // value so revenue rolls up alongside manual/fiat plans. ~1 Star ≈ $0.013.
@@ -143,6 +145,92 @@ export async function archiveProduct(communityId: number, productId: number) {
   }
 }
 
+export async function unlockFreeProduct(communityId: number, userId: number, productId: number) {
+  const products = await listProducts(communityId, userId)
+  const product = products.find((item) => item.id === productId)
+  if (!product) return { ok: false as const, reason: 'Product not found' }
+  if (product.owned) return { ok: true as const, product }
+  if (product.priceStars > 0) return { ok: false as const, reason: 'Payment required' }
+
+  const { data: existing } = await sb
+    .from('purchases')
+    .select('id')
+    .eq('community_id', communityId)
+    .eq('buyer_user_id', userId)
+    .eq('product_id', productId)
+    .eq('status', 'paid')
+    .maybeSingle()
+
+  if (!existing?.id) {
+    await sb.from('purchases').insert({
+      community_id: communityId,
+      buyer_user_id: userId,
+      product_id: productId,
+      amount_stars: 0,
+      amount_cents: 0,
+      status: 'paid',
+      source: 'free_unlock',
+      paid_at: new Date().toISOString(),
+    })
+    await sb.from('community_activity_events').insert({
+      community_id: communityId,
+      user_id: userId,
+      event_type: 'product_unlocked',
+      title: `Unlocked ${product.title}`,
+      metadata: { productId },
+    })
+    await creditCommunityXp(communityId, userId, 15, 'product_unlock', { metadata: { productId } })
+  }
+
+  const [unlocked] = (await listProducts(communityId, userId)).filter((item) => item.id === productId)
+  return { ok: true as const, product: unlocked ?? { ...product, owned: true } }
+}
+
+export async function listMemberPurchases(communityId: number, userId: number): Promise<PurchaseDto[]> {
+  const { data: purchases, error } = await sb
+    .from('purchases')
+    .select('*')
+    .eq('community_id', communityId)
+    .eq('buyer_user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  if (error) throw error
+
+  const productIds = Array.from(new Set((purchases ?? []).map((row: any) => row.product_id).filter((id: unknown): id is number => typeof id === 'number')))
+  const eventIds = Array.from(new Set((purchases ?? []).map((row: any) => row.event_id).filter((id: unknown): id is number => typeof id === 'number')))
+  const planIds = Array.from(new Set((purchases ?? []).map((row: any) => row.plan_id).filter((id: unknown): id is number => typeof id === 'number')))
+
+  const [{ data: products }, { data: events }, { data: plans }] = await Promise.all([
+    productIds.length ? sb.from('payment_products').select('id, title').in('id', productIds) : Promise.resolve({ data: [] }),
+    eventIds.length ? sb.from('community_events').select('id, title').in('id', eventIds) : Promise.resolve({ data: [] }),
+    planIds.length ? sb.from('membership_plans').select('id, name').in('id', planIds) : Promise.resolve({ data: [] }),
+  ])
+
+  const productMap = new Map((products ?? []).map((row: any) => [row.id, row.title]))
+  const eventMap = new Map((events ?? []).map((row: any) => [row.id, row.title]))
+  const planMap = new Map((plans ?? []).map((row: any) => [row.id, row.name]))
+
+  return ((purchases ?? []) as any[]).map((row) => {
+    const kind: PurchaseDto['kind'] = row.plan_id ? 'membership' : row.product_id ? 'product' : row.event_id ? 'event' : 'stars'
+    const title = String(
+      row.plan_id ? planMap.get(row.plan_id) ?? 'Membership' :
+      row.product_id ? productMap.get(row.product_id) ?? 'Product' :
+      row.event_id ? eventMap.get(row.event_id) ?? 'Event' :
+      'Stars purchase'
+    )
+    return {
+      id: row.id,
+      kind,
+      title,
+      amountStars: row.amount_stars ?? 0,
+      amountCents: row.amount_cents ?? 0,
+      status: row.status,
+      paidAt: row.paid_at,
+      createdAt: row.created_at,
+    }
+  })
+}
+
 export interface CreateInvoiceInput {
   title: string
   description?: string
@@ -220,6 +308,7 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
   const eventId = invoice.event_id ?? (parsedEventId ? Number(parsedEventId) : null)
   const planId = invoice.plan_id ?? (parsedPlanId ? Number(parsedPlanId) : null)
   const amountCents = starsToCents(input.stars)
+  await ensureMember(communityId, input.buyerUserId, { accessStatus: planId ? 'granted' : 'pending', source: 'telegram_stars' })
 
   await sb
     .from('telegram_star_invoices')
@@ -291,12 +380,7 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
   })
 
   if (eventId) {
-    const { data: member } = await sb
-      .from('community_members')
-      .select('id')
-      .eq('community_id', communityId)
-      .eq('user_id', input.buyerUserId)
-      .maybeSingle()
+    const member = (await ensureMember(communityId, input.buyerUserId, { accessStatus: 'pending', source: 'event_payment' })) as any
     if (member?.id) {
       await sb
         .from('event_registrations')

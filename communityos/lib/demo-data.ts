@@ -239,8 +239,33 @@ export const demoMemberProfile: MemberProfileDto = {
     current: 2,
     claimable: false,
   })),
+  subscriptions: [
+    {
+      id: 1,
+      planId: demoDashboard.plans[0].id,
+      planName: demoDashboard.plans[0].name,
+      status: 'active',
+      interval: demoDashboard.plans[0].interval,
+      currentPeriodStart: new Date(now - day * 12).toISOString(),
+      currentPeriodEnd: new Date(now + day * 18).toISOString(),
+      paymentProvider: 'telegram_stars',
+      paymentReference: 'demo',
+    },
+  ],
   events: demoDashboard.events,
   products: demoDashboard.products,
+  purchases: [
+    {
+      id: 1,
+      kind: 'membership',
+      title: demoDashboard.plans[0].name,
+      amountStars: demoDashboard.plans[0].stars,
+      amountCents: demoDashboard.plans[0].priceCents,
+      status: 'paid',
+      paidAt: new Date(now - day * 12).toISOString(),
+      createdAt: new Date(now - day * 12).toISOString(),
+    },
+  ],
   activity: demoDashboard.activity,
 }
 

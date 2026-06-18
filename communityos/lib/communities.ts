@@ -118,9 +118,10 @@ export async function listMembers(communityId: number) {
   const { data: subs, error: subErr } = userIds.length
     ? await supabase
         .from('member_subscriptions')
-        .select('user_id, status, plan_id')
+        .select('user_id, status, plan_id, created_at')
         .eq('community_id', communityId)
         .in('user_id', userIds)
+        .order('created_at', { ascending: false })
     : { data: [] as { user_id: number; status: string; plan_id: number | null }[], error: null }
   if (subErr) throw subErr
 
@@ -146,7 +147,12 @@ export async function listMembers(communityId: number) {
   const userRows = (users ?? []) as Pick<UserRow, 'id' | 'username' | 'telegram_id'>[]
   const userMap = new Map(userRows.map((user) => [user.id, user]))
   const planMap = new Map((plans ?? []).map((plan) => [plan.id, plan.name]))
-  const subMap = new Map((subs ?? []).map((sub) => [sub.user_id, sub]))
+  const subscriptionRank = (status: string) => (status === 'active' ? 5 : status === 'trialing' ? 4 : status === 'past_due' ? 3 : status === 'expired' ? 2 : status === 'cancelled' ? 1 : 0)
+  const subMap = new Map<number, { user_id: number; status: string; plan_id: number | null }>()
+  for (const sub of subs ?? []) {
+    const current = subMap.get(sub.user_id)
+    if (!current || subscriptionRank(sub.status) > subscriptionRank(current.status)) subMap.set(sub.user_id, sub)
+  }
   const xpMap = new Map<number, number>()
   for (const row of xpRows ?? []) xpMap.set(row.user_id, (xpMap.get(row.user_id) ?? 0) + row.delta)
 

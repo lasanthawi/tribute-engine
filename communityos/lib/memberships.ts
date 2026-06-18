@@ -1,5 +1,6 @@
 import { MembershipPlanRow, sb, supabase } from './supabase'
 import { creditCommunityXp } from './xp'
+import type { SubscriptionDto } from './api-client'
 
 export interface CreatePlanInput {
   name: string
@@ -119,6 +120,86 @@ export async function createOrUpdateSubscription(
   }
 
   return data
+}
+
+export async function listMemberSubscriptions(communityId: number, userId: number): Promise<SubscriptionDto[]> {
+  const { data: subscriptions, error } = await supabase
+    .from('member_subscriptions')
+    .select('*')
+    .eq('community_id', communityId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+
+  const planIds = Array.from(new Set((subscriptions ?? []).map((sub: any) => sub.plan_id).filter((id: unknown): id is number => typeof id === 'number')))
+  const { data: plans, error: planError } = planIds.length
+    ? await supabase.from('membership_plans').select('id, name, interval').in('id', planIds)
+    : { data: [] as Array<{ id: number; name: string; interval: string }>, error: null }
+  if (planError) throw planError
+
+  const planMap = new Map((plans ?? []).map((plan) => [plan.id, plan]))
+  return ((subscriptions ?? []) as any[]).map((subscription) => {
+    const plan = subscription.plan_id ? planMap.get(subscription.plan_id) : null
+    return {
+      id: subscription.id,
+      planId: subscription.plan_id,
+      planName: plan?.name ?? null,
+      status: subscription.status,
+      interval: plan?.interval ?? null,
+      currentPeriodStart: subscription.current_period_start,
+      currentPeriodEnd: subscription.current_period_end,
+      paymentProvider: subscription.payment_provider,
+      paymentReference: subscription.payment_reference,
+    }
+  })
+}
+
+export async function cancelMemberSubscription(communityId: number, userId: number, subscriptionId: number) {
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('member_subscriptions')
+    .update({ status: 'cancelled', updated_at: now })
+    .eq('id', subscriptionId)
+    .eq('community_id', communityId)
+    .eq('user_id', userId)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  await supabase
+    .from('community_members')
+    .update({ access_status: 'revoked', last_active_at: now })
+    .eq('community_id', communityId)
+    .eq('user_id', userId)
+
+  await sb.from('renewal_events').insert({
+    community_id: communityId,
+    member_subscription_id: subscriptionId,
+    status: 'cancelled',
+    message: 'Member cancelled subscription from dashboard.',
+  })
+  await sb.from('community_activity_events').insert({
+    community_id: communityId,
+    user_id: userId,
+    event_type: 'subscription_cancelled',
+    title: 'Subscription cancelled',
+    metadata: { subscriptionId },
+  })
+
+  const cancelled = data as any
+  const subscriptions = await listMemberSubscriptions(communityId, userId)
+  const subscription = subscriptions.find((item) => item.id === cancelled.id)
+  return subscription ?? {
+    id: cancelled.id,
+    planId: cancelled.plan_id,
+    planName: null,
+    status: cancelled.status,
+    interval: null,
+    currentPeriodStart: cancelled.current_period_start,
+    currentPeriodEnd: cancelled.current_period_end,
+    paymentProvider: cancelled.payment_provider,
+    paymentReference: cancelled.payment_reference,
+  }
 }
 
 export async function createSubscriptionPeriod(opts: {

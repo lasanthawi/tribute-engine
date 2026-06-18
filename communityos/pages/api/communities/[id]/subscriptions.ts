@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
 import { createOrUpdateSubscription } from '@/lib/memberships'
+import { grantMemberAccess, revokeMemberAccess } from '@/lib/access-control'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -27,6 +28,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? status
         : 'active'
     )
+    if (subscription.status === 'active' || subscription.status === 'trialing') {
+      await grantMemberAccess(communityId, userId)
+    }
+    if (subscription.status === 'expired' || subscription.status === 'cancelled') {
+      await revokeMemberAccess(communityId, userId)
+    }
     res.status(201).json({ subscription })
   } catch (error) {
     console.error('communities/[id]/subscriptions error:', error)

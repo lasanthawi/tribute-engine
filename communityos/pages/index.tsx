@@ -11,8 +11,10 @@ import {
   MemberRowDto,
   PlanDto,
   ProductDto,
+  PurchaseDto,
   ReferralCampaignDto,
   RewardRuleDto,
+  SubscriptionDto,
   TelegramChatDto,
   api,
   emptyDashboardForCommunity,
@@ -715,7 +717,15 @@ export default function Home() {
       }
 
       if (product.priceStars <= 0) {
-        showToast('Free product unlock is not configured yet')
+        const result = await api.unlockFreeProduct(communityId, product.id)
+        await refreshMemberDashboard()
+        if (result.product.deliveryUrl) {
+          await copyText(result.product.deliveryUrl).catch(() => false)
+          openExternalLink(result.product.deliveryUrl)
+        } else if (result.product.deliveryText) {
+          await copyText(result.product.deliveryText).catch(() => false)
+        }
+        showToast('Product unlocked')
         return
       }
 
@@ -803,6 +813,19 @@ export default function Home() {
       }
     } catch (error: any) {
       showToast(error.message || 'Event registration failed')
+    }
+  }
+
+  async function cancelSubscription(subscription: SubscriptionDto) {
+    if (!communityId) return
+    const confirmed = window.confirm(`Cancel ${subscription.planName ?? 'this subscription'}? Access will be revoked.`)
+    if (!confirmed) return
+    try {
+      await api.cancelSubscription(communityId, subscription.id)
+      await refreshMemberDashboard()
+      showToast('Subscription cancelled')
+    } catch (error: any) {
+      showToast(error.message || 'Subscription cancellation failed')
     }
   }
 
@@ -912,11 +935,14 @@ export default function Home() {
             data={data}
             member={member}
             checkoutIntent={checkoutIntent}
+            subscriptions={memberProfile?.subscriptions ?? []}
+            purchases={memberProfile?.purchases ?? []}
             onReferral={copyReferralLink}
             onSupport={openSupport}
             onBuyPlan={buyPlan}
             onBuyProduct={buyProduct}
             onEvent={registerOrBuyEvent}
+            onCancelSubscription={cancelSubscription}
             onToast={showToast}
           />
         </AppFrame>
@@ -2226,24 +2252,33 @@ function MemberHome({
   data,
   member,
   checkoutIntent,
+  subscriptions,
+  purchases,
   onReferral,
   onSupport,
   onBuyPlan,
   onBuyProduct,
   onEvent,
+  onCancelSubscription,
   onToast,
 }: {
   data: DashboardDto
   member?: MemberRowDto
   checkoutIntent: CheckoutIntent
+  subscriptions: SubscriptionDto[]
+  purchases: PurchaseDto[]
   onReferral: () => void
   onSupport: () => void
   onBuyPlan: (plan: PlanDto) => void
   onBuyProduct: (product: ProductDto) => void
   onEvent: (event: EventDto) => void
+  onCancelSubscription: (subscription: SubscriptionDto) => void
   onToast: (message: string) => void
 }) {
   const progress = member ? Math.min(100, Math.round((member.xp % 1200) / 12)) : 0
+  const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === 'active' || subscription.status === 'trialing' || subscription.status === 'past_due')
+  const unlockedProducts = data.products.filter((product) => product.owned)
+  const registeredEvents = data.events.filter((event) => event.registered)
   const checkoutPlan = checkoutIntent?.kind === 'plan' ? data.plans.find((plan) => plan.id === checkoutIntent.id) ?? null : null
   const checkoutProduct = checkoutIntent?.kind === 'product' ? data.products.find((product) => product.id === checkoutIntent.id) ?? null : null
   const checkoutEvent = checkoutIntent?.kind === 'event' ? data.events.find((event) => event.id === checkoutIntent.id) ?? null : null
@@ -2310,6 +2345,45 @@ function MemberHome({
         <ListRow tone="green" icon="R" title="Referral Link" detail="Invite friends and unlock rewards" onClick={onReferral} />
         <ListRow tone="amber" icon="XP" title="Rewards" detail={`${data.rewards.length} available`} />
       </ListGroup>
+      <SectionLabel>Your Access</SectionLabel>
+      <ListGroup>
+        {activeSubscriptions.map((subscription) => (
+          <ListRow
+            key={subscription.id}
+            tone={subscription.status === 'past_due' ? 'amber' : 'green'}
+            icon="S"
+            title={subscription.planName ?? 'Membership'}
+            detail={`${subscription.status}${subscription.currentPeriodEnd ? ` · until ${dateShort(subscription.currentPeriodEnd)}` : ''}`}
+            meta={subscription.status === 'past_due' ? 'Renew' : 'Manage'}
+            onClick={() => onCancelSubscription(subscription)}
+          />
+        ))}
+        {unlockedProducts.slice(0, 3).map((product) => (
+          <ListRow
+            key={`product-${product.id}`}
+            tone="red"
+            icon="D"
+            title={product.title}
+            detail={product.deliveryUrl ? 'Unlocked link available' : product.deliveryText ? 'Delivery instructions available' : 'Unlocked'}
+            meta="Open"
+            onClick={() => onBuyProduct(product)}
+          />
+        ))}
+        {registeredEvents.slice(0, 3).map((event) => (
+          <ListRow
+            key={`event-${event.id}`}
+            tone="purple"
+            icon="E"
+            title={event.title}
+            detail={`Registered · ${dateShort(event.startsAt)}`}
+            meta={event.accessLink ? 'Open' : 'Ready'}
+            onClick={() => onEvent(event)}
+          />
+        ))}
+        {activeSubscriptions.length === 0 && unlockedProducts.length === 0 && registeredEvents.length === 0 && (
+          <EmptyBlock title="Nothing unlocked yet" detail="Subscriptions, products, and event tickets will appear here after checkout." />
+        )}
+      </ListGroup>
       <SectionLabel>Memberships</SectionLabel>
       <ListGroup>
         {data.plans.map((plan) => (
@@ -2318,8 +2392,8 @@ function MemberHome({
             tone="blue"
             icon="M"
             title={plan.name}
-            detail={plan.description ?? `${plan.interval} membership`}
-            meta={`${plan.stars || Math.round(plan.priceCents / 10)} XTR`}
+            detail={activeSubscriptions.some((subscription) => subscription.planId === plan.id && subscription.status === 'active') ? 'Active subscription' : plan.description ?? `${plan.interval} membership`}
+            meta={activeSubscriptions.some((subscription) => subscription.planId === plan.id && subscription.status === 'active') ? 'Active' : `${plan.stars || Math.round(plan.priceCents / 10)} XTR`}
             onClick={() => onBuyPlan(plan)}
           />
         ))}
@@ -2368,6 +2442,20 @@ function MemberHome({
           />
         ))}
         {data.referralCampaigns.length === 0 && <EmptyBlock title="No referral rewards yet" detail="Invite rewards from this community will appear here." />}
+      </ListGroup>
+      <SectionLabel>Payment History</SectionLabel>
+      <ListGroup>
+        {purchases.slice(0, 5).map((purchase) => (
+          <ListRow
+            key={purchase.id}
+            tone={purchase.kind === 'event' ? 'purple' : purchase.kind === 'product' ? 'red' : 'blue'}
+            icon={purchase.kind === 'event' ? 'E' : purchase.kind === 'product' ? 'D' : 'M'}
+            title={purchase.title}
+            detail={`${purchase.status}${purchase.paidAt ? ` · ${dateShort(purchase.paidAt)}` : ''}`}
+            meta={purchase.amountStars > 0 ? `${purchase.amountStars} XTR` : 'Free'}
+          />
+        ))}
+        {purchases.length === 0 && <EmptyBlock title="No payments yet" detail="Stars payments and free unlocks will appear here." />}
       </ListGroup>
       <FixedButton label="Get Support" onClick={onSupport} />
     </section>

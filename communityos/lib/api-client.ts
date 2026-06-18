@@ -191,6 +191,29 @@ export interface ProductDto {
   owned?: boolean
 }
 
+export interface SubscriptionDto {
+  id: number
+  planId: number | null
+  planName: string | null
+  status: string
+  interval: string | null
+  currentPeriodStart: string | null
+  currentPeriodEnd: string | null
+  paymentProvider: string
+  paymentReference: string | null
+}
+
+export interface PurchaseDto {
+  id: number
+  kind: 'membership' | 'product' | 'event' | 'stars'
+  title: string
+  amountStars: number
+  amountCents: number
+  status: string
+  paidAt: string | null
+  createdAt: string
+}
+
 export interface DashboardDto {
   community: CommunitySummaryDto
   setup: SetupStepDto[]
@@ -229,9 +252,11 @@ export interface MemberProfileDto {
   referralLink: string | null
   referralCampaigns: ReferralCampaignDto[]
   plans: PlanDto[]
+  subscriptions: SubscriptionDto[]
   rewards: RewardDto[]
   events: EventDto[]
   products: ProductDto[]
+  purchases: PurchaseDto[]
   activity: ActivityDto[]
 }
 
@@ -412,6 +437,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ action: 'register', eventId }),
     }),
+  cancelSubscription: (communityId: number | string, subscriptionId: number) =>
+    request<{ ok: boolean; subscription: SubscriptionDto }>(`/api/member/${communityId}/subscriptions`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'cancel', subscriptionId }),
+    }),
   shareEventCard: (communityId: number | string, body: { eventId: number; buttonText?: string }) =>
     request<{ ok: boolean; target: 'community_chat' | 'owner_chat'; url: string }>(`/api/communities/${communityId}/events/share`, {
       method: 'POST',
@@ -440,6 +470,11 @@ export const api = {
     request<{ ok: boolean; target: 'community_chat' | 'owner_chat'; url: string }>(`/api/communities/${communityId}/products/share`, {
       method: 'POST',
       body: JSON.stringify(body),
+    }),
+  unlockFreeProduct: (communityId: number | string, productId: number) =>
+    request<{ ok: boolean; product: ProductDto }>(`/api/member/${communityId}/products`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'unlock_free', productId }),
     }),
   getMemberProfile: (communityId: number | string) => request<MemberProfileDto>(`/api/member/${communityId}`),
   claimReward: (communityId: number | string, rewardId: number) =>
