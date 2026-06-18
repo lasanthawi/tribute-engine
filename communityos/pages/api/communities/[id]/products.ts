@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
-import { createProduct, listProducts } from '@/lib/payments'
+import { archiveProduct, createProduct, listProducts } from '@/lib/payments'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userId = await requireUser(req, res)
@@ -18,13 +18,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ products: await listProducts(communityId) })
     }
     if (req.method === 'POST') {
-      const { title, type, priceStars } = req.body ?? {}
+      const { title, type, priceStars, description, buttonText, coverPath, deliveryType, deliveryText, deliveryUrl, filePath, fileName } = req.body ?? {}
       if (!title || typeof title !== 'string') return res.status(400).json({ error: 'title is required' })
-      const product = await createProduct(communityId, { title, type, priceStars: Number(priceStars ?? 0) })
+      const product = await createProduct(communityId, {
+        title,
+        type,
+        priceStars: Number(priceStars ?? 0),
+        description: typeof description === 'string' ? description : undefined,
+        buttonText: typeof buttonText === 'string' ? buttonText : undefined,
+        coverPath: typeof coverPath === 'string' ? coverPath : null,
+        deliveryType,
+        deliveryText: typeof deliveryText === 'string' ? deliveryText : undefined,
+        deliveryUrl: typeof deliveryUrl === 'string' ? deliveryUrl : undefined,
+        filePath: typeof filePath === 'string' ? filePath : null,
+        fileName: typeof fileName === 'string' ? fileName : null,
+        status: 'active',
+      })
       return res.status(201).json({ product })
     }
+    if (req.method === 'DELETE') {
+      const productId = Number(req.query.productId ?? req.body?.productId)
+      if (!Number.isFinite(productId)) return res.status(400).json({ error: 'productId is required' })
+      return res.status(200).json({ ok: true, product: await archiveProduct(communityId, productId) })
+    }
 
-    res.setHeader('Allow', ['GET', 'POST'])
+    res.setHeader('Allow', ['GET', 'POST', 'DELETE'])
     return res.status(405).json({ error: 'Method not allowed' })
   } catch (error) {
     console.error('communities/[id]/products error:', error)

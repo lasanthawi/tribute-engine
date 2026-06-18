@@ -17,9 +17,10 @@ import {
   emptyDashboardForCommunity,
   money,
 } from '@/lib/api-client'
-import { copyText, getInitData, haptic, initTelegramShell, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
+import { copyText, getInitData, haptic, initTelegramShell, openExternalLink, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
 
 type Mode = 'publisher' | 'member'
+type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
 type Screen =
   | 'intro'
   | 'start'
@@ -35,6 +36,11 @@ type Screen =
   | 'payments'
   | 'publish'
   | 'shareGuide'
+  | 'productBuilder'
+  | 'productPublish'
+  | 'eventBuilder'
+  | 'eventPublish'
+  | 'referralBuilder'
 
 const introSlides = [
   {
@@ -66,6 +72,7 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [pendingModel, setPendingModel] = useState<RevenueModel>('membership')
   const [membershipTitle, setMembershipTitle] = useState('Premium Circle')
   const [membershipDescription, setMembershipDescription] = useState(
     'Get private Telegram access, weekly sessions, and member-only resources.'
@@ -78,6 +85,29 @@ export default function Home() {
   const [createdPlan, setCreatedPlan] = useState<PlanDto | null>(null)
   const [campaignTitle, setCampaignTitle] = useState('Invite 3 members')
   const [rewardTitle, setRewardTitle] = useState('Founding Member Badge')
+  const [productTitle, setProductTitle] = useState('Premium Download')
+  const [productDescription, setProductDescription] = useState('A paid resource for your Telegram community.')
+  const [productType, setProductType] = useState<ProductDto['type']>('download')
+  const [productPriceStars, setProductPriceStars] = useState('199')
+  const [productButtonText, setProductButtonText] = useState('Buy')
+  const [productDeliveryType, setProductDeliveryType] = useState<ProductDto['deliveryType']>('url')
+  const [productDeliveryText, setProductDeliveryText] = useState('Access instructions will appear after purchase.')
+  const [productDeliveryUrl, setProductDeliveryUrl] = useState('')
+  const [productCover, setProductCover] = useState<{ path: string | null; preview: string | null; name: string | null }>({ path: null, preview: null, name: null })
+  const [productFile, setProductFile] = useState<{ path: string | null; name: string | null }>({ path: null, name: null })
+  const [createdProduct, setCreatedProduct] = useState<ProductDto | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<ProductDto | null>(null)
+  const [eventTitle, setEventTitle] = useState('Live Community Session')
+  const [eventDescription, setEventDescription] = useState('Join us live inside Telegram.')
+  const [eventType, setEventType] = useState<EventDto['type']>('webinar')
+  const [eventStartsAt, setEventStartsAt] = useState(() => new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16))
+  const [eventPriceStars, setEventPriceStars] = useState('0')
+  const [eventAccessLink, setEventAccessLink] = useState('')
+  const [eventCover, setEventCover] = useState<{ path: string | null; preview: string | null; name: string | null }>({ path: null, preview: null, name: null })
+  const [createdEvent, setCreatedEvent] = useState<EventDto | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<EventDto | null>(null)
+  const [referralThreshold, setReferralThreshold] = useState('3')
+  const [referralReward, setReferralReward] = useState('Unlock bonus content')
 
   useEffect(() => {
     if (!router.isReady) return
@@ -157,6 +187,8 @@ export default function Home() {
 
   const member = memberProfile?.member ?? data?.members[0]
   const activePlan = createdPlan ?? data?.plans[0] ?? null
+  const activeProduct = selectedProduct ?? createdProduct ?? data?.products[0] ?? null
+  const activeEvent = selectedEvent ?? createdEvent ?? data?.events[0] ?? null
   const nextSetupStep = data?.setup.find((step) => step.status !== 'done') ?? null
   const filteredCommunities = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -180,9 +212,18 @@ export default function Home() {
       const dashboard = await api.getDashboard(id)
       setCommunityId(id)
       setData(normalizeDashboard(dashboard))
-      setScreen('home')
+      setScreen(screenForModel(pendingModel))
     } catch (error: any) {
       showToast(error.message || 'Community could not be loaded')
+    }
+  }
+
+  function chooseRevenueModel(model: RevenueModel) {
+    setPendingModel(model)
+    if (data && communityId) {
+      go(screenForModel(model))
+    } else {
+      go('communities')
     }
   }
 
@@ -242,6 +283,52 @@ export default function Home() {
     reader.readAsDataURL(file)
   }
 
+  async function uploadAssetFile(file: File | null, assetType: 'cover' | 'delivery') {
+    if (!file || !communityId) return null
+    const dataUrl = await readFileAsDataUrl(file)
+    const { asset } = await api.uploadAsset(communityId, {
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      dataUrl,
+      assetType,
+    })
+    return { asset, dataUrl }
+  }
+
+  async function handleProductCover(file: File | null) {
+    try {
+      const result = await uploadAssetFile(file, 'cover')
+      if (!result) return
+      setProductCover({ path: result.asset.path, preview: result.asset.url ?? result.dataUrl, name: result.asset.fileName })
+      showToast('Product cover uploaded')
+    } catch (error: any) {
+      showToast(error.message || 'Upload failed')
+    }
+  }
+
+  async function handleProductFile(file: File | null) {
+    try {
+      const result = await uploadAssetFile(file, 'delivery')
+      if (!result) return
+      setProductFile({ path: result.asset.path, name: result.asset.fileName })
+      setProductDeliveryType('file')
+      showToast('Delivery file uploaded')
+    } catch (error: any) {
+      showToast(error.message || 'Upload failed')
+    }
+  }
+
+  async function handleEventCover(file: File | null) {
+    try {
+      const result = await uploadAssetFile(file, 'cover')
+      if (!result) return
+      setEventCover({ path: result.asset.path, preview: result.asset.url ?? result.dataUrl, name: result.asset.fileName })
+      showToast('Event cover uploaded')
+    } catch (error: any) {
+      showToast(error.message || 'Upload failed')
+    }
+  }
+
   async function deleteMembershipPackage() {
     if (!communityId || !activePlan) {
       showToast('No membership package selected')
@@ -277,6 +364,109 @@ export default function Home() {
     }
   }
 
+  async function createProductOffer(event?: FormEvent) {
+    event?.preventDefault()
+    if (!communityId || !data || !productTitle.trim()) return
+    try {
+      const { product } = await api.createProduct(communityId, {
+        title: productTitle.trim(),
+        type: productType,
+        description: productDescription.trim(),
+        buttonText: productButtonText.trim() || 'Buy',
+        priceStars: Math.max(0, Number(productPriceStars || 0)),
+        coverPath: productCover.path,
+        deliveryType: productDeliveryType,
+        deliveryText: productDeliveryText.trim(),
+        deliveryUrl: productDeliveryUrl.trim(),
+        filePath: productFile.path,
+        fileName: productFile.name,
+      })
+      setCreatedProduct(product)
+      setSelectedProduct(product)
+      setData({ ...data, products: [product, ...data.products] })
+      setScreen('productPublish')
+      showToast('Product created')
+    } catch (error: any) {
+      showToast(error.message || 'Product creation failed')
+    }
+  }
+
+  async function shareProductCard() {
+    if (!communityId || !activeProduct) return showToast('Create a product first')
+    try {
+      const result = await api.shareProductCard(communityId, { productId: activeProduct.id, buttonText: activeProduct.buttonText ?? productButtonText })
+      await copyText(result.url).catch(() => false)
+      showToast(result.target === 'community_chat' ? 'Product card sent to community' : 'Product card sent to bot chat')
+    } catch (error: any) {
+      showToast(error.message || 'Product share failed')
+    }
+  }
+
+  async function deleteProductOffer() {
+    if (!communityId || !activeProduct) return
+    try {
+      await api.deleteProduct(communityId, activeProduct.id)
+      await refreshDashboard()
+      setCreatedProduct((product) => (product?.id === activeProduct.id ? null : product))
+      setSelectedProduct(null)
+      setScreen('home')
+      showToast('Product deleted')
+    } catch (error: any) {
+      showToast(error.message || 'Delete failed')
+    }
+  }
+
+  async function createEventOffer(event?: FormEvent) {
+    event?.preventDefault()
+    if (!communityId || !data || !eventTitle.trim()) return
+    try {
+      const { event: created } = await api.createEvent(communityId, {
+        title: eventTitle.trim(),
+        type: eventType,
+        description: eventDescription.trim(),
+        startsAt: new Date(eventStartsAt).toISOString(),
+        priceStars: Math.max(0, Number(eventPriceStars || 0)),
+        coverPath: eventCover.path,
+        accessLink: eventAccessLink.trim(),
+      })
+      setCreatedEvent(created)
+      setSelectedEvent(created)
+      setData({ ...data, events: [created, ...data.events] })
+      setScreen('eventPublish')
+      showToast('Event created')
+    } catch (error: any) {
+      showToast(error.message || 'Event creation failed')
+    }
+  }
+
+  async function shareEventCard() {
+    if (!communityId || !activeEvent) return showToast('Create an event first')
+    try {
+      const result = await api.shareEventCard(communityId, {
+        eventId: activeEvent.id,
+        buttonText: activeEvent.priceStars ? 'Get Ticket' : 'Register',
+      })
+      await copyText(result.url).catch(() => false)
+      showToast(result.target === 'community_chat' ? 'Event card sent to community' : 'Event card sent to bot chat')
+    } catch (error: any) {
+      showToast(error.message || 'Event share failed')
+    }
+  }
+
+  async function deleteEventOffer() {
+    if (!communityId || !activeEvent) return
+    try {
+      await api.deleteEvent(communityId, activeEvent.id)
+      await refreshDashboard()
+      setCreatedEvent((event) => (event?.id === activeEvent.id ? null : event))
+      setSelectedEvent(null)
+      setScreen('home')
+      showToast('Event deleted')
+    } catch (error: any) {
+      showToast(error.message || 'Delete failed')
+    }
+  }
+
   async function grantAccess(row: MemberRowDto) {
     if (!communityId) return
     try {
@@ -304,13 +494,16 @@ export default function Home() {
     if (!data || !communityId || !campaignTitle.trim()) return
     const body = {
       title: campaignTitle.trim(),
-      reward: 'Unlock bonus content after 3 activated invites',
+      reward: referralReward.trim() || 'Unlock bonus content',
+      threshold: Math.max(1, Number(referralThreshold || 3)),
+      metric: 'joins' as const,
       status: 'active' as const,
     }
     try {
       const { campaign } = await api.createReferralCampaign(communityId, body)
       setData({ ...data, referralCampaigns: [campaign, ...data.referralCampaigns] })
       setCampaignTitle('')
+      setScreen('growth')
       showToast('Referral campaign created')
     } catch (error: any) {
       showToast(error.message || 'Campaign creation failed')
@@ -435,6 +628,27 @@ export default function Home() {
   async function buyProduct(product: ProductDto) {
     if (!communityId || !data) return
     try {
+      if (product.owned) {
+        if (product.deliveryUrl) {
+          await copyText(product.deliveryUrl).catch(() => false)
+          openExternalLink(product.deliveryUrl)
+          showToast('Product access opened')
+          return
+        }
+        if (product.deliveryText) {
+          await copyText(product.deliveryText).catch(() => false)
+          showToast('Delivery instructions copied')
+          return
+        }
+        showToast('Product already unlocked')
+        return
+      }
+
+      if (product.priceStars <= 0) {
+        showToast('Free product delivery is not configured yet')
+        return
+      }
+
       const response = await api.createInvoice(communityId, {
         title: product.title,
         description: `${product.title} from ${data.community.name}`,
@@ -449,6 +663,42 @@ export default function Home() {
       }
     } catch (error: any) {
       showToast(error.message || 'Invoice creation failed')
+    }
+  }
+
+  async function registerOrBuyEvent(event: EventDto) {
+    if (!communityId || !data) return
+    try {
+      if (event.priceStars > 0 && !event.registered) {
+        const response = await api.createInvoice(communityId, {
+          title: event.title,
+          description: `${event.title} from ${data.community.name}`,
+          stars: event.priceStars,
+          eventId: event.id,
+        })
+        if (response.invoice.invoiceLink) {
+          openInvoiceLink(response.invoice.invoiceLink, (status) => showToast(`Payment ${status}`))
+          showToast('Opening Telegram invoice')
+        } else {
+          showToast('Invoice stored, but bot invoice link is not configured')
+        }
+        return
+      }
+      if (!event.registered) {
+        await api.registerEvent(communityId, event.id)
+        const profile = await api.getMemberProfile(communityId)
+        setMemberProfile(profile)
+        setData(dashboardFromMemberProfile(profile))
+        showToast('Event registered')
+      } else if (event.accessLink) {
+        await copyText(event.accessLink).catch(() => false)
+        openExternalLink(event.accessLink)
+        showToast('Event access opened')
+      } else {
+        showToast('Event registered')
+      }
+    } catch (error: any) {
+      showToast(error.message || 'Event registration failed')
     }
   }
 
@@ -514,7 +764,7 @@ export default function Home() {
             menuCommunityId={communityId ?? 1}
             onBack={() => { if (screen === 'communities') go('start') }}
           >
-            {screen === 'start' && <StartPicker onSelect={go} />}
+            {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
             {screen === 'communities' && (
               <CommunityPicker
                 communities={filteredCommunities}
@@ -546,7 +796,7 @@ export default function Home() {
 
       {mode === 'member' ? (
         <AppFrame title="CommunityOS" subtitle="member app" hideBack={screen === 'home'} onBack={() => go('home')} menuCommunityId={communityId ?? 1}>
-          <MemberHome data={data} member={member} onReferral={copyReferralLink} onSupport={openSupport} onBuyProduct={buyProduct} />
+          <MemberHome data={data} member={member} onReferral={copyReferralLink} onSupport={openSupport} onBuyProduct={buyProduct} onEvent={registerOrBuyEvent} onToast={showToast} />
         </AppFrame>
       ) : screen === 'intro' ? (
         <IntroScreen
@@ -585,11 +835,16 @@ export default function Home() {
               payments: 'preview',
               publish: 'home',
               shareGuide: 'publish',
+              productBuilder: 'home',
+              productPublish: 'productBuilder',
+              eventBuilder: 'home',
+              eventPublish: 'eventBuilder',
+              referralBuilder: 'growth',
             }
             go(previous[screen])
           }}
         >
-          {screen === 'start' && <StartPicker onSelect={go} />}
+          {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
           {screen === 'communities' && (
             <CommunityPicker
               communities={filteredCommunities}
@@ -606,6 +861,17 @@ export default function Home() {
               onNavigate={go}
               onCreateMembership={() => go('createDetails')}
               onShareCommunity={shareCommunity}
+              onSelectModel={chooseRevenueModel}
+              onOpenProduct={(product) => {
+                setSelectedProduct(product)
+                setCreatedProduct(null)
+                go('productPublish')
+              }}
+              onOpenEvent={(event) => {
+                setSelectedEvent(event)
+                setCreatedEvent(null)
+                go('eventPublish')
+              }}
             />
           )}
           {screen === 'members' && <MembersScreen members={data.members} onGrant={grantAccess} onRevoke={revokeAccess} />}
@@ -632,8 +898,94 @@ export default function Home() {
             <MoreScreen
               data={data}
               onToast={showToast}
-              onCreateEvent={createEventDraft}
-              onCreateProduct={createProductDraft}
+              onCreateEvent={() => go('eventBuilder')}
+              onCreateProduct={() => go('productBuilder')}
+            />
+          )}
+          {screen === 'productBuilder' && (
+            <ProductBuilderScreen
+              title={productTitle}
+              description={productDescription}
+              type={productType}
+              priceStars={productPriceStars}
+              buttonText={productButtonText}
+              deliveryType={productDeliveryType ?? 'none'}
+              deliveryText={productDeliveryText}
+              deliveryUrl={productDeliveryUrl}
+              cover={productCover}
+              file={productFile}
+              onTitle={setProductTitle}
+              onDescription={setProductDescription}
+              onType={setProductType}
+              onPriceStars={setProductPriceStars}
+              onButtonText={setProductButtonText}
+              onDeliveryType={setProductDeliveryType}
+              onDeliveryText={setProductDeliveryText}
+              onDeliveryUrl={setProductDeliveryUrl}
+              onCoverFile={handleProductCover}
+              onDeliveryFile={handleProductFile}
+              onCancel={() => go('home')}
+              onSubmit={createProductOffer}
+            />
+          )}
+          {screen === 'productPublish' && activeProduct && (
+            <RevenuePublishScreen
+              kind="product"
+              title={activeProduct.title}
+              description={activeProduct.description ?? productDescription}
+              price={`${activeProduct.priceStars} XTR`}
+              coverUrl={activeProduct.coverUrl ?? productCover.preview}
+              primaryLabel="Share Product"
+              onEdit={() => go('productBuilder')}
+              onShare={shareProductCard}
+              onDelete={deleteProductOffer}
+              onToast={showToast}
+            />
+          )}
+          {screen === 'eventBuilder' && (
+            <EventBuilderScreen
+              title={eventTitle}
+              description={eventDescription}
+              type={eventType}
+              startsAt={eventStartsAt}
+              priceStars={eventPriceStars}
+              accessLink={eventAccessLink}
+              cover={eventCover}
+              onTitle={setEventTitle}
+              onDescription={setEventDescription}
+              onType={setEventType}
+              onStartsAt={setEventStartsAt}
+              onPriceStars={setEventPriceStars}
+              onAccessLink={setEventAccessLink}
+              onCoverFile={handleEventCover}
+              onCancel={() => go('home')}
+              onSubmit={createEventOffer}
+            />
+          )}
+          {screen === 'eventPublish' && activeEvent && (
+            <RevenuePublishScreen
+              kind="event"
+              title={activeEvent.title}
+              description={activeEvent.description ?? eventDescription}
+              price={activeEvent.priceStars ? `${activeEvent.priceStars} XTR` : 'Free'}
+              coverUrl={activeEvent.coverUrl ?? eventCover.preview}
+              primaryLabel="Share Event"
+              onEdit={() => go('eventBuilder')}
+              onShare={shareEventCard}
+              onDelete={deleteEventOffer}
+              onToast={showToast}
+            />
+          )}
+          {screen === 'referralBuilder' && (
+            <ReferralBuilderScreen
+              campaignTitle={campaignTitle}
+              threshold={referralThreshold}
+              reward={referralReward}
+              onCampaignTitle={setCampaignTitle}
+              onThreshold={setReferralThreshold}
+              onReward={setReferralReward}
+              onCancel={() => go('growth')}
+              onSubmit={createCampaign}
             />
           )}
           {screen === 'createDetails' && (
@@ -758,18 +1110,18 @@ function IntroScreen({ index, onBack, onNext, menuCommunityId }: { index: number
   )
 }
 
-function StartPicker({ onSelect }: { onSelect: (screen: Screen) => void }) {
+function StartPicker({ onSelect, onSelectModel }: { onSelect: (screen: Screen) => void; onSelectModel: (model: RevenueModel) => void }) {
   return (
     <section className="tg-screen centered">
       <div className="tg-hero-mark">CO</div>
       <h1>Where would you like to start?</h1>
       <p className="tg-subtitle">Pick the first thing you want to launch. You can add other formats later.</p>
       <ListGroup>
-        <ListRow tone="blue" icon="M" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelect('communities')} />
-        <ListRow tone="red" icon="D" title="Digital Product" detail="Sell courses, files, downloads, or guides." onClick={() => onSelect('communities')} />
-        <ListRow tone="purple" icon="E" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelect('communities')} />
-        <ListRow tone="green" icon="R" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelect('communities')} />
-        <ListRow tone="amber" icon="AI" title="AI Community Manager" detail="Automate FAQ, welcome messages, and reports." onClick={() => onSelect('communities')} />
+        <ListRow tone="blue" icon="M" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelectModel('membership')} />
+        <ListRow tone="red" icon="D" title="Digital Product" detail="Sell courses, files, downloads, or guides." onClick={() => onSelectModel('product')} />
+        <ListRow tone="purple" icon="E" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelectModel('event')} />
+        <ListRow tone="green" icon="R" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelectModel('referral')} />
+        <ListRow tone="amber" icon="AI" title="AI Community Manager" detail="Automate FAQ, welcome messages, and reports." onClick={() => onSelectModel('ai')} />
       </ListGroup>
       <button className="tg-link-button" type="button" onClick={() => onSelect('communities')}>
         I will choose later
@@ -821,19 +1173,25 @@ function CommunityHome({
   onNavigate,
   onCreateMembership,
   onShareCommunity,
+  onSelectModel,
+  onOpenProduct,
+  onOpenEvent,
 }: {
   data: DashboardDto
   nextSetupStep: DashboardDto['setup'][number] | null
   onNavigate: (screen: Screen) => void
   onCreateMembership: () => void
   onShareCommunity: () => void
+  onSelectModel: (model: RevenueModel) => void
+  onOpenProduct: (product: ProductDto) => void
+  onOpenEvent: (event: EventDto) => void
 }) {
   return (
     <section className="tg-screen with-fixed-button">
       <CommunityHeader data={data} />
       <div className="tg-action-grid">
         <ActionTile label="Membership" icon="plus" onClick={onCreateMembership} />
-        <ActionTile label="Statistics" icon="stats" onClick={() => onNavigate('members')} />
+        <ActionTile label="Product" icon="link" onClick={() => onSelectModel('product')} />
         <ActionTile label="More" icon="more" onClick={() => onNavigate('more')} />
       </div>
 
@@ -862,6 +1220,38 @@ function CommunityHome({
           />
         ))}
         {data.plans.length === 0 && <EmptyBlock title="Transactions will appear here" detail="Create a membership or product to get the money flowing." />}
+      </ListGroup>
+
+      <SectionLabel>Products</SectionLabel>
+      <ListGroup>
+        {data.products.map((product) => (
+          <ListRow
+            key={product.id}
+            tone="red"
+            icon="D"
+            title={product.title}
+            detail={`${product.type.replace('_', ' ')} · ${product.purchases} purchases`}
+            meta={`${product.priceStars} XTR`}
+            onClick={() => onOpenProduct(product)}
+          />
+        ))}
+        {data.products.length === 0 && <ListRow tone="red" icon="D" title="Create Digital Product" detail="Sell files, links, courses, or consultations." onClick={() => onSelectModel('product')} />}
+      </ListGroup>
+
+      <SectionLabel>Events</SectionLabel>
+      <ListGroup>
+        {data.events.slice(0, 3).map((event) => (
+          <ListRow
+            key={event.id}
+            tone="purple"
+            icon="E"
+            title={event.title}
+            detail={`${event.type} · ${dateShort(event.startsAt)}`}
+            meta={event.priceStars ? `${event.priceStars} XTR` : 'Free'}
+            onClick={() => onOpenEvent(event)}
+          />
+        ))}
+        {data.events.length === 0 && <ListRow tone="purple" icon="E" title="Create Event or AMA" detail="Sell tickets or collect registrations." onClick={() => onSelectModel('event')} />}
       </ListGroup>
 
       <SectionLabel>Operations</SectionLabel>
@@ -1056,6 +1446,297 @@ function MoreScreen({
         {data.products.length === 0 && <EmptyBlock title="No products yet" detail="Sell courses, downloads, premium content, and consultations." />}
       </ListGroup>
     </section>
+  )
+}
+
+function ProductBuilderScreen({
+  title,
+  description,
+  type,
+  priceStars,
+  buttonText,
+  deliveryType,
+  deliveryText,
+  deliveryUrl,
+  cover,
+  file,
+  onTitle,
+  onDescription,
+  onType,
+  onPriceStars,
+  onButtonText,
+  onDeliveryType,
+  onDeliveryText,
+  onDeliveryUrl,
+  onCoverFile,
+  onDeliveryFile,
+  onCancel,
+  onSubmit,
+}: {
+  title: string
+  description: string
+  type: ProductDto['type']
+  priceStars: string
+  buttonText: string
+  deliveryType: NonNullable<ProductDto['deliveryType']>
+  deliveryText: string
+  deliveryUrl: string
+  cover: { path: string | null; preview: string | null; name: string | null }
+  file: { path: string | null; name: string | null }
+  onTitle: (value: string) => void
+  onDescription: (value: string) => void
+  onType: (value: ProductDto['type']) => void
+  onPriceStars: (value: string) => void
+  onButtonText: (value: string) => void
+  onDeliveryType: (value: NonNullable<ProductDto['deliveryType']>) => void
+  onDeliveryText: (value: string) => void
+  onDeliveryUrl: (value: string) => void
+  onCoverFile: (file: File | null) => void
+  onDeliveryFile: (file: File | null) => void
+  onCancel: () => void
+  onSubmit: (event?: FormEvent) => void
+}) {
+  return (
+    <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
+      <div className="tg-form-title">
+        <h1>Create Product</h1>
+        <p>Sell a download, course, premium post, or consultation through Telegram Stars.</p>
+        <button className="tg-text-button" type="button" onClick={onCancel}>Cancel</button>
+      </div>
+      <SectionLabel>Details</SectionLabel>
+      <div className="tg-input-group">
+        <input value={title} onChange={(event) => onTitle(event.target.value)} aria-label="Product title" />
+        <textarea value={description} onChange={(event) => onDescription(event.target.value)} aria-label="Product description" />
+        <label>
+          <span>Type</span>
+          <select value={type} onChange={(event) => onType(event.target.value as ProductDto['type'])}>
+            <option value="download">Download</option>
+            <option value="course">Course</option>
+            <option value="premium_content">Premium Content</option>
+            <option value="consultation">Consultation</option>
+          </select>
+        </label>
+      </div>
+      <SectionLabel>Cover</SectionLabel>
+      <UploadBox label="Upload Cover" preview={cover.preview} fileName={cover.name} accept="image/*" onFile={onCoverFile} />
+      <SectionLabel>Delivery</SectionLabel>
+      <div className="tg-input-group">
+        <label>
+          <span>Delivery Type</span>
+          <select value={deliveryType} onChange={(event) => onDeliveryType(event.target.value as NonNullable<ProductDto['deliveryType']>)}>
+            <option value="url">URL</option>
+            <option value="text">Text</option>
+            <option value="file">File</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+        {deliveryType === 'url' && <input value={deliveryUrl} onChange={(event) => onDeliveryUrl(event.target.value)} placeholder="https://..." aria-label="Delivery URL" />}
+        {deliveryType === 'text' && <textarea value={deliveryText} onChange={(event) => onDeliveryText(event.target.value)} aria-label="Delivery text" />}
+        {deliveryType === 'file' && <UploadBox label="Upload File" fileName={file.name} accept=".pdf,.zip,.txt,.mp4,.mp3,image/*" onFile={onDeliveryFile} />}
+      </div>
+      <SectionLabel>Payment</SectionLabel>
+      <div className="tg-input-group">
+        <input value={priceStars} onChange={(event) => onPriceStars(event.target.value)} inputMode="numeric" aria-label="Product price in Stars" />
+        <input value={buttonText} onChange={(event) => onButtonText(event.target.value)} aria-label="Button text" />
+      </div>
+      <PreviewCard title={title} description={description} buttonText={buttonText || 'Buy'} coverUrl={cover.preview} />
+      <FixedButton label="Create Product" submit />
+    </form>
+  )
+}
+
+function EventBuilderScreen({
+  title,
+  description,
+  type,
+  startsAt,
+  priceStars,
+  accessLink,
+  cover,
+  onTitle,
+  onDescription,
+  onType,
+  onStartsAt,
+  onPriceStars,
+  onAccessLink,
+  onCoverFile,
+  onCancel,
+  onSubmit,
+}: {
+  title: string
+  description: string
+  type: EventDto['type']
+  startsAt: string
+  priceStars: string
+  accessLink: string
+  cover: { path: string | null; preview: string | null; name: string | null }
+  onTitle: (value: string) => void
+  onDescription: (value: string) => void
+  onType: (value: EventDto['type']) => void
+  onStartsAt: (value: string) => void
+  onPriceStars: (value: string) => void
+  onAccessLink: (value: string) => void
+  onCoverFile: (file: File | null) => void
+  onCancel: () => void
+  onSubmit: (event?: FormEvent) => void
+}) {
+  return (
+    <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
+      <div className="tg-form-title">
+        <h1>Create Event</h1>
+        <p>Sell tickets or collect registrations for webinars, AMAs, challenges, and meetups.</p>
+        <button className="tg-text-button" type="button" onClick={onCancel}>Cancel</button>
+      </div>
+      <SectionLabel>Details</SectionLabel>
+      <div className="tg-input-group">
+        <input value={title} onChange={(event) => onTitle(event.target.value)} aria-label="Event title" />
+        <textarea value={description} onChange={(event) => onDescription(event.target.value)} aria-label="Event description" />
+        <label>
+          <span>Type</span>
+          <select value={type} onChange={(event) => onType(event.target.value as EventDto['type'])}>
+            <option value="webinar">Webinar</option>
+            <option value="ama">AMA</option>
+            <option value="challenge">Challenge</option>
+            <option value="meetup">Meetup</option>
+          </select>
+        </label>
+        <label>
+          <span>Starts At</span>
+          <input type="datetime-local" value={startsAt} onChange={(event) => onStartsAt(event.target.value)} />
+        </label>
+      </div>
+      <SectionLabel>Access</SectionLabel>
+      <div className="tg-input-group">
+        <input value={accessLink} onChange={(event) => onAccessLink(event.target.value)} placeholder="Telegram invite, meeting link, or instructions" aria-label="Event access link" />
+      </div>
+      <SectionLabel>Cover</SectionLabel>
+      <UploadBox label="Upload Cover" preview={cover.preview} fileName={cover.name} accept="image/*" onFile={onCoverFile} />
+      <SectionLabel>Payment</SectionLabel>
+      <div className="tg-input-group single">
+        <input value={priceStars} onChange={(event) => onPriceStars(event.target.value)} inputMode="numeric" aria-label="Event price in Stars" />
+      </div>
+      <PreviewCard title={title} description={description} buttonText={Number(priceStars) > 0 ? 'Get Ticket' : 'Register'} coverUrl={cover.preview} />
+      <FixedButton label="Create Event" submit />
+    </form>
+  )
+}
+
+function ReferralBuilderScreen({
+  campaignTitle,
+  threshold,
+  reward,
+  onCampaignTitle,
+  onThreshold,
+  onReward,
+  onCancel,
+  onSubmit,
+}: {
+  campaignTitle: string
+  threshold: string
+  reward: string
+  onCampaignTitle: (value: string) => void
+  onThreshold: (value: string) => void
+  onReward: (value: string) => void
+  onCancel: () => void
+  onSubmit: (event: FormEvent) => void
+}) {
+  return (
+    <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
+      <div className="tg-form-title">
+        <h1>Referral Reward</h1>
+        <p>Create a simple milestone loop members can understand and share.</p>
+        <button className="tg-text-button" type="button" onClick={onCancel}>Cancel</button>
+      </div>
+      <SectionLabel>Campaign</SectionLabel>
+      <div className="tg-input-group">
+        <input value={campaignTitle} onChange={(event) => onCampaignTitle(event.target.value)} aria-label="Campaign title" />
+        <label>
+          <span>Join Milestone</span>
+          <input value={threshold} onChange={(event) => onThreshold(event.target.value)} inputMode="numeric" />
+        </label>
+        <textarea value={reward} onChange={(event) => onReward(event.target.value)} aria-label="Reward" />
+      </div>
+      <section className="tg-callout">
+        <span>MEMBER JOURNEY</span>
+        <h2>Invite {threshold || 3} members</h2>
+        <p>{reward}</p>
+      </section>
+      <FixedButton label="Create Campaign" submit />
+    </form>
+  )
+}
+
+function RevenuePublishScreen({
+  kind,
+  title,
+  description,
+  price,
+  coverUrl,
+  primaryLabel,
+  onEdit,
+  onShare,
+  onDelete,
+  onToast,
+}: {
+  kind: 'product' | 'event'
+  title: string
+  description: string
+  price: string
+  coverUrl?: string | null
+  primaryLabel: string
+  onEdit: () => void
+  onShare: () => void
+  onDelete: () => void
+  onToast: (message: string) => void
+}) {
+  return (
+    <section className="tg-screen with-fixed-button">
+      <h1 className="tg-publish-title">{title}</h1>
+      <div className="tg-description-card">
+        {coverUrl && <span className="tg-description-cover" style={{ backgroundImage: `url(${coverUrl})` }} />}
+        <p>{description}</p>
+        <div>
+          <span>{kind === 'product' ? 'Digital product' : 'Event'}</span>
+          <span>{price}</span>
+        </div>
+      </div>
+      <div className="tg-action-grid">
+        <ActionTile label="Edit" icon="edit" onClick={onEdit} />
+        <ActionTile label="Share" icon="link" onClick={onShare} />
+        <ActionTile label="More" icon="more" onClick={() => onToast('More options opened')} />
+      </div>
+      <ListGroup>
+        <ListRow tone="green" icon="S" title="Telegram Card" detail="Share sends a bot message with a Web App button." onClick={onShare} />
+        <ListRow tone="red" icon="D" title={`Delete ${kind === 'product' ? 'Product' : 'Event'}`} detail="Remove it from active offers." onClick={onDelete} />
+      </ListGroup>
+      <FixedButton label={primaryLabel} onClick={onShare} />
+    </section>
+  )
+}
+
+function UploadBox({ label, preview, fileName, accept, onFile }: { label: string; preview?: string | null; fileName?: string | null; accept: string; onFile: (file: File | null) => void }) {
+  return (
+    <label className="tg-upload-card">
+      <input type="file" accept={accept} onChange={(event) => onFile(event.currentTarget.files?.[0] ?? null)} />
+      <div>{preview ? <span className="tg-cover-preview" style={{ backgroundImage: `url(${preview})` }} /> : <span>{label}</span>}</div>
+      {fileName && <small>{fileName}</small>}
+    </label>
+  )
+}
+
+function PreviewCard({ title, description, buttonText, coverUrl }: { title: string; description: string; buttonText: string; coverUrl?: string | null }) {
+  return (
+    <div className="tg-message-preview">
+      <div className={coverUrl ? 'tg-preview-cover has-image' : 'tg-preview-cover'}>
+        {coverUrl ? <span style={{ backgroundImage: `url(${coverUrl})` }} /> : <span>CommunityOS</span>}
+      </div>
+      <div className="tg-preview-body">
+        <small>Telegram preview</small>
+        <strong>{title}</strong>
+        <p>{description}</p>
+        <button type="button">{buttonText}</button>
+      </div>
+    </div>
   )
 }
 
@@ -1312,12 +1993,16 @@ function MemberHome({
   onReferral,
   onSupport,
   onBuyProduct,
+  onEvent,
+  onToast,
 }: {
   data: DashboardDto
   member?: MemberRowDto
   onReferral: () => void
   onSupport: () => void
   onBuyProduct: (product: ProductDto) => void
+  onEvent: (event: EventDto) => void
+  onToast: (message: string) => void
 }) {
   const progress = member ? Math.min(100, Math.round((member.xp % 1200) / 12)) : 0
   return (
@@ -1346,16 +2031,46 @@ function MemberHome({
       <SectionLabel>Premium Content</SectionLabel>
       <ListGroup>
         {data.products.map((product) => (
-          <ListRow key={product.id} title={product.title} detail={product.type.replace('_', ' ')} meta={`${product.priceStars} XTR`} onClick={() => onBuyProduct(product)} />
+          <ListRow
+            key={product.id}
+            title={product.title}
+            detail={product.owned ? 'Unlocked' : product.type.replace('_', ' ')}
+            meta={product.owned ? 'Open' : `${product.priceStars} XTR`}
+            onClick={() => onBuyProduct(product)}
+          />
         ))}
         {data.products.length === 0 && <EmptyBlock title="No premium content yet" detail="Products and downloads from this community will appear here." />}
       </ListGroup>
       <SectionLabel>Events</SectionLabel>
       <ListGroup>
         {data.events.map((event) => (
-          <ListRow key={event.id} title={event.title} detail={`${event.type} on ${dateShort(event.startsAt)}`} />
+          <ListRow
+            key={event.id}
+            title={event.title}
+            detail={`${event.type} on ${dateShort(event.startsAt)}`}
+            meta={event.registered ? 'Open' : event.priceStars ? `${event.priceStars} XTR` : 'Free'}
+            onClick={() => onEvent(event)}
+          />
         ))}
         {data.events.length === 0 && <EmptyBlock title="No upcoming events" detail="Webinars, AMAs, and meetups will appear here." />}
+      </ListGroup>
+      <SectionLabel>Referral Rewards</SectionLabel>
+      <ListGroup>
+        {data.referralCampaigns.map((campaign) => (
+          <ListRow
+            key={campaign.id}
+            tone={campaign.claimable ? 'green' : 'blue'}
+            icon="R"
+            title={campaign.title}
+            detail={`${campaign.current ?? 0}/${campaign.threshold ?? 3} invites · ${campaign.reward}`}
+            meta={campaign.claimable ? 'Claimable' : 'Progress'}
+            onClick={() => {
+              onReferral()
+              onToast(campaign.claimable ? 'Reward is ready to claim' : 'Referral link copied')
+            }}
+          />
+        ))}
+        {data.referralCampaigns.length === 0 && <EmptyBlock title="No referral rewards yet" detail="Invite rewards from this community will appear here." />}
       </ListGroup>
       <FixedButton label="Get Support" onClick={onSupport} />
     </section>
@@ -1509,6 +2224,23 @@ function EmptyBlock({ title, detail }: { title: string; detail: string }) {
   )
 }
 
+function screenForModel(model: RevenueModel): Screen {
+  if (model === 'product') return 'productBuilder'
+  if (model === 'event') return 'eventBuilder'
+  if (model === 'referral') return 'referralBuilder'
+  if (model === 'ai') return 'more'
+  return 'createDetails'
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error ?? new Error('File read failed'))
+    reader.readAsDataURL(file)
+  })
+}
+
 function getRouteCommunityId(value: string | string[] | undefined): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   if (!raw) return null
@@ -1579,6 +2311,7 @@ function dashboardFromMemberProfile(profile: MemberProfileDto): DashboardDto {
     },
     members: [profile.member],
     rewards: profile.rewards,
+    referralCampaigns: profile.referralCampaigns ?? [],
     events: profile.events,
     products: profile.products,
     activity: profile.activity,

@@ -104,6 +104,10 @@ export interface ReferralCampaignDto {
   title: string
   reward: string
   status: 'draft' | 'active' | 'paused'
+  metric?: 'joins' | 'purchases' | 'revenue'
+  threshold?: number
+  current?: number
+  claimable?: boolean
   clicks: number
   joins: number
   purchases: number
@@ -152,18 +156,30 @@ export interface EventDto {
   id: number
   title: string
   type: 'webinar' | 'meetup' | 'challenge' | 'ama'
+  description?: string | null
   startsAt: string
   registrations: number
   priceStars: number
+  coverUrl?: string | null
+  accessLink?: string | null
+  registered?: boolean
 }
 
 export interface ProductDto {
   id: number
   title: string
   type: 'course' | 'download' | 'premium_content' | 'consultation'
+  description?: string | null
+  buttonText?: string | null
   status: 'draft' | 'active'
   purchases: number
   priceStars: number
+  coverUrl?: string | null
+  deliveryType?: 'file' | 'url' | 'text' | 'none'
+  deliveryText?: string | null
+  deliveryUrl?: string | null
+  fileName?: string | null
+  owned?: boolean
 }
 
 export interface DashboardDto {
@@ -201,6 +217,7 @@ export interface MemberProfileDto {
   community: CommunitySummaryDto
   member: MemberRowDto
   referralLink: string | null
+  referralCampaigns: ReferralCampaignDto[]
   rewards: RewardDto[]
   events: EventDto[]
   products: ProductDto[]
@@ -234,6 +251,14 @@ export interface InvoiceDto {
   currency: string
   prices: Array<{ label: string; amount: number }>
   invoiceLink?: string | null
+}
+
+export interface UploadAssetDto {
+  path: string
+  url: string | null
+  fileName: string
+  mimeType: string
+  size: number
 }
 
 export function emptyDashboardForCommunity(community: CommunitySummaryDto): DashboardDto {
@@ -310,13 +335,16 @@ export const api = {
     }),
   createInvoice: (
     communityId: number | string,
-    body: { title: string; description?: string; stars: number; productId?: number | null }
+    body: { title: string; description?: string; stars: number; productId?: number | null; eventId?: number | null }
   ) =>
     request<{ invoice: InvoiceDto }>(`/api/communities/${communityId}/payments/invoices`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  createReferralCampaign: (communityId: number | string, body: { title: string; reward?: string; status?: 'draft' | 'active' | 'paused' }) =>
+  createReferralCampaign: (
+    communityId: number | string,
+    body: { title: string; reward?: string; status?: 'draft' | 'active' | 'paused'; threshold?: number; metric?: 'joins' | 'purchases' | 'revenue' }
+  ) =>
     request<{ campaign: ReferralCampaignDto }>(`/api/communities/${communityId}/referral-campaigns`, {
       method: 'POST',
       body: JSON.stringify(body),
@@ -326,10 +354,51 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ action: 'create_rule', ...body }),
     }),
-  createEvent: (communityId: number | string, body: { title: string; type?: EventDto['type']; startsAt?: string; priceStars?: number }) =>
+  uploadAsset: (
+    communityId: number | string,
+    body: { fileName: string; mimeType: string; dataUrl: string; assetType: 'cover' | 'delivery' }
+  ) => request<{ asset: UploadAssetDto }>(`/api/communities/${communityId}/assets`, { method: 'POST', body: JSON.stringify(body) }),
+  createEvent: (
+    communityId: number | string,
+    body: { title: string; type?: EventDto['type']; startsAt?: string; priceStars?: number; description?: string; coverPath?: string | null; accessLink?: string }
+  ) =>
     request<{ event: EventDto }>(`/api/communities/${communityId}/events`, { method: 'POST', body: JSON.stringify(body) }),
-  createProduct: (communityId: number | string, body: { title: string; type?: ProductDto['type']; priceStars?: number }) =>
+  deleteEvent: (communityId: number | string, eventId: number) =>
+    request<{ ok: boolean; event: EventDto }>(`/api/communities/${communityId}/events?eventId=${eventId}`, { method: 'DELETE' }),
+  registerEvent: (communityId: number | string, eventId: number) =>
+    request<{ ok: boolean; event: EventDto }>(`/api/communities/${communityId}/events`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'register', eventId }),
+    }),
+  shareEventCard: (communityId: number | string, body: { eventId: number; buttonText?: string }) =>
+    request<{ ok: boolean; target: 'community_chat' | 'owner_chat'; url: string }>(`/api/communities/${communityId}/events/share`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  createProduct: (
+    communityId: number | string,
+    body: {
+      title: string
+      type?: ProductDto['type']
+      priceStars?: number
+      description?: string
+      buttonText?: string
+      coverPath?: string | null
+      deliveryType?: ProductDto['deliveryType']
+      deliveryText?: string
+      deliveryUrl?: string
+      filePath?: string | null
+      fileName?: string | null
+    }
+  ) =>
     request<{ product: ProductDto }>(`/api/communities/${communityId}/products`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteProduct: (communityId: number | string, productId: number) =>
+    request<{ ok: boolean; product: ProductDto }>(`/api/communities/${communityId}/products?productId=${productId}`, { method: 'DELETE' }),
+  shareProductCard: (communityId: number | string, body: { productId: number; buttonText?: string }) =>
+    request<{ ok: boolean; target: 'community_chat' | 'owner_chat'; url: string }>(`/api/communities/${communityId}/products/share`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   getMemberProfile: (communityId: number | string) => request<MemberProfileDto>(`/api/member/${communityId}`),
   claimReward: (communityId: number | string, rewardId: number) =>
     request<{ ok: boolean }>(`/api/communities/${communityId}/rewards`, {

@@ -230,6 +230,11 @@ export const demoMemberProfile: MemberProfileDto = {
   member: demoDashboard.members[1],
   referralLink: 'https://t.me/communityos_bot?start=co_1_2',
   rewards: demoDashboard.rewards,
+  referralCampaigns: demoDashboard.referralCampaigns.map((campaign) => ({
+    ...campaign,
+    current: 2,
+    claimable: false,
+  })),
   events: demoDashboard.events,
   products: demoDashboard.products,
   activity: demoDashboard.activity,

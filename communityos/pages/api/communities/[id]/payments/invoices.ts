@@ -18,6 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const stars = Math.max(1, Number(req.body?.stars ?? 1))
   const title = String(req.body?.title ?? 'CommunityOS purchase')
   const productId = typeof req.body?.productId === 'number' ? req.body.productId : null
+  const eventId = typeof req.body?.eventId === 'number' ? req.body.eventId : null
 
   try {
     const invoice = await createInvoice(communityId, {
@@ -25,6 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       description: req.body?.description,
       stars,
       productId,
+      eventId,
       buyerUserId: userId,
     })
     const invoiceLink = await createTelegramInvoiceLink(process.env.TELEGRAM_BOT_TOKEN || '', invoice).catch((error) => {

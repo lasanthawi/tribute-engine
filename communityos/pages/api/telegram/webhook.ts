@@ -47,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
 
       let inviteLink: string | null = null
-      if (result.ok && result.communityId) {
+      if (result.ok && result.communityId && !result.productId && !result.eventId) {
         const grant = await grantMemberAccess(result.communityId, user.id)
         inviteLink = grant.inviteLink
       }
@@ -58,7 +58,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           : '*Payment confirmed* ✅\n\nYour access is being activated. The community admin will share an invite link shortly.'
         : '*Payment received, review needed*\n\nWe could not match the invoice automatically. Support will review it shortly.'
 
-      await sendTelegramMessage(BOT_TOKEN, message.chat.id, confirmText, 'Markdown', inlineKeyboard())
+      const finalConfirmText =
+        result.ok && result.productId
+          ? '*Payment confirmed*\n\nYour product is unlocked in CommunityOS. Open the Mini App to access it.'
+          : result.ok && result.eventId
+          ? '*Registration confirmed*\n\nYour event access is unlocked in CommunityOS. Open the Mini App for details.'
+          : confirmText
+
+      await sendTelegramMessage(BOT_TOKEN, message.chat.id, finalConfirmText, 'Markdown', inlineKeyboard())
       return res.status(200).json({ ok: true })
     }
 

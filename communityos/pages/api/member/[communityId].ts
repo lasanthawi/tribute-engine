@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { getCommunity, getMemberProfile, listMembers } from '@/lib/communities'
 import { listEvents } from '@/lib/events'
+import { getReferralCampaignProgress } from '@/lib/growth'
 import { listProducts } from '@/lib/payments'
 import { referralLink } from '@/lib/referrals'
 import { listRewards } from '@/lib/rewards'
@@ -30,11 +31,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!community) return res.status(404).json({ error: 'Community not found' })
 
     await getMemberProfile(communityId, userId)
-    const [members, rewards, events, products, activityRows] = await Promise.all([
+    const [members, rewards, events, products, referralProgress, activityRows] = await Promise.all([
       optional('members', [], () => listMembers(communityId)),
       optional('rewards', [], () => listRewards(communityId, userId)),
-      optional('events', [], () => listEvents(communityId)),
-      optional('products', [], () => listProducts(communityId)),
+      optional('events', [], () => listEvents(communityId, userId)),
+      optional('products', [], () => listProducts(communityId, userId)),
+      optional('referralProgress', [], () => getReferralCampaignProgress(communityId, userId)),
       optional('activity', { data: [], error: null, count: null, status: 200, statusText: 'OK', success: true } as any, async () => {
         return await supabase
           .from('community_activity_events')
@@ -72,6 +74,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       member,
       referralLink: referralLink(communityId, userId),
+      referralCampaigns: referralProgress.map((item) => ({
+        ...item.campaign,
+        metric: item.metric,
+        threshold: item.threshold,
+        current: item.current,
+        claimable: item.claimable,
+      })),
       rewards: rewards.map((reward) => ({
         id: reward.id,
         type: reward.type,

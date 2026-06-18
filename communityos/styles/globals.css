@@ -643,7 +643,8 @@ a {
 
 .tg-form-card input,
 .tg-input-group input,
-.tg-input-group textarea {
+.tg-input-group textarea,
+.tg-input-group select {
   width: 100%;
   border: 0;
   outline: 0;
@@ -665,6 +666,7 @@ a {
 
 .tg-input-group input,
 .tg-input-group textarea,
+.tg-input-group select,
 .tg-input-group label {
   display: block;
   padding: 18px 22px;
@@ -672,6 +674,7 @@ a {
 }
 
 .tg-input-group.single input,
+.tg-input-group.single select,
 .tg-input-group :last-child {
   border-bottom: 0;
 }
