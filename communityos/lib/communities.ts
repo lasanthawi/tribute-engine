@@ -1,4 +1,4 @@
-import { CommunityMemberRow, CommunityRow, sb, supabase, UserRow } from './supabase'
+import { AccessStatus, CommunityMemberRow, CommunityRow, sb, supabase, UserRow } from './supabase'
 import { creditCommunityXp, getCommunityXp, levelForXp } from './xp'
 
 export interface CreateCommunityInput {
@@ -76,15 +76,31 @@ export async function ensureMember(
   userId: number,
   opts: { role?: 'owner' | 'admin' | 'member'; source?: string; accessStatus?: 'pending' | 'granted' | 'revoked' | 'expired' | 'failed' } = {}
 ) {
+  const { data: existingRow, error: existingError } = await supabase
+    .from('community_members')
+    .select('*')
+    .eq('community_id', communityId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (existingError) throw existingError
+  const existing = existingRow as CommunityMemberRow | null
+
+  const requestedStatus: AccessStatus = opts.accessStatus ?? 'pending'
+  const currentStatus = existing?.access_status as string | undefined
+  const accessStatus: AccessStatus =
+    currentStatus && requestedStatus === 'pending' && ['granted', 'suspended'].includes(currentStatus)
+      ? (currentStatus as AccessStatus)
+      : requestedStatus
+
   const { data, error } = await supabase
     .from('community_members')
     .upsert(
       {
         community_id: communityId,
         user_id: userId,
-        role: opts.role ?? 'member',
-        source: opts.source ?? 'direct',
-        access_status: opts.accessStatus ?? 'pending',
+        role: opts.role ?? existing?.role ?? 'member',
+        source: opts.source ?? existing?.source ?? 'direct',
+        access_status: accessStatus,
         last_active_at: new Date().toISOString(),
       },
       { onConflict: 'community_id,user_id' }

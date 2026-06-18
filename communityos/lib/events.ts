@@ -1,5 +1,6 @@
 import { sb } from './supabase'
 import { signedAssetUrl } from './assets'
+import { ensureMember } from './communities'
 
 export type EventType = 'webinar' | 'meetup' | 'challenge' | 'ama'
 
@@ -126,8 +127,7 @@ export async function registerEvent(communityId: number, userId: number, eventId
   if (!event) return { ok: false as const, reason: 'Event not found' }
   if (event.price_stars > 0) return { ok: false as const, reason: 'Payment required' }
 
-  const { data: member } = await sb.from('community_members').select('id').eq('community_id', communityId).eq('user_id', userId).maybeSingle()
-  if (!member?.id) return { ok: false as const, reason: 'Member not found' }
+  const member = await ensureMember(communityId, userId, { accessStatus: 'pending', source: 'event_registration' })
 
   await sb.from('event_registrations').upsert(
     { event_id: eventId, member_id: member.id, status: 'registered' },

@@ -61,6 +61,7 @@ export interface Database {
       }
       community_members: {
         Row: {
+          id: number
           community_id: number
           user_id: number
           role: CommunityRole
@@ -70,7 +71,7 @@ export interface Database {
           last_active_at: string | null
           notes: string | null
         }
-        Insert: Partial<Database['public']['Tables']['community_members']['Row']> & {
+        Insert: Partial<Omit<Database['public']['Tables']['community_members']['Row'], 'id'>> & {
           community_id: number
           user_id: number
         }

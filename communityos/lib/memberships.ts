@@ -1,6 +1,7 @@
 import { MembershipPlanRow, sb, supabase } from './supabase'
 import { creditCommunityXp } from './xp'
 import type { SubscriptionDto } from './api-client'
+import { revokeMemberAccess } from './access-control'
 
 export interface CreatePlanInput {
   name: string
@@ -166,11 +167,7 @@ export async function cancelMemberSubscription(communityId: number, userId: numb
     .single()
   if (error) throw error
 
-  await supabase
-    .from('community_members')
-    .update({ access_status: 'revoked', last_active_at: now })
-    .eq('community_id', communityId)
-    .eq('user_id', userId)
+  await revokeMemberAccess(communityId, userId)
 
   await sb.from('renewal_events').insert({
     community_id: communityId,
@@ -242,11 +239,7 @@ export async function expirePastDueSubscriptions(communityId?: number) {
   let expired = 0
   for (const sub of data ?? []) {
     await supabase.from('member_subscriptions').update({ status: 'expired', updated_at: now }).eq('id', sub.id)
-    await supabase
-      .from('community_members')
-      .update({ access_status: 'expired' })
-      .eq('community_id', sub.community_id)
-      .eq('user_id', sub.user_id)
+    await revokeMemberAccess(sub.community_id, sub.user_id)
     await sb.from('renewal_events').insert({
       community_id: sub.community_id,
       member_subscription_id: sub.id,

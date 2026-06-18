@@ -202,6 +202,26 @@ async function connectedChatIds(communityId: number): Promise<Array<number | str
   return community?.telegram_chat_id ? [community.telegram_chat_id] : []
 }
 
+async function removeMemberFromConnectedChats(communityId: number, userId: number) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  const telegramUserId = await getTelegramUserId(userId)
+  if (!botToken || !telegramUserId) return { attempted: 0, failed: 0 }
+
+  let attempted = 0
+  let failed = 0
+  for (const chatId of await connectedChatIds(communityId)) {
+    attempted++
+    try {
+      await banChatMember(botToken, chatId, telegramUserId)
+      await unbanChatMember(botToken, chatId, telegramUserId)
+    } catch (error) {
+      failed++
+      console.error('removeMemberFromConnectedChats failed:', error)
+    }
+  }
+  return { attempted, failed }
+}
+
 export async function recordJoinRequest(opts: {
   communityId: number
   telegramChatId: string
@@ -281,7 +301,16 @@ export async function revokeMemberAccess(communityId: number, userId: number) {
     .eq('community_id', communityId)
     .eq('user_id', userId)
 
-  await logAccessEvent(communityId, 'revoke', 'success', { userId, message: 'Access revoked.' })
+  const removal = await removeMemberFromConnectedChats(communityId, userId)
+  const status = removal.failed > 0 ? 'failed' : 'success'
+  const message =
+    removal.attempted > 0
+      ? removal.failed > 0
+        ? `Access revoked in database. Telegram removal failed in ${removal.failed}/${removal.attempted} chats.`
+        : `Access revoked and member removed from ${removal.attempted} Telegram chat${removal.attempted === 1 ? '' : 's'}.`
+      : 'Access revoked.'
+
+  await logAccessEvent(communityId, 'revoke', status, { userId, message })
   return { ok: true as const }
 }
 

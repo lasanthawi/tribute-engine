@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { ensureMember } from '@/lib/communities'
 import { listEvents } from '@/lib/events'
-import { listPlans } from '@/lib/memberships'
+import { listMemberSubscriptions, listPlans } from '@/lib/memberships'
 import { createInvoice } from '@/lib/payments'
 import { listProducts } from '@/lib/payments'
 import { createTelegramInvoiceLink } from '@/lib/telegram'
@@ -34,6 +34,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!planId) return res.status(400).json({ error: 'planId is required' })
       const plan = (await listPlans(communityId)).find((item) => item.id === planId && item.status !== 'archived')
       if (!plan) return res.status(404).json({ error: 'Plan not found' })
+      const subscriptions = await listMemberSubscriptions(communityId, userId)
+      const activeSubscription = subscriptions.find((item) => item.planId === planId && (item.status === 'active' || item.status === 'trialing'))
+      if (activeSubscription) return res.status(409).json({ error: 'Membership already active' })
     }
 
     if (kind === 'product') {
