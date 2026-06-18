@@ -182,6 +182,26 @@ export async function setTelegramWebhook(botToken: string, url: string, secretTo
   if (!res.ok || !body?.ok) throw new Error(`Telegram setWebhook failed: ${res.status} ${body?.description ?? ''}`)
 }
 
+export async function getTelegramWebhookInfo(botToken: string): Promise<{
+  url: string
+  pendingUpdateCount: number
+  lastErrorDate?: number
+  lastErrorMessage?: string
+  allowedUpdates: string[]
+} | null> {
+  if (!botToken) return null
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`)
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram getWebhookInfo failed: ${res.status} ${body?.description ?? ''}`)
+  return {
+    url: body.result?.url ?? '',
+    pendingUpdateCount: body.result?.pending_update_count ?? 0,
+    lastErrorDate: body.result?.last_error_date,
+    lastErrorMessage: body.result?.last_error_message,
+    allowedUpdates: body.result?.allowed_updates ?? [],
+  }
+}
+
 export async function setTelegramMenuButton(botToken: string, miniAppUrl: string): Promise<void> {
   if (!botToken || !miniAppUrl) return
   const res = await fetch(`https://api.telegram.org/bot${botToken}/setChatMenuButton`, {

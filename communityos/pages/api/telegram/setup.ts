@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { rejectUnauthorizedCron } from '@/lib/cron-auth'
-import { setTelegramCommands, setTelegramMenuButton, setTelegramWebhook } from '@/lib/telegram'
+import { getTelegramWebhookInfo, setTelegramCommands, setTelegramMenuButton, setTelegramWebhook } from '@/lib/telegram'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -29,7 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await setTelegramWebhook(botToken, webhookUrl, process.env.TELEGRAM_WEBHOOK_SECRET)
     await setTelegramMenuButton(botToken, miniAppUrl)
     await setTelegramCommands(botToken)
-    res.status(200).json({ ok: true, webhookUrl, miniAppUrl })
+    const webhookInfo = await getTelegramWebhookInfo(botToken)
+    res.status(200).json({ ok: true, webhookUrl, miniAppUrl, webhookInfo })
   } catch (error: any) {
     console.error('telegram/setup error:', error)
     res.status(500).json({ error: error.message || 'Telegram setup failed' })
