@@ -129,7 +129,7 @@ export default function Home() {
         setCommunityId(dashboard.community.id)
         setData(normalizeDashboard(dashboard))
         setMode('publisher')
-        setScreen(routeCommunityId ? 'home' : 'intro')
+        setScreen('home')
       } catch (err: any) {
         if (cancelled) return
         const status = err?.status ?? 0
@@ -356,6 +356,28 @@ export default function Home() {
     await copyOrOpenTelegramUrl(botUrl(), 'Support chat opened')
   }
 
+  async function handleAddCommunity() {
+    const url = botGroupLink()
+    if (!url) {
+      showToast('Set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME first')
+      return
+    }
+    openTelegramLink(url)
+    showToast('Add the bot as admin — your community will appear here')
+
+    // Refresh community list when user comes back to the Mini App
+    const onReturn = async () => {
+      if (document.hidden) return
+      document.removeEventListener('visibilitychange', onReturn)
+      try {
+        const me = await api.getMe()
+        setOwnedCommunities(me.communities)
+        if (me.communities.length > 0) showToast('Community connected')
+      } catch {}
+    }
+    document.addEventListener('visibilitychange', onReturn)
+  }
+
   async function buyProduct(product: ProductDto) {
     if (!communityId || !data) return
     try {
@@ -445,7 +467,7 @@ export default function Home() {
                 search={search}
                 onSearch={setSearch}
                 onSelect={selectCommunity}
-                onAdd={() => showToast('Telegram group connection flow opened')}
+                onAdd={handleAddCommunity}
               />
             )}
             {screen !== 'start' && screen !== 'communities' && (
@@ -520,7 +542,7 @@ export default function Home() {
               search={search}
               onSearch={setSearch}
               onSelect={selectCommunity}
-              onAdd={() => showToast('Telegram group connection flow opened')}
+              onAdd={handleAddCommunity}
             />
           )}
           {screen === 'home' && (
@@ -1433,6 +1455,12 @@ function botUrl(path = '') {
 
 function communityStartLink(communityId: number) {
   return botUrl(`?startapp=community_${communityId}`)
+}
+
+function botGroupLink() {
+  const username = configuredBotUsername()
+  if (!username) return ''
+  return `https://t.me/${username}?startgroup=setup&admin=manage_chat+invite_users+pin_messages`
 }
 
 function membershipStartLink(communityId: number, planId: number | string) {

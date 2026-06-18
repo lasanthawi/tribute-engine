@@ -73,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (mcm.chat.type !== 'private') {
         let communityId = await findCommunityForChat(telegramChatId)
         if (!communityId && botIsAdmin) {
-          communityId = await autoLinkChatToCommunity(mcm.from.id, telegramChatId)
+          communityId = await autoLinkChatToCommunity(mcm.from.id, telegramChatId, mcm.chat.title)
         }
 
         if (communityId) {

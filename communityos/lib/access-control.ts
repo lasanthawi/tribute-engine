@@ -97,11 +97,12 @@ export async function findCommunityForChat(telegramChatId: string): Promise<numb
   return chat?.community_id ?? null
 }
 
-// When the bot is added as admin to a group and no community is linked yet,
-// try to auto-link it to the single community owned by the user who added it.
+// When the bot is added as admin to a group, find or create a community to link it to.
+// If the user has exactly one unlinked community, use that. If none, create one.
 export async function autoLinkChatToCommunity(
   telegramUserId: number,
-  telegramChatId: string
+  telegramChatId: string,
+  chatTitle?: string
 ): Promise<number | null> {
   const { data: user } = await supabase
     .from('users')
@@ -110,14 +111,30 @@ export async function autoLinkChatToCommunity(
     .maybeSingle()
   if (!user) return null
 
-  const { data: communities } = await supabase
+  const { data: unlinked } = await supabase
     .from('communities')
     .select('id')
     .eq('owner_id', user.id)
     .is('telegram_chat_id', null)
-  if (!communities || communities.length !== 1) return null
 
-  const communityId = communities[0].id
+  let communityId: number
+
+  if (!unlinked || unlinked.length === 0) {
+    // No existing community — auto-create one named after the chat
+    const { data: created, error } = await supabase
+      .from('communities')
+      .insert({ owner_id: user.id, name: chatTitle || 'My Community', status: 'active' as const })
+      .select('id')
+      .single()
+    if (error || !created) return null
+    communityId = created.id
+  } else if (unlinked.length === 1) {
+    communityId = unlinked[0].id
+  } else {
+    // Multiple unlinked communities — can't auto-pick, admin must connect manually
+    return null
+  }
+
   await supabase
     .from('communities')
     .update({ telegram_chat_id: Number(telegramChatId) })
