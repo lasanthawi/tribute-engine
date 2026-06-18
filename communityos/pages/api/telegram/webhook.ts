@@ -99,7 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
 
       let inviteLink: string | null = null
-      if (result.ok && result.communityId && !result.productId && !result.eventId) {
+      if (result.ok && result.communityId && !result.productId && !result.eventId && !result.alreadyPaid) {
         const grant = await grantMemberAccess(result.communityId, user.id)
         inviteLink = grant.inviteLink
       }

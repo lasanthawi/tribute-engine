@@ -651,8 +651,12 @@ export default function Home() {
 
   async function copyMembershipLink() {
     if (!communityId) return
-    const planId = activePlan?.id ?? 'new'
-    await copyOrOpenTelegramUrl(membershipStartLink(communityId, planId), 'Membership link copied')
+    if (!activePlan?.id) {
+      setScreen('createDetails')
+      showToast('Create a membership before sharing a subscribe link')
+      return
+    }
+    await copyOrOpenTelegramUrl(membershipStartLink(communityId, activePlan.id), 'Membership link copied')
   }
 
   async function syncAccessNow() {
