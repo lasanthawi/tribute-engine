@@ -271,16 +271,12 @@ export async function grantMemberAccess(communityId: number, userId: number) {
     .eq('user_id', userId)
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN
-  const { data: community } = await supabase
-    .from('communities')
-    .select('telegram_chat_id')
-    .eq('id', communityId)
-    .maybeSingle()
 
   let inviteLink: string | null = null
-  if (botToken && community?.telegram_chat_id) {
+  const [chatId] = await connectedChatIds(communityId)
+  if (botToken && chatId) {
     try {
-      inviteLink = await createChatInviteLink(botToken, community.telegram_chat_id, { memberLimit: 1 })
+      inviteLink = await createChatInviteLink(botToken, chatId, { memberLimit: 1 })
     } catch (error) {
       console.error('createChatInviteLink failed:', error)
     }
