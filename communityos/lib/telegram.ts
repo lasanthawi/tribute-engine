@@ -167,7 +167,7 @@ export async function createTelegramInvoiceLink(
   return body.result as string
 }
 
-export async function setTelegramWebhook(botToken: string, url: string, secretToken?: string): Promise<void> {
+export async function setTelegramWebhook(botToken: string, url: string, secretToken?: string, opts: { dropPendingUpdates?: boolean } = {}): Promise<void> {
   if (!botToken || !url) return
   const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
     method: 'POST',
@@ -176,6 +176,7 @@ export async function setTelegramWebhook(botToken: string, url: string, secretTo
       url,
       allowed_updates: ['message', 'pre_checkout_query', 'chat_join_request', 'my_chat_member'],
       secret_token: secretToken || undefined,
+      drop_pending_updates: opts.dropPendingUpdates ?? false,
     }),
   })
   const body = await res.json().catch(() => ({}))

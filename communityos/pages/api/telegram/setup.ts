@@ -12,7 +12,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
   const miniAppUrl = process.env.MINI_APP_URL || ''
-  const webhookTarget = process.env.TELEGRAM_WEBHOOK_URL || miniAppUrl
+  // Prefer the public Mini App URL. Some Vercel default deployment domains are
+  // protected, which makes Telegram webhook delivery fail before it reaches us.
+  const webhookTarget = miniAppUrl || process.env.TELEGRAM_WEBHOOK_URL || ''
   const webhookUrl = webhookTarget
     ? webhookTarget.endsWith('/api/telegram/webhook')
       ? webhookTarget
@@ -26,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    await setTelegramWebhook(botToken, webhookUrl, process.env.TELEGRAM_WEBHOOK_SECRET)
+    await setTelegramWebhook(botToken, webhookUrl, process.env.TELEGRAM_WEBHOOK_SECRET, { dropPendingUpdates: true })
     await setTelegramMenuButton(botToken, miniAppUrl)
     await setTelegramCommands(botToken)
     const webhookInfo = await getTelegramWebhookInfo(botToken)
