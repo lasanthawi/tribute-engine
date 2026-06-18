@@ -70,7 +70,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (update.pre_checkout_query) {
       const isStars = update.pre_checkout_query.currency === 'XTR'
       const invoice = await findInvoiceByPayload(update.pre_checkout_query.invoice_payload)
-      const ok = !!isStars && !!invoice
+      const invoiceAmount = Number(invoice?.stars ?? 0)
+      const invoiceStatus = String(invoice?.status ?? '')
+      const ok =
+        !!isStars &&
+        !!invoice &&
+        invoiceStatus === 'created' &&
+        invoiceAmount === update.pre_checkout_query.total_amount
       await answerPreCheckoutQuery(
         BOT_TOKEN,
         update.pre_checkout_query.id,

@@ -752,6 +752,13 @@ export default function Home() {
 
   async function buyPlan(plan: PlanDto) {
     if (!communityId || !data) return
+    const existingSubscription = memberProfile?.subscriptions.find(
+      (subscription) => subscription.planId === plan.id && (subscription.status === 'active' || subscription.status === 'trialing')
+    )
+    if (existingSubscription) {
+      await cancelSubscription(existingSubscription)
+      return
+    }
     try {
       const stars = plan.stars || Math.max(1, Math.round(plan.priceCents / 10))
       const response = await api.createInvoice(communityId, {
@@ -2279,9 +2286,33 @@ function MemberHome({
   const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === 'active' || subscription.status === 'trialing' || subscription.status === 'past_due')
   const unlockedProducts = data.products.filter((product) => product.owned)
   const registeredEvents = data.events.filter((event) => event.registered)
+  const subscriptionForPlan = (planId: number) => activeSubscriptions.find((subscription) => subscription.planId === planId) ?? null
+  const activeSubscriptionForPlan = (planId: number) =>
+    activeSubscriptions.find((subscription) => subscription.planId === planId && (subscription.status === 'active' || subscription.status === 'trialing')) ?? null
+  const planForSubscription = (subscription: SubscriptionDto) =>
+    subscription.planId ? data.plans.find((plan) => plan.id === subscription.planId) ?? null : null
+  const handlePlanAction = (plan: PlanDto) => {
+    const existing = activeSubscriptionForPlan(plan.id)
+    if (existing) {
+      onCancelSubscription(existing)
+      return
+    }
+    onBuyPlan(plan)
+  }
+  const handleSubscriptionAction = (subscription: SubscriptionDto) => {
+    if (subscription.status === 'past_due') {
+      const plan = planForSubscription(subscription)
+      if (plan) {
+        onBuyPlan(plan)
+        return
+      }
+    }
+    onCancelSubscription(subscription)
+  }
   const checkoutPlan = checkoutIntent?.kind === 'plan' ? data.plans.find((plan) => plan.id === checkoutIntent.id) ?? null : null
   const checkoutProduct = checkoutIntent?.kind === 'product' ? data.products.find((product) => product.id === checkoutIntent.id) ?? null : null
   const checkoutEvent = checkoutIntent?.kind === 'event' ? data.events.find((event) => event.id === checkoutIntent.id) ?? null : null
+  const checkoutSubscription = checkoutPlan ? activeSubscriptionForPlan(checkoutPlan.id) : null
   const checkoutMissing = checkoutIntent && !checkoutPlan && !checkoutProduct && !checkoutEvent
   return (
     <section className="tg-screen with-fixed-button">
@@ -2300,9 +2331,9 @@ function MemberHome({
           eyebrow="Membership"
           title={checkoutPlan.name}
           detail={checkoutPlan.description ?? `${checkoutPlan.interval} access to ${data.community.name}`}
-          meta={`${checkoutPlan.stars || Math.round(checkoutPlan.priceCents / 10)} XTR`}
-          cta={member?.subscriptionStatus === 'active' ? 'Manage Subscription' : 'Continue to Subscribe'}
-          onClick={() => onBuyPlan(checkoutPlan)}
+          meta={checkoutSubscription ? 'Active' : `${checkoutPlan.stars || Math.round(checkoutPlan.priceCents / 10)} XTR`}
+          cta={checkoutSubscription ? 'Manage Subscription' : 'Continue to Subscribe'}
+          onClick={() => handlePlanAction(checkoutPlan)}
         />
       )}
       {checkoutProduct && (
@@ -2355,7 +2386,7 @@ function MemberHome({
             title={subscription.planName ?? 'Membership'}
             detail={`${subscription.status}${subscription.currentPeriodEnd ? ` · until ${dateShort(subscription.currentPeriodEnd)}` : ''}`}
             meta={subscription.status === 'past_due' ? 'Renew' : 'Manage'}
-            onClick={() => onCancelSubscription(subscription)}
+            onClick={() => handleSubscriptionAction(subscription)}
           />
         ))}
         {unlockedProducts.slice(0, 3).map((product) => (
@@ -2386,17 +2417,22 @@ function MemberHome({
       </ListGroup>
       <SectionLabel>Memberships</SectionLabel>
       <ListGroup>
-        {data.plans.map((plan) => (
+        {data.plans.map((plan) => {
+          const existing = subscriptionForPlan(plan.id)
+          const isActive = existing?.status === 'active' || existing?.status === 'trialing'
+          const isPastDue = existing?.status === 'past_due'
+          return (
           <ListRow
             key={plan.id}
-            tone="blue"
+            tone={isPastDue ? 'amber' : isActive ? 'green' : 'blue'}
             icon="M"
             title={plan.name}
-            detail={activeSubscriptions.some((subscription) => subscription.planId === plan.id && subscription.status === 'active') ? 'Active subscription' : plan.description ?? `${plan.interval} membership`}
-            meta={activeSubscriptions.some((subscription) => subscription.planId === plan.id && subscription.status === 'active') ? 'Active' : `${plan.stars || Math.round(plan.priceCents / 10)} XTR`}
-            onClick={() => onBuyPlan(plan)}
+            detail={isActive ? 'Active subscription' : isPastDue ? 'Payment needs attention' : plan.description ?? `${plan.interval} membership`}
+            meta={isActive ? 'Manage' : isPastDue ? 'Renew' : `${plan.stars || Math.round(plan.priceCents / 10)} XTR`}
+            onClick={() => (existing ? handleSubscriptionAction(existing) : onBuyPlan(plan))}
           />
-        ))}
+          )
+        })}
         {data.plans.length === 0 && <EmptyBlock title="No memberships yet" detail="Membership plans from this community will appear here." />}
       </ListGroup>
       <SectionLabel>Premium Content</SectionLabel>

@@ -300,13 +300,26 @@ export interface SuccessfulPaymentInput {
 export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
   const invoice = await findInvoiceByPayload(input.payload)
   if (!invoice) return { ok: false as const, reason: 'Unknown invoice payload' }
-  if (invoice.status === 'paid') return { ok: true as const, alreadyPaid: true }
 
   const communityId = invoice.community_id as number
   const parsedEventId = /^co:\d+:event_(\d+):/.exec(String(input.payload))?.[1]
   const parsedPlanId = /^co:\d+:plan_(\d+):/.exec(String(input.payload))?.[1]
+  const parsedProductId = /^co:\d+:product_(\d+):/.exec(String(input.payload))?.[1]
   const eventId = invoice.event_id ?? (parsedEventId ? Number(parsedEventId) : null)
   const planId = invoice.plan_id ?? (parsedPlanId ? Number(parsedPlanId) : null)
+  const productId = invoice.product_id ?? (parsedProductId ? Number(parsedProductId) : null)
+
+  if (invoice.status === 'paid') {
+    return {
+      ok: true as const,
+      alreadyPaid: true,
+      communityId,
+      planId,
+      productId,
+      eventId,
+    }
+  }
+
   const amountCents = starsToCents(input.stars)
   await ensureMember(communityId, input.buyerUserId, { accessStatus: planId ? 'granted' : 'pending', source: 'telegram_stars' })
 
@@ -325,7 +338,7 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
     community_id: communityId,
     buyer_user_id: input.buyerUserId,
     plan_id: planId,
-    product_id: invoice.product_id ?? null,
+    product_id: productId,
     event_id: eventId,
     invoice_id: invoice.id,
     amount_stars: input.stars,
@@ -373,7 +386,7 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
     community_id: communityId,
     user_id: input.buyerUserId,
     purchase_id: purchase?.id ?? null,
-    entry_type: planId ? 'membership_payment' : eventId ? 'event_payment' : invoice.product_id ? 'product_payment' : 'stars_payment',
+    entry_type: planId ? 'membership_payment' : eventId ? 'event_payment' : productId ? 'product_payment' : 'stars_payment',
     stars_delta: input.stars,
     cents_delta: amountCents,
     status: 'available',
@@ -426,7 +439,7 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
     communityId,
     purchaseId: purchase?.id ?? null,
     planId,
-    productId: invoice.product_id ?? null,
+    productId,
     eventId,
   }
 }
