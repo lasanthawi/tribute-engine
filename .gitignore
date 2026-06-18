@@ -7,3 +7,4 @@ challengehub/.env.local
 challengehub/.env
 community-os/.env.local
 community-os/.env
+.vercel

@@ -12,8 +12,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
   const miniAppUrl = process.env.MINI_APP_URL || ''
-  const webhookBaseUrl = process.env.TELEGRAM_WEBHOOK_URL || miniAppUrl
-  const webhookUrl = webhookBaseUrl ? `${webhookBaseUrl.replace(/\/$/, '')}/api/telegram/webhook` : ''
+  const webhookTarget = process.env.TELEGRAM_WEBHOOK_URL || miniAppUrl
+  const webhookUrl = webhookTarget
+    ? webhookTarget.endsWith('/api/telegram/webhook')
+      ? webhookTarget
+      : `${webhookTarget.replace(/\/$/, '')}/api/telegram/webhook`
+    : ''
 
   if (!botToken || !miniAppUrl || !webhookUrl) {
     return res.status(400).json({
