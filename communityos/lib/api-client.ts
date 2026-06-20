@@ -160,6 +160,12 @@ export interface AiManagerDto {
   weeklyReportStatus: 'ready' | 'scheduled' | 'not_configured'
   faqCount: number
   suggestions: HealthSignalDto[]
+  settings: {
+    faqEnabled: boolean
+    welcomeEnabled: boolean
+    reportsEnabled: boolean
+    tone: string
+  }
 }
 
 export interface EventDto {
@@ -357,6 +363,12 @@ export function emptyDashboardForCommunity(community: CommunitySummaryDto): Dash
       weeklyReportStatus: 'not_configured',
       faqCount: 0,
       suggestions: [],
+      settings: {
+        faqEnabled: true,
+        welcomeEnabled: true,
+        reportsEnabled: true,
+        tone: 'friendly',
+      },
     },
     events: [],
     products: [],
@@ -434,6 +446,24 @@ export const api = {
     request<{ rule: RewardRuleDto }>(`/api/communities/${communityId}/rewards`, {
       method: 'POST',
       body: JSON.stringify({ action: 'create_rule', ...body }),
+    }),
+  generateAiReport: (communityId: number | string) =>
+    request<{ ok: boolean; report: { status: 'ready'; summary: string } }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'report' }),
+    }),
+  askAi: (communityId: number | string, question: string) =>
+    request<{ answer: string }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'ask', question }),
+    }),
+  updateAiSettings: (
+    communityId: number | string,
+    body: Partial<{ faqEnabled: boolean; welcomeEnabled: boolean; reportsEnabled: boolean; tone: string }>
+  ) =>
+    request<{ ok: boolean; settings: AiManagerDto['settings'] }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update_settings', ...body }),
     }),
   uploadAsset: (
     communityId: number | string,

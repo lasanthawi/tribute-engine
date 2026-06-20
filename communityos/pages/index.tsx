@@ -50,6 +50,7 @@ type Screen =
   | 'referralBuilder'
   | 'communityProfile'
   | 'offerWizard'
+  | 'aiManager'
 
 const introSlides = [
   {
@@ -98,6 +99,9 @@ export default function Home() {
   const [createdPlan, setCreatedPlan] = useState<PlanDto | null>(null)
   const [campaignTitle, setCampaignTitle] = useState('Invite 3 members')
   const [rewardTitle, setRewardTitle] = useState('Founding Member Badge')
+  const [aiQuestion, setAiQuestion] = useState('')
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null)
+  const [aiBusy, setAiBusy] = useState(false)
   const [productTitle, setProductTitle] = useState('Premium Download')
   const [productDescription, setProductDescription] = useState('A paid resource for your Telegram community.')
   const [productType, setProductType] = useState<ProductDto['type']>('download')
@@ -684,6 +688,44 @@ export default function Home() {
     }
   }
 
+  async function generateAiReport() {
+    if (!data || !communityId) return
+    setAiBusy(true)
+    try {
+      const { report } = await api.generateAiReport(communityId)
+      setData({ ...data, ai: { ...data.ai, weeklyReportStatus: report.status } })
+      showToast('Weekly report generated')
+    } catch (error: any) {
+      showToast(error.message || 'Report generation failed')
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  async function askAiQuestion(event: FormEvent) {
+    event.preventDefault()
+    if (!communityId || !aiQuestion.trim()) return
+    setAiBusy(true)
+    try {
+      const { answer } = await api.askAi(communityId, aiQuestion.trim())
+      setAiAnswer(answer)
+    } catch (error: any) {
+      showToast(error.message || 'AI request failed')
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  async function updateAiSetting(partial: Partial<DashboardDto['ai']['settings']>) {
+    if (!data || !communityId) return
+    try {
+      const { settings } = await api.updateAiSettings(communityId, partial)
+      setData({ ...data, ai: { ...data.ai, settings } })
+    } catch (error: any) {
+      showToast(error.message || 'Settings update failed')
+    }
+  }
+
   async function createEventDraft() {
     if (!data || !communityId) return
     const body = {
@@ -1122,6 +1164,7 @@ export default function Home() {
               referralBuilder: 'growth',
               communityProfile: 'home',
               offerWizard: 'home',
+              aiManager: 'more',
             }
             go(previous[screen])
           }}
@@ -1200,6 +1243,19 @@ export default function Home() {
               onToast={showToast}
               onCreateEvent={() => go('eventBuilder')}
               onCreateProduct={() => go('productBuilder')}
+              onOpenAiManager={() => go('aiManager')}
+            />
+          )}
+          {screen === 'aiManager' && (
+            <AiManagerScreen
+              data={data}
+              question={aiQuestion}
+              answer={aiAnswer}
+              busy={aiBusy}
+              onQuestion={setAiQuestion}
+              onAsk={askAiQuestion}
+              onGenerateReport={generateAiReport}
+              onUpdateSettings={updateAiSetting}
             />
           )}
           {screen === 'productBuilder' && (
@@ -1833,17 +1889,19 @@ function MoreScreen({
   onToast,
   onCreateEvent,
   onCreateProduct,
+  onOpenAiManager,
 }: {
   data: DashboardDto
   onToast: (message: string) => void
   onCreateEvent: () => void
   onCreateProduct: () => void
+  onOpenAiManager: () => void
 }) {
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">More</h1>
       <ListGroup>
-        <ListRow tone="amber" icon="AI" title="AI Community Manager" detail={`${data.ai.faqCount} FAQ answers, report ${data.ai.weeklyReportStatus}`} onClick={() => onToast('AI manager opened')} />
+        <ListRow tone="amber" icon="AI" title="AI Community Manager" detail={`${data.ai.faqCount} FAQ answers, report ${data.ai.weeklyReportStatus}`} onClick={onOpenAiManager} />
         <ListRow tone="purple" icon="E" title="Events" detail={`${data.events.length} events`} onClick={onCreateEvent} />
         <ListRow tone="red" icon="P" title="Products and Services" detail={`${data.products.length} products`} onClick={onCreateProduct} />
         <ListRow tone="blue" icon="S" title="Settings" detail="Bot permissions, Stars checkout, notifications" onClick={() => onToast('Settings opened')} />
@@ -1862,6 +1920,86 @@ function MoreScreen({
         ))}
         {data.products.length === 0 && <EmptyBlock title="No products yet" detail="Sell courses, downloads, premium content, and consultations." />}
       </ListGroup>
+    </section>
+  )
+}
+
+function AiManagerScreen({
+  data,
+  question,
+  answer,
+  busy,
+  onQuestion,
+  onAsk,
+  onGenerateReport,
+  onUpdateSettings,
+}: {
+  data: DashboardDto
+  question: string
+  answer: string | null
+  busy: boolean
+  onQuestion: (value: string) => void
+  onAsk: (event: FormEvent) => void
+  onGenerateReport: () => void
+  onUpdateSettings: (partial: Partial<DashboardDto['ai']['settings']>) => void
+}) {
+  const { settings } = data.ai
+  return (
+    <section className="tg-screen">
+      <h1 className="tg-left-title">AI Community Manager</h1>
+
+      <SectionLabel>Weekly Report</SectionLabel>
+      <div className="tg-form-card">
+        <p>Status: {data.ai.weeklyReportStatus}</p>
+        <button type="button" onClick={onGenerateReport} disabled={busy}>
+          {busy ? 'Working…' : 'Generate Report'}
+        </button>
+      </div>
+
+      <SectionLabel>Ask AI</SectionLabel>
+      <form className="tg-form-card" onSubmit={onAsk}>
+        <input
+          value={question}
+          onChange={(event) => onQuestion(event.target.value)}
+          placeholder="Ask a question a member might ask"
+        />
+        <button type="submit" disabled={busy || !question.trim()}>
+          {busy ? 'Asking…' : 'Ask'}
+        </button>
+        {answer && <p>{answer}</p>}
+      </form>
+
+      <SectionLabel>Settings</SectionLabel>
+      <ListGroup>
+        <ListRow
+          title="FAQ answers"
+          detail={`${data.ai.faqCount} curated entries`}
+          meta={settings.faqEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSettings({ faqEnabled: !settings.faqEnabled })}
+        />
+        <ListRow
+          title="Welcome messages"
+          detail="Greet members on their first access grant"
+          meta={settings.welcomeEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSettings({ welcomeEnabled: !settings.welcomeEnabled })}
+        />
+        <ListRow
+          title="Weekly reports"
+          detail="Summarize activity for the owner each week"
+          meta={settings.reportsEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSettings({ reportsEnabled: !settings.reportsEnabled })}
+        />
+      </ListGroup>
+
+      <SectionLabel>Tone</SectionLabel>
+      <div className="tg-form-card">
+        <select value={settings.tone} onChange={(event) => onUpdateSettings({ tone: event.target.value })}>
+          <option value="friendly">Friendly</option>
+          <option value="professional">Professional</option>
+          <option value="casual">Casual</option>
+          <option value="concise">Concise</option>
+        </select>
+      </div>
     </section>
   )
 }

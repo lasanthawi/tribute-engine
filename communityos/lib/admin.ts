@@ -47,7 +47,7 @@ export async function getAdminDashboard(): Promise<AdminDashboardDto> {
     .from('telegram_access_logs')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'failed')
-  const { count: aiRequests } = await sb.from('weekly_reports').select('id', { count: 'exact', head: true })
+  const { count: aiRequests } = await sb.from('ai_request_logs').select('id', { count: 'exact', head: true })
 
   const { data: recentPurchases } = await sb
     .from('purchases')

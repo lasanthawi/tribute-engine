@@ -59,8 +59,16 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       optionalSection('activity', [], () => listActivity(communityId)),
       optionalSection('accessLogs', [], () => listAccessLogs(communityId)),
       optionalSection('joinRequests', [], () => listJoinRequests(communityId)),
-      optionalSection('ai', { healthScore: 0, weeklyReportStatus: 'not_configured', faqCount: 0, suggestions: [] }, () =>
-        getAiManager(communityId)
+      optionalSection(
+        'ai',
+        {
+          healthScore: 0,
+          weeklyReportStatus: 'not_configured' as const,
+          faqCount: 0,
+          suggestions: [],
+          settings: { faqEnabled: true, welcomeEnabled: true, reportsEnabled: true, tone: 'friendly' },
+        },
+        () => getAiManager(communityId)
       ),
       optionalSection('events', [], () => listEvents(communityId)),
       optionalSection('products', [], () => listProducts(communityId)),

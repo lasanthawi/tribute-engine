@@ -1,13 +1,14 @@
-import { sb } from './supabase'
+import { sb, supabase } from './supabase'
 import type { AiManagerDto, HealthSignalDto } from './api-client'
 import { generateAiText } from './ai-providers'
 
 export async function getAiManager(communityId: number): Promise<AiManagerDto> {
-  const [{ count: faqCount }, { data: report }, { data: score }, { data: suggestions }] = await Promise.all([
+  const [{ count: faqCount }, { data: report }, { data: score }, { data: suggestions }, { data: settings }] = await Promise.all([
     sb.from('ai_faq_entries').select('id', { count: 'exact', head: true }).eq('community_id', communityId).eq('status', 'active'),
     sb.from('weekly_reports').select('status').eq('community_id', communityId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     sb.from('community_health_scores').select('score').eq('community_id', communityId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     sb.from('ai_suggestions').select('*').eq('community_id', communityId).eq('status', 'open').order('created_at', { ascending: false }).limit(5),
+    supabase.from('community_ai_settings').select('*').eq('community_id', communityId).maybeSingle(),
   ])
 
   const weeklyReportStatus =
@@ -20,7 +21,33 @@ export async function getAiManager(communityId: number): Promise<AiManagerDto> {
     suggestions: ((suggestions ?? []) as any[]).map(
       (row): HealthSignalDto => ({ id: row.id, title: row.title, detail: row.detail ?? '', tone: 'info' })
     ),
+    settings: {
+      faqEnabled: settings?.faq_enabled ?? true,
+      welcomeEnabled: settings?.welcome_enabled ?? true,
+      reportsEnabled: settings?.reports_enabled ?? true,
+      tone: settings?.tone ?? 'friendly',
+    },
   }
+}
+
+export interface UpdateAiSettingsInput {
+  faqEnabled?: boolean
+  welcomeEnabled?: boolean
+  reportsEnabled?: boolean
+  tone?: string
+}
+
+export async function updateAiSettings(communityId: number, input: UpdateAiSettingsInput) {
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (input.faqEnabled !== undefined) updates.faq_enabled = input.faqEnabled
+  if (input.welcomeEnabled !== undefined) updates.welcome_enabled = input.welcomeEnabled
+  if (input.reportsEnabled !== undefined) updates.reports_enabled = input.reportsEnabled
+  if (input.tone !== undefined) updates.tone = input.tone
+
+  const { error } = await supabase
+    .from('community_ai_settings')
+    .upsert({ community_id: communityId, ...updates }, { onConflict: 'community_id' })
+  if (error) throw error
 }
 
 // Generates a weekly report record summarising recent activity. Tries the
