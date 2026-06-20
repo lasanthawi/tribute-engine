@@ -7,6 +7,7 @@ import { listMemberSubscriptions, listPlans } from '@/lib/memberships'
 import { listMemberPurchases, listProducts } from '@/lib/payments'
 import { referralLink } from '@/lib/referrals'
 import { listRewards } from '@/lib/rewards'
+import { centsToStars } from '@/lib/star-rate'
 import { supabase } from '@/lib/supabase'
 
 async function optional<T>(label: string, fallback: T, loader: () => Promise<T>): Promise<T> {
@@ -83,7 +84,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: plan.name,
         description: plan.description,
         priceCents: plan.price_cents,
-        stars: Math.round(plan.price_cents / 10),
+        stars: centsToStars(plan.price_cents),
         currency: plan.currency,
         interval: plan.interval,
         status: plan.status,

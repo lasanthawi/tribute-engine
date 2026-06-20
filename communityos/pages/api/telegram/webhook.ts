@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { approveJoinRequest, autoLinkChatToCommunity, findCommunityForChat, grantMemberAccess, recordJoinRequest, upsertTelegramChat } from '@/lib/access-control'
 import { findInvoiceByPayload, recordSuccessfulPayment } from '@/lib/payments'
 import { recordClickByCode, registerReferredJoin } from '@/lib/referrals'
+import { parseOfferCode } from '@/lib/start-params'
 import { answerPreCheckoutQuery, sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
 import { getOrCreateUser } from '@/lib/telegram-auth'
 import { supabase } from '@/lib/supabase'
@@ -19,14 +20,8 @@ function inlineKeyboard(url = MINI_APP_URL, label = 'Open CommunityOS') {
 
 function parseStartParam(value?: string) {
   if (!value) return null
-  const offer = /^co_(\d+)_(plan|product|event)_(\d+)$/.exec(value)
-  if (offer) {
-    return {
-      communityId: Number(offer[1]),
-      kind: offer[2] as 'plan' | 'product' | 'event',
-      itemId: Number(offer[3]),
-    }
-  }
+  const offer = parseOfferCode(value)
+  if (offer) return offer
   const community = /^(?:community_|co_)(\d+)(?:_\d+)?$/.exec(value)
   if (community) return { communityId: Number(community[1]), kind: null, itemId: null }
   return null

@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { getCommunity, requireCommunityOwner } from '@/lib/communities'
 import { listPlans } from '@/lib/memberships'
+import { centsToStars } from '@/lib/star-rate'
 import { supabase } from '@/lib/supabase'
 import { sendTelegramMessage } from '@/lib/telegram'
 
@@ -61,7 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const subscribeUrl = `${baseUrl}/member/${communityId}?plan=${plan.id}`
     const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : 'Subscribe'
-    const stars = Math.round((plan.price_cents ?? 0) / 10)
+    const stars = centsToStars(plan.price_cents ?? 0)
     const text = [
       `<b>${escapeHtml(plan.name)}</b>`,
       plan.description ? escapeHtml(plan.description) : null,

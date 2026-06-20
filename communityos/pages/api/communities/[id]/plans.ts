@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
 import { archivePlan, createPlan, listPlans } from '@/lib/memberships'
+import { centsToStars } from '@/lib/star-rate'
 
 interface PlanRow {
   id: number
@@ -22,7 +23,7 @@ function toDto(plan: PlanRow) {
     name: plan.name,
     description: plan.description,
     priceCents,
-    stars: Math.round(priceCents / 10),
+    stars: centsToStars(priceCents),
     currency: plan.currency,
     interval: plan.interval,
     status: plan.status,

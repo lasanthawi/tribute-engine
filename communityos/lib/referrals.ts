@@ -1,14 +1,11 @@
 import { CommunityReferralRow, sb, supabase, UserRow } from './supabase'
+import { parseReferralCode } from './start-params'
 import { creditCommunityXp } from './xp'
+
+export { parseReferralCode }
 
 export function referralCode(communityId: number, userId: number): string {
   return `co_${communityId}_${userId}`
-}
-
-export function parseReferralCode(code: string): { communityId: number; referrerId: number } | null {
-  const match = /^co_(\d+)_(\d+)$/.exec(code.trim())
-  if (!match) return null
-  return { communityId: Number(match[1]), referrerId: Number(match[2]) }
 }
 
 export function referralLink(communityId: number, userId: number): string | null {

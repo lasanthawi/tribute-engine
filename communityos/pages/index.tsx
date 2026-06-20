@@ -21,6 +21,8 @@ import {
   money,
 } from '@/lib/api-client'
 import { copyText, getInitData, getStartParam, haptic, initTelegramShell, openExternalLink, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
+import { centsToStars, starsToCents } from '@/lib/star-rate'
+import { parseOfferCode, parseReferralCode as parseReferralStartCode } from '@/lib/start-params'
 
 type Mode = 'publisher' | 'member'
 type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
@@ -156,15 +158,13 @@ export default function Home() {
       try {
         // Track referral clicks from app deep links (start_param format: co_communityId_referrerId)
         const sp = getStartParam()
-        if (sp && /^co_\d+_\d+$/.test(sp)) {
-          const [, commId, refId] = sp.split('_')
-          if (commId && refId) {
-            await fetch('/api/referrals/track', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getInitData() },
-              body: JSON.stringify({ communityId: Number(commId), referrerId: Number(refId) }),
-            }).catch(() => undefined)
-          }
+        const referralStart = sp ? parseReferralStartCode(sp) : null
+        if (referralStart) {
+          await fetch('/api/referrals/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getInitData() },
+            body: JSON.stringify({ communityId: referralStart.communityId, referrerId: referralStart.referrerId }),
+          }).catch(() => undefined)
         }
 
         if (shouldOpenMemberMode) {
@@ -350,7 +350,7 @@ export default function Home() {
     const body = {
       name: membershipTitle.trim(),
       description: membershipDescription.trim(),
-      priceCents: stars * 10,
+      priceCents: starsToCents(stars),
       stars,
       interval: 'month',
     }
@@ -372,7 +372,7 @@ export default function Home() {
         await api.createPlan(communityId, {
           name: `${body.name} (Annual)`,
           description: body.description,
-          priceCents: yStars * 10,
+          priceCents: starsToCents(yStars),
           stars: yStars,
           interval: 'year',
         }).catch(() => undefined)
@@ -755,7 +755,8 @@ export default function Home() {
 
   async function copyReferralLink() {
     if (!communityId) return
-    await copyOrOpenTelegramUrl(referralStartLink(communityId, member?.id), 'Referral link copied')
+    const link = memberProfile?.referralLink || referralStartLink(communityId, member?.id)
+    await copyOrOpenTelegramUrl(link, 'Referral link copied')
   }
 
   async function openSupport() {
@@ -855,7 +856,7 @@ export default function Home() {
       return
     }
     try {
-      const stars = plan.stars || Math.max(1, Math.round(plan.priceCents / 10))
+      const stars = plan.stars || Math.max(1, centsToStars(plan.priceCents))
       const response = await api.createInvoice(communityId, {
         kind: 'plan',
         planId: plan.id,
@@ -1605,7 +1606,7 @@ function CommunityHome({
             icon="M"
             title={plan.name}
             detail={`${plan.subscribers} subscribers`}
-            meta={`${plan.stars || Math.round(plan.priceCents / 10)} XTR`}
+            meta={`${plan.stars || centsToStars(plan.priceCents)} XTR`}
             onClick={() => onNavigate('publish')}
           />
         ))}
@@ -2329,7 +2330,7 @@ function PublishScreen({
         <p>{plan?.description ?? description}</p>
         <div>
           <span>{community.name}</span>
-          <span>{plan ? `${plan.stars || Math.round(plan.priceCents / 10)} XTR` : 'Draft'}</span>
+          <span>{plan ? `${plan.stars || centsToStars(plan.priceCents)} XTR` : 'Draft'}</span>
         </div>
       </div>
       <div className="tg-action-grid">
@@ -2423,7 +2424,7 @@ function OfferWizard({
 
   const title = plan?.name || product?.title || event?.title || 'Offer'
   const description = plan?.description || product?.description || event?.description || ''
-  const price = plan ? `${plan.stars || Math.round(plan.priceCents / 10)} XTR` : product ? `${product.priceStars} XTR` : event ? `${event.priceStars || 0} XTR` : 'Free'
+  const price = plan ? `${plan.stars || centsToStars(plan.priceCents)} XTR` : product ? `${product.priceStars} XTR` : event ? `${event.priceStars || 0} XTR` : 'Free'
 
   const slides = [
     {
@@ -2617,7 +2618,7 @@ function MemberHome({
           eyebrow="Membership"
           title={checkoutPlan.name}
           detail={checkoutPlan.description ?? `${checkoutPlan.interval} access to ${data.community.name}`}
-          meta={checkoutSubscription ? 'Active' : `${checkoutPlan.stars || Math.round(checkoutPlan.priceCents / 10)} XTR`}
+          meta={checkoutSubscription ? 'Active' : `${checkoutPlan.stars || centsToStars(checkoutPlan.priceCents)} XTR`}
           cta={checkoutSubscription ? 'Manage Subscription' : 'Continue to Subscribe'}
           onClick={() => handlePlanAction(checkoutPlan)}
         />
@@ -2714,7 +2715,7 @@ function MemberHome({
             icon="M"
             title={plan.name}
             detail={isActive ? 'Active subscription' : isPastDue ? 'Payment needs attention' : plan.description ?? `${plan.interval} membership`}
-            meta={isActive ? 'Manage' : isPastDue ? 'Renew' : `${plan.stars || Math.round(plan.priceCents / 10)} XTR`}
+            meta={isActive ? 'Manage' : isPastDue ? 'Renew' : `${plan.stars || centsToStars(plan.priceCents)} XTR`}
             onClick={() => (existing ? handleSubscriptionAction(existing) : onBuyPlan(plan))}
           />
           )
@@ -3039,13 +3040,9 @@ function parseCheckoutIntent(query: Record<string, string | string[] | undefined
 function parseStartParam(value: string): { communityId: number | null; intent: CheckoutIntent } {
   if (!value) return { communityId: null, intent: null }
 
-  const offer = /^co_(\d+)_(plan|product|event)_(\d+)$/.exec(value)
+  const offer = parseOfferCode(value)
   if (offer) {
-    const communityId = Number(offer[1])
-    const id = Number(offer[3])
-    if (Number.isFinite(communityId) && Number.isFinite(id)) {
-      return { communityId, intent: { kind: offer[2] as 'plan' | 'product' | 'event', id } }
-    }
+    return { communityId: offer.communityId, intent: { kind: offer.kind, id: offer.itemId } }
   }
 
   const community = /^(?:community_|co_)(\d+)(?:_\d+)?$/.exec(value)
@@ -3069,7 +3066,7 @@ function normalizeDashboard(dashboard: DashboardDto): DashboardDto {
     nextActions: dashboard.nextActions ?? [],
     members: dashboard.members ?? [],
     chats: dashboard.chats ?? [],
-    plans: (dashboard.plans ?? []).map((plan) => ({ ...plan, stars: plan.stars ?? Math.round(plan.priceCents / 10) })),
+    plans: (dashboard.plans ?? []).map((plan) => ({ ...plan, stars: plan.stars ?? centsToStars(plan.priceCents) })),
     referrals: dashboard.referrals ?? [],
     referralCampaigns: dashboard.referralCampaigns ?? [],
     rewards: dashboard.rewards ?? [],

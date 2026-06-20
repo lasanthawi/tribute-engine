@@ -10,11 +10,12 @@ import { listProducts } from './payments'
 import { listReferrals } from './referrals'
 import { listRewardRules, listRewards } from './rewards'
 import { computeSetup } from './setup'
+import { centsToStars } from './star-rate'
 import type { DashboardDto } from './api-client'
 import type { CommunityMetrics } from './analytics'
 
 export function planStarsFromCents(priceCents: number): number {
-  return Math.round(priceCents / 10)
+  return centsToStars(priceCents)
 }
 
 const emptyMetrics: CommunityMetrics = {
