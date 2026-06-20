@@ -47,6 +47,7 @@ type Screen =
   | 'eventPublish'
   | 'referralBuilder'
   | 'communityProfile'
+  | 'offerWizard'
 
 const introSlides = [
   {
@@ -122,11 +123,21 @@ export default function Home() {
   const [profileHandle, setProfileHandle] = useState('')
   const [profileDescription, setProfileDescription] = useState('')
   const [profileInviteUrl, setProfileInviteUrl] = useState('')
+  const [wizardStep, setWizardStep] = useState(0)
+  const [wizardCompleted, setWizardCompleted] = useState(false)
   const routeIdQuery = router.query.id
   const routeCommunityIdQuery = router.query.communityId
   const routePlanQuery = router.query.plan
   const routeProductQuery = router.query.product
   const routeEventQuery = router.query.event
+
+  useEffect(() => {
+    // Show wizard when checkout intent becomes available
+    if (checkoutIntent && !wizardCompleted && mode === 'member' && screen === 'home') {
+      setWizardStep(0)
+      setScreen('offerWizard')
+    }
+  }, [checkoutIntent, wizardCompleted, mode, screen])
 
   useEffect(() => {
     if (!router.isReady) return
@@ -1032,20 +1043,38 @@ export default function Home() {
 
       {mode === 'member' ? (
         <AppFrame title="CommunityOS" subtitle="member app" hideBack={screen === 'home'} onBack={() => go('home')} menuCommunityId={communityId ?? 1}>
-          <MemberHome
-            data={data}
-            member={member}
-            checkoutIntent={checkoutIntent}
-            subscriptions={memberProfile?.subscriptions ?? []}
-            purchases={memberProfile?.purchases ?? []}
-            onReferral={copyReferralLink}
-            onSupport={openSupport}
-            onBuyPlan={buyPlan}
-            onBuyProduct={buyProduct}
-            onEvent={registerOrBuyEvent}
-            onCancelSubscription={cancelSubscription}
-            onToast={showToast}
-          />
+          {screen === 'offerWizard' && checkoutIntent && data ? (
+            <OfferWizard
+              intent={checkoutIntent}
+              data={data}
+              step={wizardStep}
+              onStep={setWizardStep}
+              onComplete={() => {
+                setWizardCompleted(true)
+                go('home')
+              }}
+              onCancel={() => {
+                setCheckoutIntent(null)
+                setWizardCompleted(false)
+                go('home')
+              }}
+            />
+          ) : (
+            <MemberHome
+              data={data}
+              member={member}
+              checkoutIntent={checkoutIntent}
+              subscriptions={memberProfile?.subscriptions ?? []}
+              purchases={memberProfile?.purchases ?? []}
+              onReferral={copyReferralLink}
+              onSupport={openSupport}
+              onBuyPlan={buyPlan}
+              onBuyProduct={buyProduct}
+              onEvent={registerOrBuyEvent}
+              onCancelSubscription={cancelSubscription}
+              onToast={showToast}
+            />
+          )}
         </AppFrame>
       ) : screen === 'intro' ? (
         <IntroScreen
@@ -1091,6 +1120,7 @@ export default function Home() {
               eventPublish: 'eventBuilder',
               referralBuilder: 'growth',
               communityProfile: 'home',
+              offerWizard: 'home',
             }
             go(previous[screen])
           }}
@@ -2367,6 +2397,92 @@ function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; o
           }}
         >
           {step === slides.length - 1 ? 'Done' : 'Next'}
+        </button>
+      </footer>
+    </main>
+  )
+}
+
+function OfferWizard({
+  intent,
+  data,
+  step,
+  onStep,
+  onComplete,
+  onCancel,
+}: {
+  intent: CheckoutIntent
+  data: DashboardDto
+  step: number
+  onStep: (step: number) => void
+  onComplete: () => void
+  onCancel: () => void
+}) {
+  if (!intent) return null
+
+  const plan = intent.kind === 'plan' ? data.plans.find((p) => p.id === intent.id) : null
+  const product = intent.kind === 'product' ? data.products.find((p) => p.id === intent.id) : null
+  const event = intent.kind === 'event' ? data.events.find((e) => e.id === intent.id) : null
+
+  const title = plan?.name || product?.title || event?.title || 'Offer'
+  const description = plan?.description || product?.description || event?.description || ''
+  const price = plan ? `${plan.stars || Math.round(plan.priceCents / 10)} XTR` : product ? `${product.priceStars} XTR` : event ? `${event.priceStars || 0} XTR` : 'Free'
+
+  const slides = [
+    {
+      title: `Get ${title}`,
+      detail: description || 'Access exclusive content from this community.',
+      icon: plan ? 'M' : product ? 'D' : 'E',
+    },
+    {
+      title: 'Pay with Telegram Stars',
+      detail: `Only ${price} — fast, secure, and supported in Telegram.`,
+      icon: 'XTR',
+    },
+    {
+      title: 'You\'ll get',
+      detail: plan
+        ? 'Instant access to the community and all benefits.'
+        : product
+        ? 'Download or access your digital product.'
+        : 'Register and get event details and access link.',
+      icon: 'C',
+    },
+  ]
+
+  return (
+    <main className="tg-story">
+      <header className="tg-story-topbar">
+        <button type="button" onClick={onCancel}>
+          Back
+        </button>
+        <div>
+          <strong>{data.community.name}</strong>
+          <span>offer preview</span>
+        </div>
+      </header>
+      <div className="tg-progress-bars" aria-label={`Step ${step + 1} of ${slides.length}`}>
+        {slides.map((_, index) => (
+          <span key={index} className={index <= step ? 'active' : ''} />
+        ))}
+      </div>
+      <section className="tg-story-content">
+        <StoryArt label={slides[step].icon} compact />
+        <h1>{slides[step].title}</h1>
+        <p>{slides[step].detail}</p>
+      </section>
+      <footer className="tg-story-footer">
+        <button
+          type="button"
+          onClick={() => {
+            if (step < slides.length - 1) {
+              onStep(step + 1)
+            } else {
+              onComplete()
+            }
+          }}
+        >
+          {step === slides.length - 1 ? 'Continue' : 'Next'}
         </button>
       </footer>
     </main>
