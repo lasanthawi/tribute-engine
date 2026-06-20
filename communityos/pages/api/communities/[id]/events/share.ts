@@ -49,19 +49,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const targetChatId = community.telegram_chat_id ?? owner?.telegram_id
     if (!targetChatId) return res.status(400).json({ error: 'No Telegram chat is available for sharing' })
 
-    const url = `${publicBaseUrl(req)}/member/${communityId}?event=${event.id}`
+    // web_app inline buttons only work in private chats; use a t.me deep link so
+    // the button works in group chats too (handled by the bot's /start handler).
+    const botUsername = (process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
+    if (!botUsername) return res.status(400).json({ error: 'TELEGRAM_BOT_USERNAME is not configured' })
+    const deepLink = `https://t.me/${botUsername}?start=co_${communityId}_event_${event.id}`
     const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : event.priceStars ? 'Get Ticket' : 'Register'
     const text = [
       `<b>${escapeHtml(event.title)}</b>`,
       event.description ? escapeHtml(event.description) : null,
       `${new Date(event.startsAt).toLocaleString()}${event.priceStars ? ` · ${event.priceStars} XTR` : ' · Free'}`,
-      `Open the card to register for ${escapeHtml(community.name)}.`,
+      `Tap below to register for ${escapeHtml(community.name)}.`,
     ]
       .filter(Boolean)
       .join('\n\n')
 
     await sendTelegramMessage(botToken, targetChatId, text, 'HTML', {
-      inline_keyboard: [[{ text: buttonText, web_app: { url } }]],
+      inline_keyboard: [[{ text: buttonText, url: deepLink }]],
     })
 
     await supabase.from('community_activity_events').insert({
@@ -72,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metadata: { eventId: event.id, targetChatId },
     })
 
-    res.status(200).json({ ok: true, target: community.telegram_chat_id ? 'community_chat' : 'owner_chat', url })
+    res.status(200).json({ ok: true, target: community.telegram_chat_id ? 'community_chat' : 'owner_chat', url: deepLink })
   } catch (error) {
     console.error('communities/[id]/events/share error:', error)
     res.status(500).json({ error: 'Internal error' })
