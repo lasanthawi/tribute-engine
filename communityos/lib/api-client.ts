@@ -25,6 +25,7 @@ export interface CommunitySummaryDto {
   handle: string | null
   description: string | null
   status: string
+  telegramInviteUrl?: string | null
 }
 
 export interface SetupStepDto {
@@ -481,6 +482,14 @@ export const api = {
     request<{ ok: boolean }>(`/api/communities/${communityId}/rewards`, {
       method: 'POST',
       body: JSON.stringify({ action: 'claim', rewardId }),
+    }),
+  updateCommunityProfile: (
+    communityId: number | string,
+    body: { name?: string; handle?: string | null; description?: string | null; telegramInviteUrl?: string | null }
+  ) =>
+    request<{ community: CommunitySummaryDto }>(`/api/communities/${communityId}/profile`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
     }),
 }
 

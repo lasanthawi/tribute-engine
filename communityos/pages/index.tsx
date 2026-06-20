@@ -46,6 +46,7 @@ type Screen =
   | 'eventBuilder'
   | 'eventPublish'
   | 'referralBuilder'
+  | 'communityProfile'
 
 const introSlides = [
   {
@@ -117,6 +118,10 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<EventDto | null>(null)
   const [referralThreshold, setReferralThreshold] = useState('3')
   const [referralReward, setReferralReward] = useState('Unlock bonus content')
+  const [profileName, setProfileName] = useState('')
+  const [profileHandle, setProfileHandle] = useState('')
+  const [profileDescription, setProfileDescription] = useState('')
+  const [profileInviteUrl, setProfileInviteUrl] = useState('')
   const routeIdQuery = router.query.id
   const routeCommunityIdQuery = router.query.communityId
   const routePlanQuery = router.query.plan
@@ -138,6 +143,19 @@ export default function Home() {
       const shouldOpenMemberMode = isMemberRoute || (!!startIntent.communityId && !routeCommunityId)
 
       try {
+        // Track referral clicks from app deep links (start_param format: co_communityId_referrerId)
+        const sp = getStartParam()
+        if (sp && /^co_\d+_\d+$/.test(sp)) {
+          const [, commId, refId] = sp.split('_')
+          if (commId && refId) {
+            await fetch('/api/referrals/track', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getInitData() },
+              body: JSON.stringify({ communityId: Number(commId), referrerId: Number(refId) }),
+            }).catch(() => undefined)
+          }
+        }
+
         if (shouldOpenMemberMode) {
           const targetId = routeCommunityId ?? startIntent.communityId ?? 1
           const profile = await api.getMemberProfile(targetId)
@@ -285,6 +303,33 @@ export default function Home() {
     const profile = await api.getMemberProfile(targetCommunityId)
     setMemberProfile(profile)
     setData(dashboardFromMemberProfile(profile))
+  }
+
+  function editCommunityProfile() {
+    if (!data) return
+    setProfileName(data.community.name)
+    setProfileHandle(data.community.handle || '')
+    setProfileDescription(data.community.description || '')
+    setProfileInviteUrl(data.community.telegramInviteUrl || '')
+    go('communityProfile')
+  }
+
+  async function updateCommunityProfile(event?: FormEvent) {
+    event?.preventDefault()
+    if (!communityId || !profileName.trim()) return
+    try {
+      await api.updateCommunityProfile(communityId, {
+        name: profileName.trim(),
+        handle: profileHandle.trim() || null,
+        description: profileDescription.trim() || null,
+        telegramInviteUrl: profileInviteUrl.trim() || null,
+      })
+      await refreshDashboard()
+      go('home')
+      showToast('Community profile updated')
+    } catch (error: any) {
+      showToast(error.message || 'Profile update failed')
+    }
   }
 
   async function createMembership(event?: FormEvent) {
@@ -1045,6 +1090,7 @@ export default function Home() {
               eventBuilder: 'home',
               eventPublish: 'eventBuilder',
               referralBuilder: 'growth',
+              communityProfile: 'home',
             }
             go(previous[screen])
           }}
@@ -1076,6 +1122,7 @@ export default function Home() {
               onCreateMembership={() => go('createDetails')}
               onShareCommunity={shareCommunity}
               onSelectModel={chooseRevenueModel}
+              onEditProfile={editCommunityProfile}
               onOpenProduct={(product) => {
                 setSelectedProduct(product)
                 setCreatedProduct(null)
@@ -1208,6 +1255,20 @@ export default function Home() {
               onReward={setReferralReward}
               onCancel={() => go('growth')}
               onSubmit={createCampaign}
+            />
+          )}
+          {screen === 'communityProfile' && (
+            <CommunityProfileScreen
+              name={profileName}
+              handle={profileHandle}
+              description={profileDescription}
+              inviteUrl={profileInviteUrl}
+              onName={setProfileName}
+              onHandle={setProfileHandle}
+              onDescription={setProfileDescription}
+              onInviteUrl={setProfileInviteUrl}
+              onCancel={() => go('home')}
+              onSubmit={updateCommunityProfile}
             />
           )}
           {screen === 'createDetails' && (
@@ -1473,6 +1534,7 @@ function CommunityHome({
   onSelectModel,
   onOpenProduct,
   onOpenEvent,
+  onEditProfile,
 }: {
   data: DashboardDto
   nextSetupStep: DashboardDto['setup'][number] | null
@@ -1482,10 +1544,11 @@ function CommunityHome({
   onSelectModel: (model: RevenueModel) => void
   onOpenProduct: (product: ProductDto) => void
   onOpenEvent: (event: EventDto) => void
+  onEditProfile: () => void
 }) {
   return (
     <section className="tg-screen with-fixed-button">
-      <CommunityHeader data={data} />
+      <CommunityHeader data={data} onEdit={onEditProfile} />
       <div className="tg-action-grid">
         <ActionTile label="Membership" icon="plus" onClick={onCreateMembership} />
         <ActionTile label="Product" icon="link" onClick={() => onSelectModel('product')} />
@@ -1571,9 +1634,12 @@ function CommunityHome({
   )
 }
 
-function CommunityHeader({ data }: { data: DashboardDto }) {
+function CommunityHeader({ data, onEdit }: { data: DashboardDto; onEdit?: () => void }) {
   return (
     <section className="tg-community-header">
+      <button className="tg-header-edit-button" type="button" onClick={onEdit} title="Edit profile">
+        ✎
+      </button>
       <div className="tg-large-avatar">{initials(data.community.name)}</div>
       <h1>{data.community.name}</h1>
       <p>{data.metrics.members} members</p>
@@ -2307,6 +2373,61 @@ function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; o
   )
 }
 
+function CommunityProfileScreen({
+  name,
+  handle,
+  description,
+  inviteUrl,
+  onName,
+  onHandle,
+  onDescription,
+  onInviteUrl,
+  onCancel,
+  onSubmit,
+}: {
+  name: string
+  handle: string
+  description: string
+  inviteUrl: string
+  onName: (value: string) => void
+  onHandle: (value: string) => void
+  onDescription: (value: string) => void
+  onInviteUrl: (value: string) => void
+  onCancel: () => void
+  onSubmit: (event?: FormEvent) => void
+}) {
+  return (
+    <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
+      <div className="tg-form-title">
+        <h1>Community Profile</h1>
+        <p>Customize how your community appears to members.</p>
+        <button className="tg-text-button" type="button" onClick={onCancel}>
+          Back
+        </button>
+      </div>
+      <div className="tg-input-group">
+        <label>
+          <span>Community Name</span>
+          <input value={name} onChange={(e) => onName(e.target.value)} placeholder="My Community" />
+        </label>
+        <label>
+          <span>Handle (@username)</span>
+          <input value={handle} onChange={(e) => onHandle(e.target.value)} placeholder="mycommunity" />
+        </label>
+        <label>
+          <span>Description</span>
+          <textarea value={description} onChange={(e) => onDescription(e.target.value)} placeholder="A brief description of your community..." />
+        </label>
+        <label>
+          <span>Telegram Invite Link</span>
+          <input value={inviteUrl} onChange={(e) => onInviteUrl(e.target.value)} placeholder="https://t.me/+..." />
+        </label>
+      </div>
+      <FixedButton label="Save" />
+    </form>
+  )
+}
+
 function MemberHome({
   data,
   member,
@@ -2872,7 +2993,7 @@ function membershipStartLink(communityId: number, planId: number | string) {
 }
 
 function referralStartLink(communityId: number, userId?: number) {
-  return botUrl(`?start=co_${communityId}_${userId ?? 'member'}`)
+  return botUrl(`?startapp=co_${communityId}_${userId ?? 'member'}`)
 }
 
 function dashboardFromMemberProfile(profile: MemberProfileDto): DashboardDto {
