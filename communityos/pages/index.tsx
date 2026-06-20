@@ -2456,7 +2456,7 @@ function MemberHome({
   onToast: (message: string) => void
 }) {
   const progress = member ? Math.min(100, Math.round((member.xp % 1200) / 12)) : 0
-  const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === 'active' || subscription.status === 'trialing' || subscription.status === 'past_due')
+  const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === 'active' || subscription.status === 'trialing' || subscription.status === 'past_due' || subscription.status === 'expired')
   const unlockedProducts = data.products.filter((product) => product.owned)
   const registeredEvents = data.events.filter((event) => event.registered)
   const subscriptionForPlan = (planId: number) => activeSubscriptions.find((subscription) => subscription.planId === planId) ?? null
@@ -2473,7 +2473,7 @@ function MemberHome({
     onBuyPlan(plan)
   }
   const handleSubscriptionAction = (subscription: SubscriptionDto) => {
-    if (subscription.status === 'past_due') {
+    if (subscription.status === 'past_due' || subscription.status === 'expired') {
       const plan = planForSubscription(subscription)
       if (plan) {
         onBuyPlan(plan)
@@ -2554,11 +2554,11 @@ function MemberHome({
         {activeSubscriptions.map((subscription) => (
           <ListRow
             key={subscription.id}
-            tone={subscription.status === 'past_due' ? 'amber' : 'green'}
+            tone={subscription.status === 'past_due' || subscription.status === 'expired' ? 'amber' : 'green'}
             icon="S"
             title={subscription.planName ?? 'Membership'}
             detail={`${subscription.status}${subscription.currentPeriodEnd ? ` · until ${dateShort(subscription.currentPeriodEnd)}` : ''}`}
-            meta={subscription.status === 'past_due' ? 'Renew' : 'Manage'}
+            meta={subscription.status === 'past_due' || subscription.status === 'expired' ? 'Renew' : 'Manage'}
             onClick={() => handleSubscriptionAction(subscription)}
           />
         ))}
