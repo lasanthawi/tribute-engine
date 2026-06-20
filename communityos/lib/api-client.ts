@@ -294,6 +294,19 @@ export interface AdminDashboardDto {
   issues: Array<{ id: number; title: string; community: string; severity: 'high' | 'medium' | 'low'; status: string }>
 }
 
+export interface AiProviderConfigDto {
+  id: number
+  provider: 'anthropic' | 'openai' | 'gemini' | 'custom'
+  label: string
+  model: string
+  baseUrl: string | null
+  apiKeyEnvVar: string
+  enabled: boolean
+  priority: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface InvoiceDto {
   title: string
   description: string
@@ -493,6 +506,27 @@ export const api = {
     }),
   admin: {
     getDashboard: async () => (await request<{ dashboard: AdminDashboardDto }>('/api/admin/dashboard')).dashboard,
+    listAiProviders: async () => (await request<{ providers: AiProviderConfigDto[] }>('/api/admin/ai-providers')).providers,
+    createAiProvider: (body: {
+      provider: AiProviderConfigDto['provider']
+      label: string
+      model: string
+      baseUrl?: string | null
+      apiKeyEnvVar: string
+      enabled?: boolean
+      priority?: number
+    }) =>
+      request<{ provider: AiProviderConfigDto }>('/api/admin/ai-providers', { method: 'POST', body: JSON.stringify(body) }),
+    updateAiProvider: (
+      id: number,
+      body: Partial<{ label: string; model: string; baseUrl: string | null; apiKeyEnvVar: string; enabled: boolean; priority: number }>
+    ) =>
+      request<{ provider: AiProviderConfigDto }>('/api/admin/ai-providers', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, ...body }),
+      }),
+    deleteAiProvider: (id: number) =>
+      request<{ ok: boolean }>(`/api/admin/ai-providers?id=${id}`, { method: 'DELETE' }),
   },
 }
 
