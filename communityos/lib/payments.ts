@@ -1,5 +1,6 @@
 import { sb } from './supabase'
 import { creditCommunityXp } from './xp'
+import { evaluateRewardRules } from './reward-rules'
 import { signedAssetUrl } from './assets'
 import { ensureMember } from './communities'
 import { createOrUpdateSubscription, createSubscriptionPeriod } from './memberships'
@@ -428,6 +429,9 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
   })
 
   await creditCommunityXp(communityId, input.buyerUserId, 50, 'purchase', { metadata: { stars: input.stars } })
+  await evaluateRewardRules(communityId, input.buyerUserId, 'purchase_completed').catch((error) =>
+    console.error('evaluateRewardRules(purchase_completed) failed:', error)
+  )
 
   return {
     ok: true as const,

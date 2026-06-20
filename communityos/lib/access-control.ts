@@ -4,6 +4,7 @@ import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineCha
 import { createCommunity, getCommunity } from './communities'
 import { activateCommunityReferral } from './referrals'
 import { sendWelcomeMessage } from './notifications'
+import { evaluateRewardRules } from './reward-rules'
 
 export async function logAccessEvent(
   communityId: number,
@@ -317,6 +318,10 @@ export async function grantMemberAccess(communityId: number, userId: number) {
     if (telegramId && community) {
       await sendWelcomeMessage(telegramId, community.name)
     }
+
+    await evaluateRewardRules(communityId, userId, 'member_joined').catch((error) =>
+      console.error('evaluateRewardRules(member_joined) failed:', error)
+    )
   }
 
   return { ok: true as const, inviteLink }

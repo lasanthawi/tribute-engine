@@ -1,6 +1,7 @@
 import { CommunityReferralRow, sb, supabase, UserRow } from './supabase'
 import { parseReferralCode } from './start-params'
 import { creditCommunityXp } from './xp'
+import { evaluateRewardRules } from './reward-rules'
 
 export { parseReferralCode }
 
@@ -80,6 +81,9 @@ export async function registerReferredJoin(code: string, refereeId: number) {
   })
 
   await creditCommunityXp(communityId, referrerId, 50, 'referral_join', { refUser: refereeId })
+  await evaluateRewardRules(communityId, referrerId, 'referral_joined').catch((error) =>
+    console.error('evaluateRewardRules(referral_joined) failed:', error)
+  )
   return referral
 }
 
@@ -90,7 +94,17 @@ export async function activateCommunityReferral(communityId: number, referrerId:
     .update({ referee_id: refereeId, status: 'activated', activated_at: new Date().toISOString() })
     .eq('id', referral.id)
 
+  await sb.from('referral_attributions').insert({
+    community_id: communityId,
+    referral_id: referral.id,
+    referred_user_id: refereeId,
+    attribution_type: 'activated',
+  })
+
   await creditCommunityXp(communityId, referrerId, 75, 'referral_activated', { refUser: refereeId })
+  await evaluateRewardRules(communityId, referrerId, 'referral_activated').catch((error) =>
+    console.error('evaluateRewardRules(referral_activated) failed:', error)
+  )
 }
 
 export async function listReferrals(communityId: number) {

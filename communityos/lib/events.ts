@@ -1,6 +1,7 @@
 import { sb } from './supabase'
 import { signedAssetUrl } from './assets'
 import { ensureMember } from './communities'
+import { evaluateRewardRules } from './reward-rules'
 
 export type EventType = 'webinar' | 'meetup' | 'challenge' | 'ama'
 
@@ -141,6 +142,10 @@ export async function registerEvent(communityId: number, userId: number, eventId
     title: `Registered for ${event.title}`,
     metadata: { eventId },
   })
+
+  await evaluateRewardRules(communityId, userId, 'event_registered').catch((error) =>
+    console.error('evaluateRewardRules(event_registered) failed:', error)
+  )
 
   return { ok: true as const, eventId }
 }

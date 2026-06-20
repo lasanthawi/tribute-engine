@@ -123,10 +123,20 @@ export interface RewardDto {
   claimed: boolean
 }
 
+export type RewardTriggerType =
+  | 'member_joined'
+  | 'referral_joined'
+  | 'referral_activated'
+  | 'purchase_completed'
+  | 'event_registered'
+  | 'manual'
+
 export interface RewardRuleDto {
   id: number
   title: string
   trigger: string
+  triggerType: RewardTriggerType
+  triggerCount: number
   reward: string
   status: 'active' | 'draft'
 }
@@ -442,7 +452,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  createRewardRule: (communityId: number | string, body: { title: string; trigger?: string; reward?: string; status?: 'draft' | 'active' }) =>
+  createRewardRule: (
+    communityId: number | string,
+    body: { title: string; triggerType: RewardTriggerType; triggerCount?: number; xpReward?: number; status?: 'draft' | 'active' }
+  ) =>
     request<{ rule: RewardRuleDto }>(`/api/communities/${communityId}/rewards`, {
       method: 'POST',
       body: JSON.stringify({ action: 'create_rule', ...body }),

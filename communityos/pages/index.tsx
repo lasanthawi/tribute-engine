@@ -14,6 +14,7 @@ import {
   PurchaseDto,
   ReferralCampaignDto,
   RewardRuleDto,
+  RewardTriggerType,
   SubscriptionDto,
   TelegramChatDto,
   api,
@@ -99,6 +100,8 @@ export default function Home() {
   const [createdPlan, setCreatedPlan] = useState<PlanDto | null>(null)
   const [campaignTitle, setCampaignTitle] = useState('Invite 3 members')
   const [rewardTitle, setRewardTitle] = useState('Founding Member Badge')
+  const [rewardTriggerType, setRewardTriggerType] = useState<RewardTriggerType>('member_joined')
+  const [rewardTriggerCount, setRewardTriggerCount] = useState('1')
   const [aiQuestion, setAiQuestion] = useState('')
   const [aiAnswer, setAiAnswer] = useState<string | null>(null)
   const [aiBusy, setAiBusy] = useState(false)
@@ -674,14 +677,17 @@ export default function Home() {
     if (!data || !communityId || !rewardTitle.trim()) return
     const body = {
       title: rewardTitle.trim(),
-      trigger: 'Member reaches an XP or referral milestone',
-      reward: '+150 XP and badge',
+      triggerType: rewardTriggerType,
+      triggerCount: Math.max(1, Math.round(Number(rewardTriggerCount) || 1)),
+      xpReward: 150,
       status: 'active' as const,
     }
     try {
       const { rule } = await api.createRewardRule(communityId, body)
       setData({ ...data, rewardRules: [rule, ...data.rewardRules] })
       setRewardTitle('')
+      setRewardTriggerType('member_joined')
+      setRewardTriggerCount('1')
       showToast('Reward rule created')
     } catch (error: any) {
       showToast(error.message || 'Reward rule creation failed')
@@ -1234,6 +1240,10 @@ export default function Home() {
               data={data}
               rewardTitle={rewardTitle}
               onRewardTitle={setRewardTitle}
+              triggerType={rewardTriggerType}
+              onTriggerType={setRewardTriggerType}
+              triggerCount={rewardTriggerCount}
+              onTriggerCount={setRewardTriggerCount}
               onCreateReward={createRewardRule}
             />
           )}
@@ -1853,15 +1863,32 @@ function GrowthScreen({
   )
 }
 
+const REWARD_TRIGGER_OPTIONS: { value: RewardTriggerType; label: string }[] = [
+  { value: 'member_joined', label: 'Member joins the community' },
+  { value: 'referral_joined', label: 'Referred member joins' },
+  { value: 'referral_activated', label: 'Referred member activates' },
+  { value: 'purchase_completed', label: 'Member completes a purchase' },
+  { value: 'event_registered', label: 'Member registers for an event' },
+  { value: 'manual', label: 'Manual unlock' },
+]
+
 function RewardsScreen({
   data,
   rewardTitle,
   onRewardTitle,
+  triggerType,
+  onTriggerType,
+  triggerCount,
+  onTriggerCount,
   onCreateReward,
 }: {
   data: DashboardDto
   rewardTitle: string
   onRewardTitle: (value: string) => void
+  triggerType: RewardTriggerType
+  onTriggerType: (value: RewardTriggerType) => void
+  triggerCount: string
+  onTriggerCount: (value: string) => void
   onCreateReward: (event: FormEvent) => void
 }) {
   return (
@@ -1869,7 +1896,29 @@ function RewardsScreen({
       <h1 className="tg-left-title">Rewards</h1>
       <form className="tg-form-card" onSubmit={onCreateReward}>
         <SectionLabel>Create Reward Rule</SectionLabel>
-        <input value={rewardTitle} onChange={(event) => onRewardTitle(event.target.value)} />
+        <input value={rewardTitle} onChange={(event) => onRewardTitle(event.target.value)} aria-label="Reward rule title" />
+        <label>
+          <span>Trigger</span>
+          <select value={triggerType} onChange={(event) => onTriggerType(event.target.value as RewardTriggerType)}>
+            {REWARD_TRIGGER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {triggerType !== 'manual' && (
+          <label>
+            <span>After how many times</span>
+            <input
+              type="number"
+              min={1}
+              value={triggerCount}
+              onChange={(event) => onTriggerCount(event.target.value)}
+              aria-label="Trigger count"
+            />
+          </label>
+        )}
         <p>Grant XP, points, levels, badges, or perks when members complete an action.</p>
         <button type="submit">Create Reward</button>
       </form>
