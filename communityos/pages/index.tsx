@@ -1,7 +1,7 @@
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityDto,
   DashboardDto,
@@ -77,7 +77,9 @@ export default function Home() {
   const [ownedCommunities, setOwnedCommunities] = useState<DashboardDto['community'][]>([])
   const [communityId, setCommunityId] = useState<number | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [loadKey, setLoadKey] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
+  const visibilityListenerRef = useRef<(() => void) | null>(null)
   const [search, setSearch] = useState('')
   const [pendingModel, setPendingModel] = useState<RevenueModel>('membership')
   const [membershipTitle, setMembershipTitle] = useState('Premium Circle')
@@ -203,7 +205,7 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [router.isReady, router.pathname, routeIdQuery, routeCommunityIdQuery, routePlanQuery, routeProductQuery, routeEventQuery])
+  }, [router.isReady, router.pathname, routeIdQuery, routeCommunityIdQuery, routePlanQuery, routeProductQuery, routeEventQuery, loadKey])
 
   useEffect(() => {
     if (!toast) return
@@ -241,6 +243,19 @@ export default function Home() {
       setScreen(target)
     } catch (error: any) {
       showToast(error.message || 'Community could not be loaded')
+    }
+  }
+
+  async function openMemberCommunity(id: number) {
+    try {
+      const profile = await api.getMemberProfile(id)
+      setMemberProfile(profile)
+      setCommunityId(profile.community.id)
+      setData(dashboardFromMemberProfile(profile))
+      setMode('member')
+      setScreen('home')
+    } catch (error: any) {
+      showToast(error.message || 'Could not open community')
     }
   }
 
@@ -688,16 +703,24 @@ export default function Home() {
     openTelegramLink(url)
     showToast('Add the bot as admin — your community will appear here')
 
-    // Refresh community list when user comes back to the Mini App
+    // Remove any stale listener from a previous tap before adding a new one
+    if (visibilityListenerRef.current) {
+      document.removeEventListener('visibilitychange', visibilityListenerRef.current)
+    }
+
     const onReturn = async () => {
       if (document.hidden) return
       document.removeEventListener('visibilitychange', onReturn)
+      visibilityListenerRef.current = null
       try {
-        const me = await api.getMe()
-        setOwnedCommunities(me.communities)
-        if (me.communities.length > 0) showToast('Community connected')
+        const meData = await api.getMe()
+        setMe(meData)
+        setOwnedCommunities(meData.communities)
+        if (meData.communities.length > 0) showToast('Community connected')
       } catch {}
     }
+
+    visibilityListenerRef.current = onReturn
     document.addEventListener('visibilitychange', onReturn)
   }
 
@@ -869,6 +892,15 @@ export default function Home() {
             <div className="tg-hero-mark">TG</div>
             <h1>{heading}</h1>
             <p className="tg-subtitle">{detail}</p>
+            {!isNotInTelegram && (
+              <button
+                className="tg-link-button"
+                type="button"
+                onClick={() => { setAuthError(null); setLoadKey((k) => k + 1) }}
+              >
+                Try again
+              </button>
+            )}
           </section>
         </main>
         {toast && <div className="tg-toast">{toast}</div>}
@@ -907,6 +939,7 @@ export default function Home() {
                 me={me}
                 onSelectModel={chooseRevenueModel}
                 onOpenCommunity={(id) => selectCommunity(id, 'home')}
+                onOpenMemberCommunity={openMemberCommunity}
                 onAddCommunity={handleAddCommunity}
               />
             )}
@@ -1010,6 +1043,7 @@ export default function Home() {
               me={me}
               onSelectModel={chooseRevenueModel}
               onOpenCommunity={(id) => selectCommunity(id, 'home')}
+              onOpenMemberCommunity={openMemberCommunity}
               onAddCommunity={handleAddCommunity}
             />
           )}
@@ -1347,11 +1381,13 @@ function AccountHome({
   me,
   onSelectModel,
   onOpenCommunity,
+  onOpenMemberCommunity,
   onAddCommunity,
 }: {
   me: MeDto
   onSelectModel: (model: RevenueModel) => void
   onOpenCommunity: (id: number) => void
+  onOpenMemberCommunity: (id: number) => void
   onAddCommunity: () => void
 }) {
   return (
@@ -1405,7 +1441,7 @@ function AccountHome({
           <SectionLabel>Member Access</SectionLabel>
           <ListGroup>
             {me.memberCommunities.map((community) => (
-              <ListRow key={community.id} avatar={initials(community.name)} title={community.name} detail="Open member view" onClick={() => onOpenCommunity(community.id)} />
+              <ListRow key={community.id} avatar={initials(community.name)} title={community.name} detail="Open member view" onClick={() => onOpenMemberCommunity(community.id)} />
             ))}
           </ListGroup>
         </>
