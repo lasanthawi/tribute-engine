@@ -12,6 +12,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     if (req.method === 'GET') {
+      const allowed = await requireCommunityOwner(userId, communityId)
+      if (!allowed) return res.status(403).json({ error: 'Forbidden' })
       return res.status(200).json({ events: await listEvents(communityId, userId) })
     }
     if (req.method === 'POST') {

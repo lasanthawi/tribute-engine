@@ -2290,9 +2290,6 @@ function PaymentScreen({
           <span>1 Year</span>
           <input value={yearlyStars} onChange={(event) => onYearlyStars(event.target.value)} inputMode="numeric" />
         </label>
-        <button className="tg-soft-button" type="button">
-          Add Another Period
-        </button>
       </div>
       <FixedButton label="Create" onClick={() => onCreate()} />
     </form>
