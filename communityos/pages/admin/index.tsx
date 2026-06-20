@@ -1,42 +1,8 @@
 import Head from 'next/head'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { money } from '@/lib/api-client'
-
-interface AdminDashboardDto {
-  metrics: {
-    communities: number
-    publishers: number
-    monthlyStars: number
-    paymentsCents: number
-    accessFailures: number
-    aiRequests: number
-  }
-  communities: {
-    id: number
-    name: string
-    owner: string
-    status: string
-    members: number
-    revenueCents: number
-    healthScore: number
-  }[]
-  payments: {
-    id: number
-    community: string
-    buyer: string
-    stars: number
-    status: string
-    createdAt: string
-  }[]
-  issues: {
-    id: number
-    title: string
-    community: string
-    severity: string
-    status: string
-  }[]
-}
+import { AdminDashboardDto, api, money } from '@/lib/api-client'
+import { initTelegramShell } from '@/lib/telegram-webapp'
 
 const emptyDashboard: AdminDashboardDto = {
   metrics: { communities: 0, publishers: 0, monthlyStars: 0, paymentsCents: 0, accessFailures: 0, aiRequests: 0 },
@@ -50,12 +16,10 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/admin/dashboard')
-      .then((res) => {
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-        return res.json()
-      })
-      .then((json) => setData(json))
+    initTelegramShell()
+    api.admin
+      .getDashboard()
+      .then((dashboard) => setData(dashboard))
       .catch((err) => setError(err.message || 'Failed to load admin dashboard'))
   }, [])
 

@@ -491,6 +491,9 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  admin: {
+    getDashboard: async () => (await request<{ dashboard: AdminDashboardDto }>('/api/admin/dashboard')).dashboard,
+  },
 }
 
 export function money(cents: number, currency = 'USD') {
