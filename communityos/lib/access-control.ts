@@ -1,7 +1,9 @@
 import { AccessLogRow, sb, supabase } from './supabase'
 import type { JoinRequestDto, TelegramChatDto } from './api-client'
 import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, unbanChatMember } from './telegram'
-import { createCommunity } from './communities'
+import { createCommunity, getCommunity } from './communities'
+import { activateCommunityReferral } from './referrals'
+import { sendWelcomeMessage } from './notifications'
 
 export async function logAccessEvent(
   communityId: number,
@@ -264,6 +266,14 @@ export async function recordJoinRequest(opts: {
 // Grants a member access: marks them granted, records a grant row, and — when a
 // chat + bot token are available — issues a single-use Telegram invite link.
 export async function grantMemberAccess(communityId: number, userId: number) {
+  const { data: before } = await supabase
+    .from('community_members')
+    .select('access_status')
+    .eq('community_id', communityId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  const isFirstGrant = before?.access_status !== 'granted'
+
   await supabase
     .from('community_members')
     .update({ access_status: 'granted', last_active_at: new Date().toISOString() })
@@ -286,6 +296,28 @@ export async function grantMemberAccess(communityId: number, userId: number) {
     userId,
     message: inviteLink ? `Invite link issued: ${inviteLink}` : 'Access granted.',
   })
+
+  // Referral activation and the welcome message should only fire once, on the
+  // member's actual first grant — not on renewals or a restore-after-suspend.
+  if (isFirstGrant) {
+    const { data: pendingReferral } = await supabase
+      .from('community_referrals')
+      .select('id, referrer_id')
+      .eq('community_id', communityId)
+      .eq('referee_id', userId)
+      .eq('status', 'joined')
+      .maybeSingle()
+    if (pendingReferral) {
+      await activateCommunityReferral(communityId, pendingReferral.referrer_id, userId).catch((error) =>
+        console.error('activateCommunityReferral failed:', error)
+      )
+    }
+
+    const [telegramId, community] = await Promise.all([getTelegramUserId(userId), getCommunity(communityId)])
+    if (telegramId && community) {
+      await sendWelcomeMessage(telegramId, community.name)
+    }
+  }
 
   return { ok: true as const, inviteLink }
 }
