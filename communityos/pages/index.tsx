@@ -310,6 +310,18 @@ export default function Home() {
         interval: body.interval,
       }
       setCreatedPlan(plan)
+
+      const yStars = Number(yearlyStars || 0)
+      if (yStars > 0) {
+        await api.createPlan(communityId, {
+          name: `${body.name} (Annual)`,
+          description: body.description,
+          priceCents: yStars * 10,
+          stars: yStars,
+          interval: 'year',
+        }).catch(() => undefined)
+      }
+
       await refreshDashboard()
       setScreen('publish')
       showToast('Membership created')
@@ -2856,7 +2868,7 @@ function botGroupLink() {
 }
 
 function membershipStartLink(communityId: number, planId: number | string) {
-  return botUrl(`?start=co_${communityId}_plan_${planId}`)
+  return botUrl(`?startapp=co_${communityId}_plan_${planId}`)
 }
 
 function referralStartLink(communityId: number, userId?: number) {

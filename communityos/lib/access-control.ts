@@ -363,7 +363,18 @@ export async function approveJoinRequest(communityId: number, joinRequestId: num
     .update({ status: 'approved', decided_at: new Date().toISOString(), decided_by: decidedBy ?? null })
     .eq('id', joinRequestId)
 
-  await logAccessEvent(communityId, 'grant', 'success', { message: `Join request approved for @${request.username ?? request.telegram_user_id}` })
+  // Sync DB access status so the member dashboard reflects the approval
+  const { data: approvedUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('telegram_id', Number(request.telegram_user_id))
+    .maybeSingle()
+  if (approvedUser?.id) {
+    await grantMemberAccess(communityId, approvedUser.id)
+  } else {
+    await logAccessEvent(communityId, 'grant', 'success', { message: `Join request approved for @${request.username ?? request.telegram_user_id}` })
+  }
+
   return { ok: true as const }
 }
 

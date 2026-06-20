@@ -157,8 +157,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
 
-        if (botRemoved) {
-          console.log(`Bot removed from chat ${telegramChatId} (community ${communityId ?? 'unknown'})`)
+        if (botRemoved && communityId) {
+          await upsertTelegramChat({
+            communityId,
+            telegramChatId,
+            title: mcm.chat.title,
+            handle: mcm.chat.username ?? null,
+            chatType: mcm.chat.type as 'group' | 'supergroup' | 'channel',
+            botStatus: 'not_connected',
+          }).catch(() => undefined)
         }
       }
 
