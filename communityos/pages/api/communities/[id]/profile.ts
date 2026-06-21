@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const { data, error } = await supabase
         .from('communities')
-        .update(updates)
+        .update(updates as any)
         .eq('id', communityId)
         .select('*')
         .single()
