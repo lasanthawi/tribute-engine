@@ -84,6 +84,16 @@ export interface CommentAccessDto {
   enabled: boolean
 }
 
+export interface ScheduledPostDto {
+  id: number
+  communityId: number
+  targetType: 'plan' | 'product' | 'event'
+  targetId: number
+  intervalHours: number
+  nextRunAt: string
+  status: 'active' | 'paused'
+}
+
 export interface PlanDto {
   id: number
   name: string
@@ -272,6 +282,7 @@ export interface DashboardDto {
   events: EventDto[]
   products: ProductDto[]
   commentAccess: CommentAccessDto
+  scheduledPosts: ScheduledPostDto[]
 }
 
 export interface MemberProfileDto {
@@ -395,6 +406,7 @@ export function emptyDashboardForCommunity(community: CommunitySummaryDto): Dash
     events: [],
     products: [],
     commentAccess: { linked: false, discussionBotStatus: null, enabled: true },
+    scheduledPosts: [],
   }
 }
 
@@ -448,6 +460,19 @@ export const api = {
     request<{ ok: boolean; reason?: string }>(`/api/communities/${communityId}/access`, {
       method: 'POST',
       body: JSON.stringify({ action: 'set_comment_access', enabled }),
+    }),
+  activateAutoPosting: (
+    communityId: number | string,
+    body: { targetType: 'plan' | 'product' | 'event'; targetId: number; intervalHours?: number }
+  ) =>
+    request<{ ok: boolean; scheduledPost: ScheduledPostDto }>(`/api/communities/${communityId}/scheduled-posts`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'activate', ...body }),
+    }),
+  pauseAutoPosting: (communityId: number | string, body: { targetType: 'plan' | 'product' | 'event'; targetId: number }) =>
+    request<{ ok: boolean; scheduledPost: ScheduledPostDto | null }>(`/api/communities/${communityId}/scheduled-posts`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'pause', ...body }),
     }),
   syncAccess: (communityId: number | string) =>
     request<{ ok: boolean; scanned?: number; synced?: number; demo?: boolean }>(`/api/communities/${communityId}/access`, {

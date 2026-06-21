@@ -2,12 +2,8 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { getCommunity, requireCommunityOwner } from '@/lib/communities'
 import { listProducts } from '@/lib/payments'
-import { getConnectedChatInfo, resolveShareTarget, sendShareMessage } from '@/lib/share-content'
+import { botUsernameFromEnv, deepLinkForTarget, getConnectedChatInfo, productShareCaption, resolveShareTarget, sendShareMessage } from '@/lib/share-content'
 import { supabase } from '@/lib/supabase'
-
-function escapeHtml(value: string) {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
 
 function publicBaseUrl(req: NextApiRequest) {
   const configured = process.env.MINI_APP_URL || process.env.NEXT_PUBLIC_MINI_APP_URL
@@ -49,20 +45,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // web_app inline buttons only work in private chats; a `startapp` deep link
     // launches the Mini App directly from any chat type, with no bot-chat detour.
-    const botUsername = (process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
+    const botUsername = botUsernameFromEnv()
     if (!botUsername) return res.status(400).json({ error: 'TELEGRAM_BOT_USERNAME is not configured' })
-    const deepLink = `https://t.me/${botUsername}?startapp=co_${communityId}_product_${product.id}`
+    const deepLink = deepLinkForTarget(botUsername, communityId, 'product', product.id)
     const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : product.buttonText || 'Buy'
     const chatInfo = await getConnectedChatInfo(communityId, community.telegram_chat_id ?? null)
-    const text = [
-      `<b>${escapeHtml(product.title)}</b>`,
-      product.description ? escapeHtml(product.description) : null,
-      product.priceStars ? `${product.priceStars} XTR` : 'Free',
-      chatInfo ? `${escapeHtml(chatInfo.title)} · ${chatInfo.activeMembers} members` : null,
-      `Tap below to get it from ${escapeHtml(community.name)}.`,
-    ]
-      .filter(Boolean)
-      .join('\n\n')
+    const text = productShareCaption(community.name, product, chatInfo)
 
     await sendShareMessage({
       botToken,

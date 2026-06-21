@@ -2,6 +2,7 @@ import { getCommentAccessStatus, listChats, listAccessLogs, listJoinRequests } f
 import { getAiManager } from './ai'
 import { getCommunityMetrics, listActivity } from './analytics'
 import { signedAssetUrl } from './assets'
+import { listScheduledPosts } from './auto-posting'
 import { getCommunity, listMembers } from './communities'
 import { listEvents } from './events'
 import { createReferralCampaign, listReferralCampaigns } from './growth'
@@ -47,8 +48,26 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
   const community = await getCommunity(communityId)
   if (!community) return null
 
-  const [metrics, members, chats, plans, referrals, referralCampaigns, rewards, rewardRules, activity, accessLogs, joinRequests, ai, events, products, setup, avatarUrl, commentAccess] =
-    await Promise.all([
+  const [
+    metrics,
+    members,
+    chats,
+    plans,
+    referrals,
+    referralCampaigns,
+    rewards,
+    rewardRules,
+    activity,
+    accessLogs,
+    joinRequests,
+    ai,
+    events,
+    products,
+    setup,
+    avatarUrl,
+    commentAccess,
+    scheduledPosts,
+  ] = await Promise.all([
       optionalSection('metrics', emptyMetrics, () => getCommunityMetrics(communityId)),
       optionalSection('members', [], () => listMembers(communityId)),
       optionalSection('chats', [], () => listChats(communityId)),
@@ -76,6 +95,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       optionalSection('setup', [], () => computeSetup(communityId)),
       optionalSection('avatarUrl', null, () => signedAssetUrl(community.avatar_path, 86400)),
       optionalSection('commentAccess', { linked: false, discussionBotStatus: null, enabled: true }, () => getCommentAccessStatus(communityId)),
+      optionalSection('scheduledPosts', [], () => listScheduledPosts(communityId)),
     ])
 
   return {
@@ -136,6 +156,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
     events,
     products,
     commentAccess,
+    scheduledPosts,
   }
 }
 

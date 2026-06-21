@@ -16,6 +16,7 @@ import {
   ReferralCampaignDto,
   RewardRuleDto,
   RewardTriggerType,
+  ScheduledPostDto,
   SubscriptionDto,
   TelegramChatDto,
   api,
@@ -787,6 +788,41 @@ export default function Home() {
     }
   }
 
+  async function toggleAutoPosting(targetType: 'plan' | 'product' | 'event', targetId: number) {
+    if (!data || !communityId) return
+    const existing = data.scheduledPosts.find((post) => post.targetType === targetType && post.targetId === targetId) ?? null
+
+    if (existing?.status === 'active') {
+      try {
+        const { scheduledPost } = await api.pauseAutoPosting(communityId, { targetType, targetId })
+        setData({
+          ...data,
+          scheduledPosts: data.scheduledPosts.map((post) => (post.id === scheduledPost?.id ? scheduledPost : post)),
+        })
+        showToast('Auto-posting turned off')
+      } catch (error: any) {
+        showToast(error.message || 'Auto-posting update failed')
+      }
+      return
+    }
+
+    const input = window.prompt('Repost this every how many hours? (24 = daily, 168 = weekly)', String(existing?.intervalHours ?? 168))
+    if (input === null) return
+    const intervalHours = Math.max(1, Math.round(Number(input)) || 168)
+    try {
+      const { scheduledPost } = await api.activateAutoPosting(communityId, { targetType, targetId, intervalHours })
+      setData({
+        ...data,
+        scheduledPosts: existing
+          ? data.scheduledPosts.map((post) => (post.id === scheduledPost.id ? scheduledPost : post))
+          : [...data.scheduledPosts, scheduledPost],
+      })
+      showToast(`Auto-posting turned on · every ${intervalHours}h`)
+    } catch (error: any) {
+      showToast(error.message || 'Auto-posting update failed')
+    }
+  }
+
   async function createEventDraft() {
     if (!data || !communityId) return
     const body = {
@@ -1480,6 +1516,8 @@ export default function Home() {
               onReferralReward={() => openReferralRewardForPlan(activePlan)}
               commentAccess={data.commentAccess}
               onToggleCommentAccess={toggleCommentAccess}
+              autoPost={activePlan ? data.scheduledPosts.find((post) => post.targetType === 'plan' && post.targetId === activePlan.id) ?? null : null}
+              onToggleAutoPosting={() => activePlan && toggleAutoPosting('plan', activePlan.id)}
               onToast={showToast}
             />
           )}
@@ -2627,6 +2665,8 @@ function PublishScreen({
   onReferralReward,
   commentAccess,
   onToggleCommentAccess,
+  autoPost,
+  onToggleAutoPosting,
   onToast,
 }: {
   community: DashboardDto['community']
@@ -2642,6 +2682,8 @@ function PublishScreen({
   onReferralReward: () => void
   commentAccess: CommentAccessDto
   onToggleCommentAccess: () => void
+  autoPost: ScheduledPostDto | null
+  onToggleAutoPosting: () => void
   onToast: (message: string) => void
 }) {
   const commentAccessDetail = !commentAccess.linked
@@ -2651,6 +2693,10 @@ function PublishScreen({
     : commentAccess.enabled
     ? 'On · applies to your whole channel'
     : 'Off · applies to your whole channel'
+  const autoPostDetail =
+    autoPost?.status === 'active'
+      ? `Every ${autoPost.intervalHours}h · next ${new Date(autoPost.nextRunAt).toLocaleDateString()}`
+      : 'Off'
   return (
     <section className="tg-screen with-fixed-button">
       <h1 className="tg-publish-title">{plan?.name ?? title}</h1>
@@ -2676,7 +2722,14 @@ function PublishScreen({
           meta={commentAccess.linked && commentAccess.discussionBotStatus === 'admin' ? (commentAccess.enabled ? 'on' : 'off') : undefined}
           onClick={onToggleCommentAccess}
         />
-        <ListRow tone="blue" icon="A" title="Auto-posting" detail="Off" onClick={() => onToast('Auto-posting opened')} />
+        <ListRow
+          tone="blue"
+          icon="A"
+          title="Auto-posting"
+          detail={autoPostDetail}
+          meta={autoPost?.status === 'active' ? 'on' : 'off'}
+          onClick={onToggleAutoPosting}
+        />
         <ListRow tone="purple" icon="R" title="Referral Reward" detail="Invite 3 friends" onClick={onReferralReward} />
         {plan && <ListRow tone="red" icon="D" title="Delete Membership" detail="Remove this package from active offers" onClick={onDelete} />}
       </ListGroup>

@@ -77,3 +77,67 @@ export async function sendShareMessage(opts: {
     await sendTelegramMessage(opts.botToken, opts.chatId, opts.caption, 'HTML', replyMarkup)
   }
 }
+
+// Shared by the manual Share button (pages/api/communities/[id]/{plans,products,events}/share.ts)
+// and the auto-posting cron (pages/api/cron/auto-post.ts) so a scheduled re-share looks
+// identical to a manually triggered one.
+export function escapeHtml(value: string) {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+export function botUsernameFromEnv(): string {
+  return (process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
+}
+
+export function deepLinkForTarget(botUsername: string, communityId: number, targetType: 'plan' | 'product' | 'event', targetId: number): string {
+  return `https://t.me/${botUsername}?startapp=co_${communityId}_${targetType}_${targetId}`
+}
+
+export function planShareCaption(
+  communityName: string,
+  plan: { name: string; description: string | null; interval: string },
+  stars: number,
+  chatInfo: ConnectedChatInfo | null
+): string {
+  return [
+    `<b>${escapeHtml(plan.name)}</b>`,
+    plan.description ? escapeHtml(plan.description) : null,
+    stars > 0 ? `${stars} XTR per ${escapeHtml(plan.interval)}` : null,
+    chatInfo ? `${escapeHtml(chatInfo.title)} · ${chatInfo.activeMembers} members` : null,
+    `Tap below to subscribe to ${escapeHtml(communityName)}.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+export function productShareCaption(
+  communityName: string,
+  product: { title: string; description?: string | null; priceStars: number },
+  chatInfo: ConnectedChatInfo | null
+): string {
+  return [
+    `<b>${escapeHtml(product.title)}</b>`,
+    product.description ? escapeHtml(product.description) : null,
+    product.priceStars ? `${product.priceStars} XTR` : 'Free',
+    chatInfo ? `${escapeHtml(chatInfo.title)} · ${chatInfo.activeMembers} members` : null,
+    `Tap below to get it from ${escapeHtml(communityName)}.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+export function eventShareCaption(
+  communityName: string,
+  event: { title: string; description?: string | null; startsAt: string; priceStars: number },
+  chatInfo: ConnectedChatInfo | null
+): string {
+  return [
+    `<b>${escapeHtml(event.title)}</b>`,
+    event.description ? escapeHtml(event.description) : null,
+    `${new Date(event.startsAt).toLocaleString()}${event.priceStars ? ` · ${event.priceStars} XTR` : ' · Free'}`,
+    chatInfo ? `${escapeHtml(chatInfo.title)} · ${chatInfo.activeMembers} members` : null,
+    `Tap below to register for ${escapeHtml(communityName)}.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
