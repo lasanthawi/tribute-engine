@@ -114,6 +114,23 @@ export async function syncCommunityAvatar(communityId: number, telegramChatId: n
   if (error) throw error
 }
 
+// The legacy `communities.telegram_chat_id` column is only populated for a
+// community's first-ever chat link (see autoLinkChatToCommunity); the actual
+// source of truth for "which chat is this community connected to" is the
+// telegram_chats table. Mirrors connectedChatIds()'s same fallback order.
+async function resolveAvatarChatId(communityId: number, fallbackChatId: number | null): Promise<number | null> {
+  const { data: chat } = await sb
+    .from('telegram_chats')
+    .select('telegram_chat_id')
+    .eq('community_id', communityId)
+    .eq('bot_status', 'admin')
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (chat?.telegram_chat_id) return Number(chat.telegram_chat_id)
+  return fallbackChatId
+}
+
 // Retries the avatar sync on read whenever it hasn't succeeded yet — covers a
 // chat photo set/changed after the bot already connected, and a sync that
 // previously failed (e.g. the storage bucket didn't exist yet). Every screen
@@ -124,8 +141,10 @@ export async function ensureCommunityAvatar(community: {
   avatar_path: string | null
   telegram_chat_id: number | null
 }): Promise<string | null> {
-  if (community.avatar_path || !community.telegram_chat_id) return community.avatar_path
-  await syncCommunityAvatar(community.id, community.telegram_chat_id).catch((error) =>
+  if (community.avatar_path) return community.avatar_path
+  const chatId = await resolveAvatarChatId(community.id, community.telegram_chat_id)
+  if (!chatId) return community.avatar_path
+  await syncCommunityAvatar(community.id, chatId).catch((error) =>
     console.error('ensureCommunityAvatar failed:', error)
   )
   const { data: refreshed } = await supabase.from('communities').select('avatar_path').eq('id', community.id).maybeSingle()
