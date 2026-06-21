@@ -9,10 +9,30 @@ type AuditInput = {
   payload?: Record<string, unknown>
 }
 
+function bootstrapAdminTelegramIds(): number[] {
+  return (process.env.ADMIN_TELEGRAM_IDS || '')
+    .split(',')
+    .map((id) => Number(id.trim()))
+    .filter((id) => Number.isFinite(id) && id > 0)
+}
+
+// First-admin bootstrap: ADMIN_TELEGRAM_IDS has no other way into platform_admins
+// (every other admin-management path already requires being a platform admin), so
+// a matching login auto-seeds the row. Documented in .env.example.
 export async function isPlatformAdmin(userId: number): Promise<boolean> {
   const { data, error } = await sb.from('platform_admins').select('id').eq('user_id', userId).maybeSingle()
   if (error) throw error
-  return !!data
+  if (data) return true
+
+  const bootstrapIds = bootstrapAdminTelegramIds()
+  if (!bootstrapIds.length) return false
+
+  const { data: user } = await supabase.from('users').select('telegram_id').eq('id', userId).maybeSingle()
+  if (!user || !bootstrapIds.includes(user.telegram_id)) return false
+
+  const { error: seedError } = await sb.from('platform_admins').upsert({ user_id: userId, role: 'owner' }, { onConflict: 'user_id' })
+  if (seedError) throw seedError
+  return true
 }
 
 export async function recordAuditEvent(input: AuditInput): Promise<void> {
