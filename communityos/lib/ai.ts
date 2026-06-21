@@ -13,6 +13,7 @@ export async function getAiManager(communityId: number): Promise<AiManagerDto> {
 
   const weeklyReportStatus =
     report?.status === 'ready' ? 'ready' : report?.status === 'scheduled' ? 'scheduled' : 'not_configured'
+  const aiSettings = settings as any
 
   return {
     healthScore: score?.score ?? 0,
@@ -22,10 +23,10 @@ export async function getAiManager(communityId: number): Promise<AiManagerDto> {
       (row): HealthSignalDto => ({ id: row.id, title: row.title, detail: row.detail ?? '', tone: 'info' })
     ),
     settings: {
-      faqEnabled: settings?.faq_enabled ?? true,
-      welcomeEnabled: settings?.welcome_enabled ?? true,
-      reportsEnabled: settings?.reports_enabled ?? true,
-      tone: settings?.tone ?? 'friendly',
+      faqEnabled: aiSettings?.faq_enabled ?? true,
+      welcomeEnabled: aiSettings?.welcome_enabled ?? true,
+      reportsEnabled: aiSettings?.reports_enabled ?? true,
+      tone: aiSettings?.tone ?? 'friendly',
     },
   }
 }
