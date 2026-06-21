@@ -1084,13 +1084,11 @@ export default function Home() {
           <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         </Head>
         <main className="tg-app">
-          <header className="tg-topbar">
-            <button className="tg-nav-button" type="button" disabled aria-label="Back" />
+          <header className="tg-topbar centered">
             <div className="tg-title">
               <strong>CommunityOS</strong>
               <span>mini app</span>
             </div>
-            <MenuButton communityId={1} />
           </header>
           <section className="tg-screen centered">
             <div className="tg-hero-mark">TG</div>
@@ -1124,7 +1122,6 @@ export default function Home() {
           <IntroScreen
             index={introIndex}
             onBack={introIndex > 0 ? () => setIntroIndex((v) => v - 1) : undefined}
-            menuCommunityId={communityId ?? 1}
             onNext={() => {
               if (introIndex < introSlides.length - 1) setIntroIndex((v) => v + 1)
               else finishIntro()
@@ -1133,7 +1130,6 @@ export default function Home() {
         ) : (
           <AppFrame
             hideBack={screen === 'start' || screen === 'account'}
-            menuCommunityId={communityId ?? 1}
             onBack={() => { if (screen === 'communities') go('account') }}
           >
             {screen === 'account' && me && (
@@ -1192,7 +1188,7 @@ export default function Home() {
           }}
         />
       ) : mode === 'member' ? (
-        <AppFrame hideBack={screen === 'home'} onBack={() => go('home')} menuCommunityId={communityId ?? 1}>
+        <AppFrame hideBack={screen === 'home'} onBack={() => go('home')}>
           <MemberHome
             data={data}
             member={member}
@@ -1212,7 +1208,6 @@ export default function Home() {
         <IntroScreen
           index={introIndex}
           onBack={introIndex > 0 ? () => setIntroIndex((value) => value - 1) : undefined}
-          menuCommunityId={communityId ?? 1}
           onNext={() => {
             if (introIndex < introSlides.length - 1) {
               setIntroIndex((value) => value + 1)
@@ -1222,11 +1217,10 @@ export default function Home() {
           }}
         />
       ) : screen === 'shareGuide' ? (
-        <ShareGuide onBack={() => go('publish')} onDone={() => go('home')} menuCommunityId={communityId ?? 1} />
+        <ShareGuide onBack={() => go('publish')} onDone={() => go('home')} />
       ) : (
         <AppFrame
           hideBack={screen === 'start'}
-          menuCommunityId={communityId ?? 1}
           onBack={() => {
             const previous: Record<Screen, Screen> = {
               intro: 'intro',
@@ -1525,37 +1519,35 @@ function AppFrame({
   children,
   hideBack,
   onBack,
-  menuCommunityId,
 }: {
   children: React.ReactNode
   hideBack?: boolean
   onBack?: () => void
-  menuCommunityId: number
 }) {
   return (
     <main className="tg-app">
       <header className="tg-topbar">
-        <button className="tg-nav-button" type="button" onClick={onBack} disabled={hideBack} aria-label="Back">
-          {hideBack ? '' : 'Back'}
-        </button>
-        <div className="tg-title" />
-        <MenuButton communityId={menuCommunityId} />
+        {!hideBack && (
+          <button className="tg-nav-button" type="button" onClick={onBack} aria-label="Back">
+            Back
+          </button>
+        )}
       </header>
       {children}
     </main>
   )
 }
 
-function IntroScreen({ index, onBack, onNext, menuCommunityId }: { index: number; onBack?: () => void; onNext: () => void; menuCommunityId: number }) {
+function IntroScreen({ index, onBack, onNext }: { index: number; onBack?: () => void; onNext: () => void }) {
   const slide = introSlides[index]
   return (
     <main className="tg-story">
       <header className="tg-story-topbar">
-        <button type="button" onClick={onBack} disabled={!onBack}>
-          {onBack ? 'Back' : ''}
-        </button>
-        <div />
-        <MenuButton communityId={menuCommunityId} />
+        {onBack && (
+          <button type="button" onClick={onBack}>
+            Back
+          </button>
+        )}
       </header>
       <div className="tg-progress-bars" aria-label={`Slide ${index + 1} of ${introSlides.length}`}>
         {introSlides.map((item, itemIndex) => (
@@ -1583,11 +1575,11 @@ function StartPicker({ onSelect, onSelectModel }: { onSelect: (screen: Screen) =
       <h1>Where would you like to start?</h1>
       <p className="tg-subtitle">Pick the first thing you want to launch. You can add other formats later.</p>
       <ListGroup>
-        <ListRow tone="blue" icon="M" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelectModel('membership')} />
-        <ListRow tone="red" icon="D" title="Digital Product" detail="Sell courses, files, downloads, or guides." onClick={() => onSelectModel('product')} />
-        <ListRow tone="purple" icon="E" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelectModel('event')} />
-        <ListRow tone="green" icon="R" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelectModel('referral')} />
-        <ListRow tone="amber" icon="AI" title="AI Community Manager" detail="Automate FAQ, welcome messages, and reports." onClick={() => onSelectModel('ai')} />
+        <ListRow tone="blue" icon="membership" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelectModel('membership')} />
+        <ListRow tone="red" icon="product" title="Digital Product" detail="Sell courses, files, downloads, or guides." onClick={() => onSelectModel('product')} />
+        <ListRow tone="purple" icon="event" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelectModel('event')} />
+        <ListRow tone="green" icon="referral" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelectModel('referral')} />
+        <ListRow tone="amber" icon="ai" title="AI Community Manager" detail="Automate FAQ, welcome messages, and reports." onClick={() => onSelectModel('ai')} />
       </ListGroup>
       <button className="tg-link-button" type="button" onClick={() => onSelect('communities')}>
         I will choose later
@@ -1667,16 +1659,16 @@ function AccountHome({
 
       <SectionLabel>Account Stats</SectionLabel>
       <ListGroup>
-        <ListRow tone="blue" icon="X" title="Stars Revenue" detail={`${me.accountStats.monthlyStars.toLocaleString()} XTR collected`} meta={`${me.accountStats.activeSubscriptions} subs`} />
-        <ListRow tone={me.accountStats.accessIssues > 0 ? 'amber' : 'green'} icon="A" title="Access Health" detail={`${me.accountStats.accessIssues} access issue(s)`} />
+        <ListRow tone="blue" icon="stars" title="Stars Revenue" detail={`${me.accountStats.monthlyStars.toLocaleString()} XTR collected`} meta={`${me.accountStats.activeSubscriptions} subs`} />
+        <ListRow tone={me.accountStats.accessIssues > 0 ? 'amber' : 'green'} icon="access" title="Access Health" detail={`${me.accountStats.accessIssues} access issue(s)`} />
       </ListGroup>
 
       <SectionLabel>Start Something New</SectionLabel>
       <ListGroup>
-        <ListRow tone="blue" icon="M" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelectModel('membership')} />
-        <ListRow tone="red" icon="D" title="Digital Product" detail="Sell files, courses, downloads, or guides." onClick={() => onSelectModel('product')} />
-        <ListRow tone="purple" icon="E" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelectModel('event')} />
-        <ListRow tone="green" icon="R" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelectModel('referral')} />
+        <ListRow tone="blue" icon="membership" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelectModel('membership')} />
+        <ListRow tone="red" icon="product" title="Digital Product" detail="Sell files, courses, downloads, or guides." onClick={() => onSelectModel('product')} />
+        <ListRow tone="purple" icon="event" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelectModel('event')} />
+        <ListRow tone="green" icon="referral" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelectModel('referral')} />
       </ListGroup>
 
       <SectionLabel>Your Communities</SectionLabel>
@@ -1757,7 +1749,7 @@ function CommunityHome({
           <ListRow
             key={plan.id}
             tone="blue"
-            icon="M"
+            icon="membership"
             image={plan.coverUrl}
             title={plan.name}
             detail={`${plan.subscribers} subscribers`}
@@ -1774,7 +1766,7 @@ function CommunityHome({
           <ListRow
             key={product.id}
             tone="red"
-            icon="D"
+            icon="product"
             image={product.coverUrl}
             title={product.title}
             detail={`${product.type.replace('_', ' ')} · ${product.purchases} purchases`}
@@ -1782,7 +1774,7 @@ function CommunityHome({
             onClick={() => onOpenProduct(product)}
           />
         ))}
-        {data.products.length === 0 && <ListRow tone="red" icon="D" title="Create Digital Product" detail="Sell files, links, courses, or consultations." onClick={() => onSelectModel('product')} />}
+        {data.products.length === 0 && <ListRow tone="red" icon="product" title="Create Digital Product" detail="Sell files, links, courses, or consultations." onClick={() => onSelectModel('product')} />}
       </ListGroup>
 
       <SectionLabel>Events</SectionLabel>
@@ -1791,7 +1783,7 @@ function CommunityHome({
           <ListRow
             key={event.id}
             tone="purple"
-            icon="E"
+            icon="event"
             image={event.coverUrl}
             title={event.title}
             detail={`${event.type} · ${dateShort(event.startsAt)}`}
@@ -1799,14 +1791,14 @@ function CommunityHome({
             onClick={() => onOpenEvent(event)}
           />
         ))}
-        {data.events.length === 0 && <ListRow tone="purple" icon="E" title="Create Event or AMA" detail="Sell tickets or collect registrations." onClick={() => onSelectModel('event')} />}
+        {data.events.length === 0 && <ListRow tone="purple" icon="event" title="Create Event or AMA" detail="Sell tickets or collect registrations." onClick={() => onSelectModel('event')} />}
       </ListGroup>
 
       <SectionLabel>Operations</SectionLabel>
       <ListGroup>
-        <ListRow tone="green" icon="A" title="Access" detail={`${data.metrics.accessIssues} issues need review`} onClick={() => onNavigate('access')} />
-        <ListRow tone="purple" icon="G" title="Growth" detail={`${data.metrics.referralActivations} referral activations`} onClick={() => onNavigate('growth')} />
-        <ListRow tone="amber" icon="R" title="Rewards" detail={`${data.rewardRules.length} reward rules`} onClick={() => onNavigate('rewards')} />
+        <ListRow tone="green" icon="access" title="Access" detail={`${data.metrics.accessIssues} issues need review`} onClick={() => onNavigate('access')} />
+        <ListRow tone="purple" icon="growth" title="Growth" detail={`${data.metrics.referralActivations} referral activations`} onClick={() => onNavigate('growth')} />
+        <ListRow tone="amber" icon="rewards" title="Rewards" detail={`${data.rewardRules.length} reward rules`} onClick={() => onNavigate('rewards')} />
       </ListGroup>
 
       <SectionLabel>Recent Activity</SectionLabel>
@@ -1952,7 +1944,7 @@ function GrowthScreen({
               <ListRow
                 key={campaign.id}
                 tone="green"
-                icon="R"
+                icon="referral"
                 title={campaign.title}
                 detail={`${targetLabel(campaign) ?? 'Item'} · ${campaign.clicks} clicks, ${campaign.joins} joins, ${campaign.purchases} purchases`}
                 meta={money(campaign.revenueCents)}
@@ -1967,7 +1959,7 @@ function GrowthScreen({
           <ListRow
             key={campaign.id}
             tone="green"
-            icon="R"
+            icon="referral"
             title={campaign.title}
             detail={`${campaign.clicks} clicks, ${campaign.joins} joins, ${campaign.purchases} purchases`}
             meta={money(campaign.revenueCents)}
@@ -2041,7 +2033,7 @@ function RewardsScreen({
       <SectionLabel>Rules</SectionLabel>
       <ListGroup>
         {data.rewardRules.map((rule) => (
-          <ListRow key={rule.id} tone="amber" icon="XP" title={rule.title} detail={`${rule.trigger}. ${rule.reward}`} meta={rule.status} />
+          <ListRow key={rule.id} tone="amber" icon="rewards" title={rule.title} detail={`${rule.trigger}. ${rule.reward}`} meta={rule.status} />
         ))}
         {data.rewardRules.length === 0 && <EmptyBlock title="No reward rules yet" detail="Create an XP or badge rule to keep members engaged." />}
       </ListGroup>
@@ -2064,14 +2056,15 @@ function MoreScreen({
   onOpenAiManager: () => void
   onOpenSettings: () => void
 }) {
+  const router = useRouter()
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">More</h1>
       <ListGroup>
-        <ListRow tone="amber" icon="AI" title="AI Community Manager" detail={`${data.ai.faqCount} FAQ answers, report ${data.ai.weeklyReportStatus}`} onClick={onOpenAiManager} />
-        <ListRow tone="purple" icon="E" title="Events" detail={`${data.events.length} events`} onClick={onCreateEvent} />
-        <ListRow tone="red" icon="P" title="Products and Services" detail={`${data.products.length} products`} onClick={onCreateProduct} />
-        <ListRow tone="blue" icon="S" title="Settings" detail="Bot permissions, Stars checkout, notifications" onClick={onOpenSettings} />
+        <ListRow tone="amber" icon="ai" title="AI Community Manager" detail={`${data.ai.faqCount} FAQ answers, report ${data.ai.weeklyReportStatus}`} onClick={onOpenAiManager} />
+        <ListRow tone="purple" icon="event" title="Events" detail={`${data.events.length} events`} onClick={onCreateEvent} />
+        <ListRow tone="red" icon="product" title="Products and Services" detail={`${data.products.length} products`} onClick={onCreateProduct} />
+        <ListRow tone="blue" icon="settings" title="Settings" detail="Bot permissions, Stars checkout, notifications" onClick={onOpenSettings} />
       </ListGroup>
       <SectionLabel>Events</SectionLabel>
       <ListGroup>
@@ -2086,6 +2079,12 @@ function MoreScreen({
           <ListRow key={product.id} title={product.title} detail={`${product.type.replace('_', ' ')}. ${product.purchases} purchases`} meta={`${product.priceStars} XTR`} />
         ))}
         {data.products.length === 0 && <EmptyBlock title="No products yet" detail="Sell courses, downloads, premium content, and consultations." />}
+      </ListGroup>
+      <SectionLabel>Developer tools</SectionLabel>
+      <ListGroup>
+        <ListRow title="Restart intro" detail="Replay the onboarding walkthrough" onClick={() => router.push('/')} />
+        <ListRow title="Member preview" detail="See this community the way a member does" onClick={() => router.push(`/member/${data.community.id}`)} />
+        <ListRow title="Platform admin" detail="Open the CommunityOS admin dashboard" onClick={() => router.push('/admin')} />
       </ListGroup>
     </section>
   )
@@ -2469,8 +2468,8 @@ function RevenuePublishScreen({
         <ActionTile label="More" icon="more" onClick={() => onToast('More options opened')} />
       </div>
       <ListGroup>
-        <ListRow tone="green" icon="S" title="Telegram Card" detail="Share sends a bot message with a Web App button." onClick={onShare} />
-        <ListRow tone="red" icon="D" title={`Delete ${kind === 'product' ? 'Product' : 'Event'}`} detail="Remove it from active offers." onClick={onDelete} />
+        <ListRow tone="green" icon="share" title="Telegram Card" detail="Share sends a bot message with a Web App button." onClick={onShare} />
+        <ListRow tone="red" icon="delete" title={`Delete ${kind === 'product' ? 'Product' : 'Event'}`} detail="Remove it from active offers." onClick={onDelete} />
       </ListGroup>
       <FixedButton label={primaryLabel} onClick={onShare} />
     </section>
@@ -2710,7 +2709,7 @@ function PublishScreen({
       <ListGroup>
         <ListRow
           tone="green"
-          icon="C"
+          icon="comment"
           title="Comment Access"
           detail={commentAccessDetail}
           meta={commentAccess.linked && commentAccess.discussionBotStatus === 'admin' ? (commentAccess.enabled ? 'on' : 'off') : undefined}
@@ -2718,14 +2717,14 @@ function PublishScreen({
         />
         <ListRow
           tone="blue"
-          icon="A"
+          icon="autopost"
           title="Auto-posting"
           detail={autoPostDetail}
           meta={autoPost?.status === 'active' ? 'on' : 'off'}
           onClick={onToggleAutoPosting}
         />
-        <ListRow tone="purple" icon="R" title="Referral Reward" detail="Invite 3 friends" onClick={onReferralReward} />
-        {plan && <ListRow tone="red" icon="D" title="Delete Membership" detail="Remove this package from active offers" onClick={onDelete} />}
+        <ListRow tone="purple" icon="referral" title="Referral Reward" detail="Invite 3 friends" onClick={onReferralReward} />
+        {plan && <ListRow tone="red" icon="delete" title="Delete Membership" detail="Remove this package from active offers" onClick={onDelete} />}
       </ListGroup>
       <div className="tg-empty-illustration">
         <div>Share</div>
@@ -2740,7 +2739,7 @@ function PublishScreen({
   )
 }
 
-function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; onDone: () => void; menuCommunityId: number }) {
+function ShareGuide({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const [step, setStep] = useState(0)
   const slides = [
     { title: 'Tap Share on any membership, product, or event', art: 'Share' },
@@ -2753,8 +2752,6 @@ function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; o
         <button type="button" onClick={onBack}>
           Back
         </button>
-        <div />
-        <MenuButton communityId={menuCommunityId} />
       </header>
       <div className="tg-progress-bars" aria-label={`Slide ${step + 1} of ${slides.length}`}>
         {slides.map((item, index) => (
@@ -3063,9 +3060,9 @@ function MemberHome({
         <div className="tg-progress"><span style={{ width: `${progress}%` }} /></div>
       </section>
       <ListGroup>
-        <ListRow tone="blue" icon="A" title="Telegram Access" detail={member?.accessStatus ?? 'Pending'} />
-        <ListRow tone="green" icon="R" title="Referral Link" detail="Invite friends and unlock rewards" onClick={onReferral} />
-        <ListRow tone="amber" icon="XP" title="Rewards" detail={`${data.rewards.length} available`} />
+        <ListRow tone="blue" icon="access" title="Telegram Access" detail={member?.accessStatus ?? 'Pending'} />
+        <ListRow tone="green" icon="referral" title="Referral Link" detail="Invite friends and unlock rewards" onClick={onReferral} />
+        <ListRow tone="amber" icon="rewards" title="Rewards" detail={`${data.rewards.length} available`} />
       </ListGroup>
       <SectionLabel>Your Access</SectionLabel>
       <ListGroup>
@@ -3073,7 +3070,7 @@ function MemberHome({
           <ListRow
             key={subscription.id}
             tone={subscription.status === 'past_due' || subscription.status === 'expired' ? 'amber' : 'green'}
-            icon="S"
+            icon="subscription"
             title={subscription.planName ?? 'Membership'}
             detail={`${subscription.status}${subscription.currentPeriodEnd ? ` · until ${dateShort(subscription.currentPeriodEnd)}` : ''}`}
             meta={subscription.status === 'past_due' || subscription.status === 'expired' ? 'Renew' : 'Manage'}
@@ -3084,7 +3081,7 @@ function MemberHome({
           <ListRow
             key={`product-${product.id}`}
             tone="red"
-            icon="D"
+            icon="product"
             title={product.title}
             detail={product.deliveryUrl ? 'Unlocked link available' : product.deliveryText ? 'Delivery instructions available' : 'Unlocked'}
             meta="Open"
@@ -3095,7 +3092,7 @@ function MemberHome({
           <ListRow
             key={`event-${event.id}`}
             tone="purple"
-            icon="E"
+            icon="event"
             title={event.title}
             detail={`Registered · ${dateShort(event.startsAt)}`}
             meta={event.accessLink ? 'Open' : 'Ready'}
@@ -3116,7 +3113,7 @@ function MemberHome({
           <ListRow
             key={plan.id}
             tone={isPastDue ? 'amber' : isActive ? 'green' : 'blue'}
-            icon="M"
+            icon="membership"
             image={plan.coverUrl}
             title={plan.name}
             detail={isActive ? 'Active subscription' : isPastDue ? 'Payment needs attention' : plan.description ?? `${plan.interval} membership`}
@@ -3132,7 +3129,7 @@ function MemberHome({
         {data.products.map((product) => (
           <ListRow
             key={product.id}
-            icon="P"
+            icon="product"
             image={product.coverUrl}
             title={product.title}
             detail={product.owned ? 'Unlocked' : product.type.replace('_', ' ')}
@@ -3147,7 +3144,7 @@ function MemberHome({
         {data.events.map((event) => (
           <ListRow
             key={event.id}
-            icon="E"
+            icon="event"
             image={event.coverUrl}
             title={event.title}
             detail={`${event.type} on ${dateShort(event.startsAt)}`}
@@ -3163,7 +3160,7 @@ function MemberHome({
           <ListRow
             key={campaign.id}
             tone={campaign.claimable ? 'green' : 'blue'}
-            icon="R"
+            icon="referral"
             title={campaign.title}
             detail={`${campaign.current ?? 0}/${campaign.threshold ?? 3} invites · ${campaign.reward}`}
             meta={campaign.claimable ? 'Claimable' : 'Progress'}
@@ -3181,7 +3178,7 @@ function MemberHome({
           <ListRow
             key={purchase.id}
             tone={purchase.kind === 'event' ? 'purple' : purchase.kind === 'product' ? 'red' : 'blue'}
-            icon={purchase.kind === 'event' ? 'E' : purchase.kind === 'product' ? 'D' : 'M'}
+            icon={purchase.kind === 'event' ? 'event' : purchase.kind === 'product' ? 'product' : 'membership'}
             title={purchase.title}
             detail={`${purchase.status}${purchase.paidAt ? ` · ${dateShort(purchase.paidAt)}` : ''}`}
             meta={purchase.amountStars > 0 ? `${purchase.amountStars} XTR` : 'Free'}
@@ -3238,6 +3235,170 @@ function CheckoutPrompt({
   )
 }
 
+type IconName =
+  | 'membership'
+  | 'product'
+  | 'event'
+  | 'referral'
+  | 'ai'
+  | 'stars'
+  | 'access'
+  | 'growth'
+  | 'rewards'
+  | 'settings'
+  | 'share'
+  | 'delete'
+  | 'comment'
+  | 'autopost'
+  | 'subscription'
+  | 'channel'
+  | 'group'
+
+function RowIcon({ name }: { name: IconName }) {
+  switch (name) {
+    case 'membership':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="6" width="18" height="13" rx="3" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M3 10h18" stroke="currentColor" strokeWidth="1.6" />
+          <circle cx="17" cy="14.5" r="2.4" fill="currentColor" fillOpacity="0.85" />
+          <path d="M7 14.5h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      )
+    case 'product':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 3l8 4.2v9.6L12 21l-8-4.2V7.2L12 3z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" fill="currentColor" fillOpacity="0.1" />
+          <path d="M4 7.2L12 11l8-3.8" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+          <path d="M12 11v10" stroke="currentColor" strokeWidth="1.6" />
+        </svg>
+      )
+    case 'event':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <rect x="3.5" y="5" width="17" height="15" rx="3" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M8 3v4M16 3v4M3.5 9.5h17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M12 12.3l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3 1-2z" fill="currentColor" fillOpacity="0.9" />
+        </svg>
+      )
+    case 'referral':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="8" cy="9" r="3" stroke="currentColor" strokeWidth="1.6" />
+          <circle cx="17" cy="9" r="3" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.14" />
+          <path d="M3.5 19c.6-3 2.4-4.6 4.5-4.6s3.9 1.6 4.5 4.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M12.5 19c.6-3 2.4-4.6 4.5-4.6s3.9 1.6 4.5 4.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M11 9h3M12.3 7.7l1.3 1.3-1.3 1.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )
+    case 'ai':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 3l1.8 5.6L19.5 10.4 13.8 12.3 12 18l-1.8-5.7L4.5 10.4 10.2 8.6 12 3z" fill="currentColor" fillOpacity="0.85" />
+          <circle cx="18.5" cy="6" r="1.3" fill="currentColor" />
+          <circle cx="6" cy="17.5" r="1" fill="currentColor" fillOpacity="0.7" />
+        </svg>
+      )
+    case 'stars':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 4l2.2 4.6 5 .6-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.6-3.5 5-.6L12 4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.18" />
+          <circle cx="12" cy="11.6" r="6.8" stroke="currentColor" strokeWidth="1" strokeOpacity="0.35" />
+        </svg>
+      )
+    case 'access':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 3.5l7 2.7v5.3c0 4.6-3 7.6-7 9-4-1.4-7-4.4-7-9V6.2l7-2.7z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" fill="currentColor" fillOpacity="0.12" />
+          <circle cx="12" cy="11" r="1.6" fill="currentColor" />
+          <path d="M12 12.6v2.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      )
+    case 'growth':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M4 17l4.5-5 3.5 3 6.5-8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M15 7h4v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="8.5" cy="12" r="1.1" fill="currentColor" />
+        </svg>
+      )
+    case 'rewards':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="9" r="5" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.14" />
+          <path d="M9 13.2L7 21l5-2.6L17 21l-2-7.8" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+          <path d="M9.6 9l1 1.6 2.4-3.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )
+    case 'settings':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M4 7h9M17 7h3M4 12h3M9 12h11M4 17h13M19 17h1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <circle cx="13" cy="7" r="2" fill="currentColor" fillOpacity="0.85" />
+          <circle cx="6.5" cy="12" r="2" fill="currentColor" fillOpacity="0.85" />
+          <circle cx="16" cy="17" r="2" fill="currentColor" fillOpacity="0.85" />
+        </svg>
+      )
+    case 'share':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M3.5 12.5L20 4 13 20l-2.6-6.4-6.9-1.1z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" fill="currentColor" fillOpacity="0.14" />
+          <path d="M10.4 13.6L20 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      )
+    case 'delete':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.2" strokeOpacity="0.3" />
+          <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      )
+    case 'comment':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M4 6.5h16v9H10l-3.5 3v-3H4v-9z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" fill="currentColor" fillOpacity="0.12" />
+          <rect x="10.4" y="9.6" width="3.2" height="2.6" rx="0.6" fill="currentColor" />
+          <path d="M11.1 9.6V8.8a.9.9 0 011.8 0v.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        </svg>
+      )
+    case 'autopost':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="11" cy="12" r="7.2" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.12" />
+          <path d="M11 8v4.2l3 1.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M17.5 5.5a4 4 0 11-1 6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          <path d="M19.6 5.2l.3 2.6-2.5-.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )
+    case 'subscription':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 4a8 8 0 11-6.3 3.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          <path d="M4.2 4.6l.6 3.2 3-1.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="9" y="10" width="6" height="5.4" rx="1.2" fill="currentColor" fillOpacity="0.85" />
+        </svg>
+      )
+    case 'channel':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M4 10v4l3 .6v3a1 1 0 001 1h1v-4.2l9 1.8V7.8L9 9.6V10H4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.14" />
+          <path d="M18.5 9a4 4 0 010 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      )
+    case 'group':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="8.5" cy="9" r="3" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.12" />
+          <circle cx="15.5" cy="9" r="3" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.12" />
+          <path d="M3.6 18.6c.5-3 2.3-4.6 4.9-4.6s4.4 1.6 4.9 4.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M10.6 18.6c.5-3 2.3-4.6 4.9-4.6s4.4 1.6 4.9 4.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      )
+    default:
+      return null
+  }
+}
+
 function ListRow({
   title,
   detail,
@@ -3251,7 +3412,7 @@ function ListRow({
   title: string
   detail?: string
   meta?: string
-  icon?: string
+  icon?: IconName
   avatar?: string
   image?: string | null
   tone?: 'blue' | 'red' | 'purple' | 'green' | 'amber'
@@ -3261,9 +3422,13 @@ function ListRow({
     <>
       {image ? (
         <span className="tg-row-icon-image" style={{ backgroundImage: `url(${image})` }} />
-      ) : (
-        (icon || avatar) && <span className={`tg-row-icon ${tone}`}>{avatar ?? icon}</span>
-      )}
+      ) : avatar ? (
+        <span className={`tg-row-icon ${tone}`}>{avatar}</span>
+      ) : icon ? (
+        <span className={`tg-row-glyph ${tone}`}>
+          <RowIcon name={icon} />
+        </span>
+      ) : null}
       <span className="tg-row-main">
         <strong>{title}</strong>
         {detail && <small>{detail}</small>}
@@ -3356,7 +3521,7 @@ function ChatRow({ chat, image }: { chat: TelegramChatDto; image?: string | null
   return (
     <ListRow
       tone={chat.botStatus === 'admin' ? 'green' : 'amber'}
-      icon={chat.type === 'channel' ? 'CH' : 'G'}
+      icon={chat.type === 'channel' ? 'channel' : 'group'}
       image={image}
       title={chat.title}
       detail={`${chat.type}. ${chat.activeMembers} active members`}
@@ -3399,23 +3564,6 @@ function IconGlyph({ icon }: { icon: 'plus' | 'stats' | 'more' | 'edit' | 'link'
       <i />
       <i />
     </span>
-  )
-}
-
-function MenuButton({ communityId }: { communityId: number }) {
-  return (
-    <details className="tg-menu-details">
-      <summary className="tg-menu-button" aria-label="More options">
-        <span />
-        <span />
-        <span />
-      </summary>
-      <nav className="tg-menu-sheet" aria-label="CommunityOS menu">
-        <Link href="/">Restart intro</Link>
-        <Link href={`/member/${communityId}`}>Member preview</Link>
-        <Link href="/admin">Platform admin</Link>
-      </nav>
-    </details>
   )
 }
 
