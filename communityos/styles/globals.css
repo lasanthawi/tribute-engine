@@ -113,6 +113,11 @@ a {
   text-align: left;
 }
 
+.tg-nav-button-right {
+  margin-left: auto;
+  text-align: right;
+}
+
 .tg-story-topbar .tg-story-topbar-identity {
   display: flex;
   align-items: center;
@@ -846,6 +851,19 @@ a {
   font-weight: 700;
 }
 
+.tg-input-hint {
+  display: block;
+  padding: 0 22px 14px;
+  margin-top: -8px;
+  color: var(--tg-muted);
+  font-size: 13px;
+}
+
+.tg-input-hint.inline {
+  padding: 6px 0 0;
+  margin-top: 0;
+}
+
 .tg-upload-card {
   background: white;
   cursor: pointer;
@@ -1179,6 +1197,56 @@ a {
   color: white;
   padding: 11px 16px;
   font-size: 14px;
+  font-weight: 700;
+}
+
+.tg-action-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.32);
+  padding: 0 12px calc(12px + var(--safe-bottom));
+}
+
+.tg-action-sheet {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 620px);
+  border-radius: 18px;
+  background: var(--tg-card);
+  box-shadow: var(--tg-shadow);
+  padding: 18px;
+  padding-bottom: calc(10px + var(--safe-bottom));
+}
+
+.tg-action-sheet h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.tg-action-sheet p {
+  margin: 0 0 6px;
+  color: var(--tg-muted);
+  font-size: 14px;
+}
+
+.tg-action-sheet button {
+  border: 0;
+  border-radius: 14px;
+  background: var(--tg-bg);
+  color: var(--tg-blue);
+  font-size: 17px;
+  font-weight: 600;
+  padding: 14px;
+  text-align: center;
+}
+
+.tg-action-sheet button.cancel {
+  color: var(--tg-red);
   font-weight: 700;
 }
 

@@ -24,7 +24,7 @@ import {
   money,
 } from '@/lib/api-client'
 import { copyText, getInitData, getStartParam, haptic, initTelegramShell, openExternalLink, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
-import { centsToStars, starsToCents } from '@/lib/star-rate'
+import { centsToStars, formatUsdApprox, starsToCents } from '@/lib/star-rate'
 import { parseOfferCode, parseReferralCode as parseReferralStartCode } from '@/lib/start-params'
 import { NextAction, computeAccountNextAction, computeNextAction } from '@/lib/next-action'
 
@@ -74,6 +74,14 @@ const introSlides = [
     icon: 'bot' as IconName,
   },
 ]
+
+function xtrLabel(stars: number): string {
+  return `${stars.toLocaleString()} XTR (${formatUsdApprox(stars)})`
+}
+
+function xtrLabelOrFree(stars: number): string {
+  return stars > 0 ? xtrLabel(stars) : 'Free'
+}
 
 function paymentStatusMessage(status: string, itemTitle: string): string {
   if (status === 'paid') return `Payment complete — ${itemTitle} is unlocked`
@@ -201,6 +209,17 @@ export default function Home() {
           setData(dashboardFromMemberProfile(profile))
           setMode('member')
           setScreen('home')
+          // Opportunistically learn whether this user also owns communities, so the
+          // member view can offer a way back to the publisher dashboard. Non-blocking:
+          // member mode must not wait on (or fail because of) this lookup.
+          api
+            .getMe()
+            .then((meResult) => {
+              if (cancelled) return
+              setMe(meResult)
+              setOwnedCommunities(meResult.communities)
+            })
+            .catch(() => undefined)
           return
         }
 
@@ -310,6 +329,20 @@ export default function Home() {
       setScreen('home')
     } catch (error: any) {
       showToast(error.message || 'Could not open community')
+    }
+  }
+
+  async function switchToPublisherView() {
+    setMemberProfile(null)
+    setCheckoutIntent(null)
+    setMode('publisher')
+    const fallbackId = ownedCommunities.some((community) => community.id === communityId) ? communityId : ownedCommunities[0]?.id ?? null
+    if (fallbackId) {
+      await selectCommunity(fallbackId, 'home')
+    } else {
+      setCommunityId(null)
+      setData(null)
+      setScreen('account')
     }
   }
 
@@ -1204,7 +1237,12 @@ export default function Home() {
           }}
         />
       ) : mode === 'member' ? (
-        <AppFrame hideBack={screen === 'home'} onBack={() => go('home')}>
+        <AppFrame
+          hideBack={screen === 'home'}
+          onBack={() => go('home')}
+          rightLabel={ownedCommunities.length > 0 ? 'Publisher view' : undefined}
+          onRightAction={ownedCommunities.length > 0 ? switchToPublisherView : undefined}
+        >
           <MemberHome
             data={data}
             member={member}
@@ -1394,7 +1432,7 @@ export default function Home() {
               kind="product"
               title={activeProduct.title}
               description={activeProduct.description ?? productDescription}
-              price={`${activeProduct.priceStars} XTR`}
+              price={xtrLabel(activeProduct.priceStars)}
               coverUrl={activeProduct.coverUrl ?? productCover.preview}
               primaryLabel="Share Product"
               onEdit={() => go('productBuilder')}
@@ -1429,7 +1467,7 @@ export default function Home() {
               kind="event"
               title={activeEvent.title}
               description={activeEvent.description ?? eventDescription}
-              price={activeEvent.priceStars ? `${activeEvent.priceStars} XTR` : 'Free'}
+              price={xtrLabelOrFree(activeEvent.priceStars ?? 0)}
               coverUrl={activeEvent.coverUrl ?? eventCover.preview}
               primaryLabel="Share Event"
               onEdit={() => go('eventBuilder')}
@@ -1538,10 +1576,14 @@ function AppFrame({
   children,
   hideBack,
   onBack,
+  rightLabel,
+  onRightAction,
 }: {
   children: React.ReactNode
   hideBack?: boolean
   onBack?: () => void
+  rightLabel?: string
+  onRightAction?: () => void
 }) {
   return (
     <main className="tg-app">
@@ -1549,6 +1591,11 @@ function AppFrame({
         {!hideBack && (
           <button className="tg-nav-button" type="button" onClick={onBack} aria-label="Back">
             Back
+          </button>
+        )}
+        {rightLabel && onRightAction && (
+          <button className="tg-nav-button tg-nav-button-right" type="button" onClick={onRightAction}>
+            {rightLabel}
           </button>
         )}
       </header>
@@ -1828,7 +1875,7 @@ function CommunityHome({
             image={plan.coverUrl}
             title={plan.name}
             detail={`${plan.subscribers} subscribers`}
-            meta={`${plan.stars || centsToStars(plan.priceCents)} XTR`}
+            meta={xtrLabel(plan.stars || centsToStars(plan.priceCents))}
             onClick={() => onNavigate('publish')}
           />
         ))}
@@ -1845,7 +1892,7 @@ function CommunityHome({
             image={product.coverUrl}
             title={product.title}
             detail={`${product.type.replace('_', ' ')} · ${product.purchases} purchases`}
-            meta={`${product.priceStars} XTR`}
+            meta={xtrLabel(product.priceStars)}
             onClick={() => onOpenProduct(product)}
           />
         ))}
@@ -1862,7 +1909,7 @@ function CommunityHome({
             image={event.coverUrl}
             title={event.title}
             detail={`${event.type} · ${dateShort(event.startsAt)}`}
-            meta={event.priceStars ? `${event.priceStars} XTR` : 'Free'}
+            meta={xtrLabelOrFree(event.priceStars ?? 0)}
             onClick={() => onOpenEvent(event)}
           />
         ))}
@@ -2161,7 +2208,7 @@ function MoreScreen({
           <SectionLabel>Events</SectionLabel>
           <ListGroup>
             {data.events.map((event) => (
-              <ListRow key={event.id} title={event.title} detail={`${event.type} on ${dateShort(event.startsAt)}`} meta={event.priceStars ? `${event.priceStars} XTR` : 'Free'} />
+              <ListRow key={event.id} title={event.title} detail={`${event.type} on ${dateShort(event.startsAt)}`} meta={xtrLabelOrFree(event.priceStars ?? 0)} />
             ))}
             {data.events.length === 0 && <EmptyBlock title="No events yet" detail="Create webinars, AMAs, meetups, or challenges." />}
           </ListGroup>
@@ -2169,7 +2216,7 @@ function MoreScreen({
           <SectionLabel>Products</SectionLabel>
           <ListGroup>
             {data.products.map((product) => (
-              <ListRow key={product.id} title={product.title} detail={`${product.type.replace('_', ' ')}. ${product.purchases} purchases`} meta={`${product.priceStars} XTR`} />
+              <ListRow key={product.id} title={product.title} detail={`${product.type.replace('_', ' ')}. ${product.purchases} purchases`} meta={xtrLabel(product.priceStars)} />
             ))}
             {data.products.length === 0 && <EmptyBlock title="No products yet" detail="Sell courses, downloads, premium content, and consultations." />}
           </ListGroup>
@@ -2223,7 +2270,7 @@ function MoreScreen({
       <ListGroup>
         <ListRow title="Restart intro" detail="Replay the onboarding walkthrough" onClick={() => router.push('/')} />
         {data && <ListRow title="Member preview" detail="See this community the way a member does" onClick={() => router.push(`/member/${data.community.id}`)} />}
-        <ListRow title="Platform admin" detail="Open the CommunityOS admin dashboard" onClick={() => router.push('/admin')} />
+        {me?.isPlatformAdmin && <ListRow title="Platform admin" detail="Open the CommunityOS admin dashboard" onClick={() => router.push('/admin')} />}
       </ListGroup>
     </section>
   )
@@ -2434,6 +2481,7 @@ function ProductBuilderScreen({
       <SectionLabel>Payment</SectionLabel>
       <div className="tg-input-group">
         <input value={priceStars} onChange={(event) => onPriceStars(event.target.value)} inputMode="numeric" aria-label="Product price in Stars" />
+        {Number(priceStars) > 0 && <small className="tg-input-hint">≈ {formatUsdApprox(Number(priceStars))} for buyers</small>}
         <input value={buttonText} onChange={(event) => onButtonText(event.target.value)} aria-label="Button text" />
       </div>
       <PreviewCard title={title} description={description} buttonText={buttonText || 'Buy'} coverUrl={cover.preview} />
@@ -2513,6 +2561,7 @@ function EventBuilderScreen({
       <SectionLabel>Payment</SectionLabel>
       <div className="tg-input-group single">
         <input value={priceStars} onChange={(event) => onPriceStars(event.target.value)} inputMode="numeric" aria-label="Event price in Stars" />
+        {Number(priceStars) > 0 && <small className="tg-input-hint">≈ {formatUsdApprox(Number(priceStars))} for buyers</small>}
       </div>
       <PreviewCard title={title} description={description} buttonText={Number(priceStars) > 0 ? 'Get Ticket' : 'Register'} coverUrl={cover.preview} />
       <FixedButton label="Create Event" submit disabled={submitting} />
@@ -2873,10 +2922,12 @@ function PaymentScreen({
         <label>
           <span>1 Month</span>
           <input value={monthlyStars} onChange={(event) => onMonthlyStars(event.target.value)} inputMode="numeric" />
+          {Number(monthlyStars) > 0 && <small className="tg-input-hint inline">≈ {formatUsdApprox(Number(monthlyStars))} for subscribers</small>}
         </label>
         <label>
           <span>1 Year</span>
           <input value={yearlyStars} onChange={(event) => onYearlyStars(event.target.value)} inputMode="numeric" />
+          {Number(yearlyStars) > 0 && <small className="tg-input-hint inline">≈ {formatUsdApprox(Number(yearlyStars))} for subscribers</small>}
         </label>
       </div>
       <FixedButton label="Create" onClick={() => onCreate()} disabled={submitting} />
@@ -2938,7 +2989,7 @@ function PublishScreen({
         <p>{plan?.description ?? description}</p>
         <div>
           <span>{community.name}</span>
-          <span>{plan ? `${plan.stars || centsToStars(plan.priceCents)} XTR` : 'Draft'}</span>
+          <span>{plan ? xtrLabel(plan.stars || centsToStars(plan.priceCents)) : 'Draft'}</span>
         </div>
       </div>
       <div className="tg-action-grid">
@@ -3041,7 +3092,7 @@ function OfferWizard({
 
   const title = plan?.name || product?.title || event?.title || 'Offer'
   const description = plan?.description || product?.description || event?.description || ''
-  const price = plan ? `${plan.stars || centsToStars(plan.priceCents)} XTR` : product ? `${product.priceStars} XTR` : event ? `${event.priceStars || 0} XTR` : 'Free'
+  const price = plan ? xtrLabel(plan.stars || centsToStars(plan.priceCents)) : product ? xtrLabel(product.priceStars) : event ? xtrLabelOrFree(event.priceStars || 0) : 'Free'
   const imageUrl = plan?.coverUrl || product?.coverUrl || event?.coverUrl || data.community.avatarUrl || null
 
   const whatYoullGet = plan
@@ -3236,6 +3287,15 @@ function MemberHome({
   const checkoutEvent = checkoutIntent?.kind === 'event' ? data.events.find((event) => event.id === checkoutIntent.id) ?? null : null
   const checkoutSubscription = checkoutPlan ? activeSubscriptionForPlan(checkoutPlan.id) : null
   const checkoutMissing = checkoutIntent && !checkoutPlan && !checkoutProduct && !checkoutEvent
+  const [supportOpen, setSupportOpen] = useState(false)
+  const adminUsername = data.community.ownerUsername
+  const channelUrl = data.community.telegramInviteUrl || (data.chats[0]?.handle ? `https://t.me/${data.chats[0].handle}` : null)
+  const openSupportLink = (url: string, message: string) => {
+    setSupportOpen(false)
+    copyText(url).catch(() => undefined)
+    openTelegramLink(url)
+    onToast(message)
+  }
   return (
     <section className="tg-screen with-fixed-button">
       <div className="tg-community-header">
@@ -3255,7 +3315,7 @@ function MemberHome({
           detail={checkoutPlan.description ?? `${checkoutPlan.interval} access to ${data.community.name}`}
           secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
           imageUrl={checkoutPlan.coverUrl ?? data.community.avatarUrl}
-          meta={checkoutSubscription ? 'Active' : `${checkoutPlan.stars || centsToStars(checkoutPlan.priceCents)} XTR`}
+          meta={checkoutSubscription ? 'Active' : xtrLabel(checkoutPlan.stars || centsToStars(checkoutPlan.priceCents))}
           cta={checkoutSubscription ? 'Manage Subscription' : 'Continue to Subscribe'}
           onClick={() => handlePlanAction(checkoutPlan)}
         />
@@ -3268,7 +3328,7 @@ function MemberHome({
           detail={checkoutProduct.owned ? 'Already unlocked on your dashboard.' : checkoutProduct.description ?? checkoutProduct.type.replace('_', ' ')}
           secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
           imageUrl={checkoutProduct.coverUrl ?? data.community.avatarUrl}
-          meta={checkoutProduct.owned ? 'Unlocked' : `${checkoutProduct.priceStars} XTR`}
+          meta={checkoutProduct.owned ? 'Unlocked' : xtrLabel(checkoutProduct.priceStars)}
           cta={checkoutProduct.owned ? 'Open Product' : `Continue to ${checkoutProduct.buttonText ?? 'Buy'}`}
           onClick={() => onBuyProduct(checkoutProduct)}
         />
@@ -3281,7 +3341,7 @@ function MemberHome({
           detail={`${checkoutEvent.type} on ${dateShort(checkoutEvent.startsAt)}`}
           secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
           imageUrl={checkoutEvent.coverUrl ?? data.community.avatarUrl}
-          meta={checkoutEvent.registered ? 'Registered' : checkoutEvent.priceStars ? `${checkoutEvent.priceStars} XTR` : 'Free'}
+          meta={checkoutEvent.registered ? 'Registered' : xtrLabelOrFree(checkoutEvent.priceStars ?? 0)}
           cta={checkoutEvent.registered ? 'Open Event' : checkoutEvent.priceStars ? 'Continue to Get Ticket' : 'Continue to Register'}
           onClick={() => onEvent(checkoutEvent)}
         />
@@ -3357,7 +3417,7 @@ function MemberHome({
             image={plan.coverUrl}
             title={plan.name}
             detail={isActive ? 'Active subscription' : isPastDue ? 'Payment needs attention' : plan.description ?? `${plan.interval} membership`}
-            meta={isActive ? 'Manage' : isPastDue ? 'Renew' : `${plan.stars || centsToStars(plan.priceCents)} XTR`}
+            meta={isActive ? 'Manage' : isPastDue ? 'Renew' : xtrLabel(plan.stars || centsToStars(plan.priceCents))}
             onClick={() => (existing ? handleSubscriptionAction(existing) : onBuyPlan(plan))}
           />
           )
@@ -3373,7 +3433,7 @@ function MemberHome({
             image={product.coverUrl}
             title={product.title}
             detail={product.owned ? 'Unlocked' : product.type.replace('_', ' ')}
-            meta={product.owned ? 'Open' : `${product.priceStars} XTR`}
+            meta={product.owned ? 'Open' : xtrLabel(product.priceStars)}
             onClick={() => onBuyProduct(product)}
           />
         ))}
@@ -3388,7 +3448,7 @@ function MemberHome({
             image={event.coverUrl}
             title={event.title}
             detail={`${event.type} on ${dateShort(event.startsAt)}`}
-            meta={event.registered ? 'Open' : event.priceStars ? `${event.priceStars} XTR` : 'Free'}
+            meta={event.registered ? 'Open' : xtrLabelOrFree(event.priceStars ?? 0)}
             onClick={() => onEvent(event)}
           />
         ))}
@@ -3421,13 +3481,61 @@ function MemberHome({
             icon={purchase.kind === 'event' ? 'event' : purchase.kind === 'product' ? 'product' : 'membership'}
             title={purchase.title}
             detail={`${purchase.status}${purchase.paidAt ? ` · ${dateShort(purchase.paidAt)}` : ''}`}
-            meta={purchase.amountStars > 0 ? `${purchase.amountStars} XTR` : 'Free'}
+            meta={xtrLabelOrFree(purchase.amountStars ?? 0)}
           />
         ))}
         {purchases.length === 0 && <EmptyBlock title="No payments yet" detail="Stars payments and free unlocks will appear here." />}
       </ListGroup>
-      <FixedButton label="Get Support" onClick={onSupport} />
+      <FixedButton label="Get Support" onClick={() => setSupportOpen(true)} />
+      {supportOpen && (
+        <SupportActionSheet
+          onClose={() => setSupportOpen(false)}
+          onMessageAdmin={adminUsername ? () => openSupportLink(`https://t.me/${adminUsername}`, 'Admin chat opened') : undefined}
+          onMessageBot={() => {
+            setSupportOpen(false)
+            onSupport()
+          }}
+          onOpenChannel={channelUrl ? () => openSupportLink(channelUrl, 'Community channel opened') : undefined}
+        />
+      )}
     </section>
+  )
+}
+
+function SupportActionSheet({
+  onMessageAdmin,
+  onMessageBot,
+  onOpenChannel,
+  onClose,
+}: {
+  onMessageAdmin?: () => void
+  onMessageBot: () => void
+  onOpenChannel?: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="tg-action-sheet-overlay" onClick={onClose}>
+      <div className="tg-action-sheet" role="dialog" aria-label="Get Support" onClick={(event) => event.stopPropagation()}>
+        <h2>Get Support</h2>
+        <p>How would you like to reach out?</p>
+        {onMessageAdmin && (
+          <button type="button" onClick={onMessageAdmin}>
+            Message Community Admin
+          </button>
+        )}
+        <button type="button" onClick={onMessageBot}>
+          Message Support Bot
+        </button>
+        {onOpenChannel && (
+          <button type="button" onClick={onOpenChannel}>
+            Open Community Channel
+          </button>
+        )}
+        <button type="button" className="cancel" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </div>
   )
 }
 

@@ -37,27 +37,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const avatarPath = await ensureCommunityAvatar(community)
 
     await getMemberProfile(communityId, userId)
-    const [members, plans, subscriptions, rewards, events, products, purchases, referralProgress, activityRows, chats, avatarUrl] = await Promise.all([
-      optional('members', [], () => listMembers(communityId)),
-      optional('plans', [], () => listPlans(communityId)),
-      optional('subscriptions', [], () => listMemberSubscriptions(communityId, userId)),
-      optional('rewards', [], () => listRewards(communityId, userId)),
-      optional('events', [], () => listEvents(communityId, userId)),
-      optional('products', [], () => listProducts(communityId, userId)),
-      optional('purchases', [], () => listMemberPurchases(communityId, userId)),
-      optional('referralProgress', [], () => getReferralCampaignProgress(communityId, userId)),
-      optional('activity', { data: [], error: null, count: null, status: 200, statusText: 'OK', success: true } as any, async () => {
-        return await supabase
-          .from('community_activity_events')
-          .select('*')
-          .eq('community_id', communityId)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(20)
-      }),
-      optional('chats', [], () => listChats(communityId)),
-      optional('avatarUrl', null, () => signedAssetUrl(avatarPath, 86400)),
-    ])
+    const [members, plans, subscriptions, rewards, events, products, purchases, referralProgress, activityRows, chats, avatarUrl, ownerUsername] =
+      await Promise.all([
+        optional('members', [], () => listMembers(communityId)),
+        optional('plans', [], () => listPlans(communityId)),
+        optional('subscriptions', [], () => listMemberSubscriptions(communityId, userId)),
+        optional('rewards', [], () => listRewards(communityId, userId)),
+        optional('events', [], () => listEvents(communityId, userId)),
+        optional('products', [], () => listProducts(communityId, userId)),
+        optional('purchases', [], () => listMemberPurchases(communityId, userId)),
+        optional('referralProgress', [], () => getReferralCampaignProgress(communityId, userId)),
+        optional('activity', { data: [], error: null, count: null, status: 200, statusText: 'OK', success: true } as any, async () => {
+          return await supabase
+            .from('community_activity_events')
+            .select('*')
+            .eq('community_id', communityId)
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(20)
+        }),
+        optional('chats', [], () => listChats(communityId)),
+        optional('avatarUrl', null, () => signedAssetUrl(avatarPath, 86400)),
+        optional('ownerUsername', null, async () => {
+          const { data, error } = await supabase.from('users').select('username').eq('id', community.owner_id).maybeSingle()
+          if (error) throw error
+          return data?.username ?? null
+        }),
+      ])
     const member =
       members.find((row) => row.id === userId) ?? {
         id: userId,
@@ -83,6 +89,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         description: community.description,
         status: community.status,
         avatarUrl,
+        telegramInviteUrl: community.telegram_invite_url,
+        ownerUsername,
       },
       chats,
       member,
