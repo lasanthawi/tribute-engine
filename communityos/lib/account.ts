@@ -2,6 +2,7 @@ import { getCommunityMetrics } from './analytics'
 import { ensureCommunityAvatar } from './access-control'
 import { signedAssetUrl } from './assets'
 import { sb, supabase } from './supabase'
+import { ensureUserAvatar } from './telegram-auth'
 import type { CommunitySummaryDto, MeDto } from './api-client'
 import type { CommunityRow } from './supabase'
 
@@ -54,14 +55,17 @@ export async function getAccountOverview(userId: number): Promise<Omit<MeDto, 'i
 
   const { data: user } = await sb
     .from('users')
-    .select('communityos_onboarded_at, communityos_last_revenue_model')
+    .select('telegram_id, avatar_path, communityos_onboarded_at, communityos_last_revenue_model')
     .eq('id', userId)
     .maybeSingle()
+
+  const avatarPath = user ? await ensureUserAvatar({ id: userId, avatar_path: user.avatar_path, telegram_id: user.telegram_id }) : null
 
   return {
     isFirstCommunityOSLogin: !user?.communityos_onboarded_at && owned.length === 0 && memberCommunities.length === 0,
     onboardedAt: user?.communityos_onboarded_at ?? null,
     lastRevenueModel: user?.communityos_last_revenue_model ?? null,
+    avatarUrl: await signedAssetUrl(avatarPath, 86400),
     accountStats: {
       communities: owned.length,
       memberCommunities: memberCommunities.length,

@@ -1666,7 +1666,7 @@ function AccountHome({
   return (
     <section className="tg-screen with-fixed-button">
       <div className="tg-community-header">
-        <div className="tg-large-avatar">{initials(me.username ?? 'CommunityOS')}</div>
+        <AvatarMark className="tg-large-avatar" image={me.avatarUrl} label={me.username ?? 'CommunityOS'} />
         <h1>{me.username ? `@${me.username}` : 'CommunityOS'}</h1>
         <p>{me.accountStats.communities} owned communities</p>
         <div className="tg-mini-stats">

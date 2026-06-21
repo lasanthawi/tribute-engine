@@ -31,6 +31,7 @@ export interface Database {
           last_seen_at: string | null
           streak_count: number
           streak_last_day: string | null
+          avatar_path: string | null
         }
         Insert: Partial<Omit<Database['public']['Tables']['users']['Row'], 'id'>> & {
           telegram_id: number

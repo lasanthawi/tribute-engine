@@ -305,6 +305,7 @@ export interface MemberProfileDto {
 export interface MeDto {
   id: number
   username: string | null
+  avatarUrl?: string | null
   isFirstCommunityOSLogin: boolean
   onboardedAt: string | null
   lastRevenueModel: string | null
