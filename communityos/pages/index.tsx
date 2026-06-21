@@ -3495,6 +3495,7 @@ type IconName =
   | 'group'
   | 'business'
   | 'bot'
+  | 'member'
 
 function RowIcon({ name }: { name: IconName }) {
   switch (name) {
@@ -3655,6 +3656,13 @@ function RowIcon({ name }: { name: IconName }) {
           <path d="M3.5 12.5h1.5M19 12.5h1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
         </svg>
       )
+    case 'member':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="8.2" r="3.6" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.14" />
+          <path d="M4.3 19c.8-4.1 3.7-6.3 7.7-6.3s6.9 2.2 7.7 6.3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      )
     default:
       return null
   }
@@ -3710,6 +3718,21 @@ function ListRow({
   return <div className="tg-list-row">{content}</div>
 }
 
+function paymentStatusBadge(status: string): { label: string; tone: 'green' | 'amber' | 'muted' } | null {
+  switch (status) {
+    case 'active':
+    case 'trialing':
+      return { label: 'Paid', tone: 'green' }
+    case 'past_due':
+      return { label: 'Pending', tone: 'amber' }
+    case 'expired':
+    case 'cancelled':
+      return { label: 'Unpaid', tone: 'muted' }
+    default:
+      return null
+  }
+}
+
 function MemberRow({
   member,
   onGrant,
@@ -3725,25 +3748,34 @@ function MemberRow({
   onRestore?: () => void
   compact?: boolean
 }) {
+  const payment = paymentStatusBadge(member.subscriptionStatus)
   return (
     <article className={`tg-member-row ${compact ? 'compact' : ''}`}>
-      <div className="tg-row-icon blue">{initials(member.username)}</div>
+      <span className="tg-row-glyph blue">
+        <RowIcon name="member" />
+      </span>
       <div>
         <strong>@{member.username}</strong>
         <small>
           {member.planName ?? 'No plan'} · {member.accessStatus} · {member.xp} XP
         </small>
+        {payment && <span className={`tg-status-chip ${payment.tone}`}>{payment.label}</span>}
       </div>
       <div className="tg-member-actions">
         {member.accessStatus === 'granted' ? (
           <>
             <button type="button" onClick={onSuspend ?? onRevoke}>Suspend</button>
-            <button type="button" onClick={onRevoke}>Revoke</button>
+            <button type="button" onClick={onRevoke}>Remove</button>
+          </>
+        ) : member.accessStatus === 'suspended' ? (
+          <>
+            <button type="button" onClick={onRestore ?? onGrant}>Restore</button>
+            <button type="button" onClick={onRevoke}>Remove</button>
           </>
         ) : (
           <>
             <button type="button" onClick={onGrant}>Grant</button>
-            <button type="button" onClick={onRestore ?? onGrant}>Restore</button>
+            <button type="button" onClick={onRevoke}>Remove</button>
           </>
         )}
       </div>
@@ -3762,7 +3794,9 @@ function JoinRequestRow({
 }) {
   return (
     <article className="tg-member-row compact">
-      <div className="tg-row-icon green">{initials(request.username ?? request.telegramUserId)}</div>
+      <span className="tg-row-glyph green">
+        <RowIcon name="member" />
+      </span>
       <div>
         <strong>@{request.username ?? request.telegramUserId}</strong>
         <small>
