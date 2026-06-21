@@ -1637,6 +1637,7 @@ function CommunityPicker({
           <ListRow
             key={community.id}
             avatar={initials(community.name)}
+            image={community.avatarUrl}
             title={community.name}
             detail={`${community.status === 'active' ? 'Active' : 'Setup'} community`}
             onClick={() => onSelect(community.id)}
@@ -1700,6 +1701,7 @@ function AccountHome({
           <ListRow
             key={community.id}
             avatar={initials(community.name)}
+            image={community.avatarUrl}
             title={community.name}
             detail={`${community.status === 'active' ? 'Active' : 'Setup'} community`}
             onClick={() => onOpenCommunity(community.id)}
@@ -1713,7 +1715,7 @@ function AccountHome({
           <SectionLabel>Member Access</SectionLabel>
           <ListGroup>
             {me.memberCommunities.map((community) => (
-              <ListRow key={community.id} avatar={initials(community.name)} title={community.name} detail="Open member view" onClick={() => onOpenMemberCommunity(community.id)} />
+              <ListRow key={community.id} avatar={initials(community.name)} image={community.avatarUrl} title={community.name} detail="Open member view" onClick={() => onOpenMemberCommunity(community.id)} />
             ))}
           </ListGroup>
         </>
@@ -1772,6 +1774,7 @@ function CommunityHome({
             key={plan.id}
             tone="blue"
             icon="M"
+            image={plan.coverUrl}
             title={plan.name}
             detail={`${plan.subscribers} subscribers`}
             meta={`${plan.stars || centsToStars(plan.priceCents)} XTR`}
@@ -1788,6 +1791,7 @@ function CommunityHome({
             key={product.id}
             tone="red"
             icon="D"
+            image={product.coverUrl}
             title={product.title}
             detail={`${product.type.replace('_', ' ')} · ${product.purchases} purchases`}
             meta={`${product.priceStars} XTR`}
@@ -1804,6 +1808,7 @@ function CommunityHome({
             key={event.id}
             tone="purple"
             icon="E"
+            image={event.coverUrl}
             title={event.title}
             detail={`${event.type} · ${dateShort(event.startsAt)}`}
             meta={event.priceStars ? `${event.priceStars} XTR` : 'Free'}
@@ -1839,7 +1844,7 @@ function CommunityHeader({ data, onEdit }: { data: DashboardDto; onEdit?: () => 
       <button className="tg-header-edit-button" type="button" onClick={onEdit} title="Edit profile">
         ✎
       </button>
-      <div className="tg-large-avatar">{initials(data.community.name)}</div>
+      <AvatarMark className="tg-large-avatar" image={data.community.avatarUrl} label={data.community.name} />
       <h1>{data.community.name}</h1>
       <p>{data.metrics.members} members</p>
       <div className="tg-mini-stats">
@@ -1900,7 +1905,7 @@ function AccessScreen({
       <h1 className="tg-left-title">Access</h1>
       <SectionLabel>Connected Telegram</SectionLabel>
       <ListGroup>
-        {data.chats.map((chat) => <ChatRow key={chat.id} chat={chat} />)}
+        {data.chats.map((chat) => <ChatRow key={chat.id} chat={chat} image={data.community.avatarUrl} />)}
         {data.chats.length === 0 && <EmptyBlock title="No group connected" detail="Add the bot as admin in a Telegram group or channel." />}
       </ListGroup>
       <SectionLabel>Pending Access</SectionLabel>
@@ -2115,7 +2120,7 @@ function SettingsScreen({
       <h1 className="tg-left-title">Settings</h1>
       <SectionLabel>Bot connection</SectionLabel>
       <ListGroup>
-        {data.chats.map((chat) => <ChatRow key={chat.id} chat={chat} />)}
+        {data.chats.map((chat) => <ChatRow key={chat.id} chat={chat} image={data.community.avatarUrl} />)}
         {data.chats.length === 0 && <EmptyBlock title="No group connected" detail="Add the bot as admin in a Telegram group or channel, then share a membership to confirm the connection." />}
       </ListGroup>
       <SectionLabel>Checkout and notifications</SectionLabel>
@@ -3016,9 +3021,9 @@ function MemberHome({
   return (
     <section className="tg-screen with-fixed-button">
       <div className="tg-community-header">
-        <div className="tg-large-avatar">{initials(member?.username ?? data.community.name)}</div>
-        <h1>@{member?.username ?? 'member'}</h1>
-        <p>{member?.planName ?? data.community.name}</p>
+        <AvatarMark className="tg-large-avatar" image={data.community.avatarUrl} label={data.community.name} />
+        <h1>{data.community.name}</h1>
+        <p>{member?.username ? `@${member.username}` : member?.planName ?? 'Member access'}</p>
         <div className="tg-mini-stats">
           <span>{member?.accessStatus ?? 'pending'} access</span>
           <span>Level {member?.level ?? 1}</span>
@@ -3365,9 +3370,26 @@ function JoinRequestRow({
   )
 }
 
-function ChatRow({ chat }: { chat: TelegramChatDto }) {
+function ChatRow({ chat, image }: { chat: TelegramChatDto; image?: string | null }) {
   const status = chat.botStatus === 'admin' ? 'Ready' : chat.botStatus === 'missing_permissions' ? 'Needs permissions' : 'Not connected'
-  return <ListRow tone={chat.botStatus === 'admin' ? 'green' : 'amber'} icon="T" title={chat.title} detail={`${chat.type}. ${chat.activeMembers} active members`} meta={status} />
+  return (
+    <ListRow
+      tone={chat.botStatus === 'admin' ? 'green' : 'amber'}
+      icon={chat.type === 'channel' ? 'CH' : 'G'}
+      image={image}
+      title={chat.title}
+      detail={`${chat.type}. ${chat.activeMembers} active members`}
+      meta={status}
+    />
+  )
+}
+
+function AvatarMark({ className, image, label }: { className: string; image?: string | null; label: string }) {
+  return (
+    <span className={`${className} ${image ? 'has-image' : ''}`}>
+      {image ? <img src={image} alt="" /> : initials(label)}
+    </span>
+  )
 }
 
 function StoryArt({ label, compact, imageUrl }: { label: string; compact?: boolean; imageUrl?: string | null }) {

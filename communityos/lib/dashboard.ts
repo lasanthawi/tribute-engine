@@ -1,4 +1,4 @@
-import { getCommentAccessStatus, listChats, listAccessLogs, listJoinRequests } from './access-control'
+import { getCommentAccessStatus, listChats, listAccessLogs, listJoinRequests, syncCommunityAvatar } from './access-control'
 import { getAiManager } from './ai'
 import { getCommunityMetrics, listActivity } from './analytics'
 import { signedAssetUrl } from './assets'
@@ -13,6 +13,7 @@ import { listReferrals } from './referrals'
 import { listRewardRules, listRewards } from './rewards'
 import { computeSetup } from './setup'
 import { centsToStars } from './star-rate'
+import { supabase } from './supabase'
 import type { DashboardDto } from './api-client'
 import type { CommunityMetrics } from './analytics'
 
@@ -47,6 +48,19 @@ async function optionalSection<T>(label: string, fallback: T, loader: () => Prom
 export async function buildDashboard(communityId: number): Promise<DashboardDto | null> {
   const community = await getCommunity(communityId)
   if (!community) return null
+
+  let communityAvatarPath = community.avatar_path
+  if (!communityAvatarPath && community.telegram_chat_id) {
+    await syncCommunityAvatar(communityId, community.telegram_chat_id).catch((error) =>
+      console.error('buildDashboard syncCommunityAvatar failed:', error)
+    )
+    const { data: refreshed } = await supabase
+      .from('communities')
+      .select('avatar_path')
+      .eq('id', communityId)
+      .maybeSingle()
+    communityAvatarPath = refreshed?.avatar_path ?? null
+  }
 
   const [
     metrics,
@@ -93,7 +107,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       optionalSection('events', [], () => listEvents(communityId)),
       optionalSection('products', [], () => listProducts(communityId)),
       optionalSection('setup', [], () => computeSetup(communityId)),
-      optionalSection('avatarUrl', null, () => signedAssetUrl(community.avatar_path, 86400)),
+      optionalSection('avatarUrl', null, () => signedAssetUrl(communityAvatarPath, 86400)),
       optionalSection('commentAccess', { linked: false, discussionBotStatus: null, enabled: true }, () => getCommentAccessStatus(communityId)),
       optionalSection('scheduledPosts', [], () => listScheduledPosts(communityId)),
     ])

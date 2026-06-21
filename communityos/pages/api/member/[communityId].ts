@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { listChats } from '@/lib/access-control'
+import { listChats, syncCommunityAvatar } from '@/lib/access-control'
 import { requireUser } from '@/lib/api-auth'
 import { signedAssetUrl } from '@/lib/assets'
 import { getCommunity, getMemberProfile, listMembers } from '@/lib/communities'
@@ -34,6 +34,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const community = await getCommunity(communityId)
     if (!community) return res.status(404).json({ error: 'Community not found' })
 
+    let avatarPath = community.avatar_path
+    if (!avatarPath && community.telegram_chat_id) {
+      await syncCommunityAvatar(communityId, community.telegram_chat_id).catch((error) =>
+        console.error('member/[communityId] syncCommunityAvatar failed:', error)
+      )
+      const { data: refreshed } = await supabase
+        .from('communities')
+        .select('avatar_path')
+        .eq('id', communityId)
+        .maybeSingle()
+      avatarPath = refreshed?.avatar_path ?? null
+    }
+
     await getMemberProfile(communityId, userId)
     const [members, plans, subscriptions, rewards, events, products, purchases, referralProgress, activityRows, chats, avatarUrl] = await Promise.all([
       optional('members', [], () => listMembers(communityId)),
@@ -54,7 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .limit(20)
       }),
       optional('chats', [], () => listChats(communityId)),
-      optional('avatarUrl', null, () => signedAssetUrl(community.avatar_path, 86400)),
+      optional('avatarUrl', null, () => signedAssetUrl(avatarPath, 86400)),
     ])
     const member =
       members.find((row) => row.id === userId) ?? {

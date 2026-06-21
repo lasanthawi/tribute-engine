@@ -1,15 +1,17 @@
 import { getCommunityMetrics } from './analytics'
+import { signedAssetUrl } from './assets'
 import { sb, supabase } from './supabase'
 import type { CommunitySummaryDto, MeDto } from './api-client'
 import type { CommunityRow } from './supabase'
 
-function toSummary(row: CommunityRow): CommunitySummaryDto {
+async function toSummary(row: CommunityRow): Promise<CommunitySummaryDto> {
   return {
     id: row.id,
     name: row.name,
     handle: row.handle,
     description: row.description,
     status: row.status,
+    avatarUrl: await signedAssetUrl(row.avatar_path, 86400),
   }
 }
 
@@ -67,8 +69,8 @@ export async function getAccountOverview(userId: number): Promise<Omit<MeDto, 'i
       balanceStars,
       accessIssues,
     },
-    communities: owned.map(toSummary),
-    memberCommunities: memberCommunities.map(toSummary),
+    communities: await Promise.all(owned.map(toSummary)),
+    memberCommunities: await Promise.all(memberCommunities.map(toSummary)),
   }
 }
 
