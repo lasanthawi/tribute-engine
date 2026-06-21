@@ -26,6 +26,7 @@ import {
 import { copyText, getInitData, getStartParam, haptic, initTelegramShell, openExternalLink, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
 import { centsToStars, starsToCents } from '@/lib/star-rate'
 import { parseOfferCode, parseReferralCode as parseReferralStartCode } from '@/lib/start-params'
+import { NextAction, computeAccountNextAction, computeNextAction } from '@/lib/next-action'
 
 type Mode = 'publisher' | 'member'
 type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
@@ -60,17 +61,17 @@ const introSlides = [
   {
     title: 'Run your Telegram community like a business',
     text: 'Memberships, products, events, referrals, and access control in one Mini App.',
-    art: 'CO',
+    icon: 'business' as IconName,
   },
   {
     title: 'Sell access without manual admin work',
     text: 'Telegram Stars payments, renewal tracking, and invite links stay connected.',
-    art: 'XTR',
+    icon: 'stars' as IconName,
   },
   {
     title: 'The bot manages access for you',
     text: 'Approve members, revoke expired access, and share offers directly inside Telegram.',
-    art: 'BOT',
+    icon: 'bot' as IconName,
   },
 ]
 
@@ -142,6 +143,7 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<EventDto | null>(null)
   const [referralThreshold, setReferralThreshold] = useState('3')
   const [referralReward, setReferralReward] = useState('Unlock bonus content')
+  const [referralMetric, setReferralMetric] = useState<'joins' | 'purchases' | 'revenue'>('joins')
   const [referralPresetTarget, setReferralPresetTarget] = useState<{ type: 'plan' | 'product' | 'event'; id: number; label: string } | null>(null)
   const [profileName, setProfileName] = useState('')
   const [profileHandle, setProfileHandle] = useState('')
@@ -270,7 +272,6 @@ export default function Home() {
   const activePlan = createdPlan ?? data?.plans[0] ?? null
   const activeProduct = selectedProduct ?? createdProduct ?? data?.products[0] ?? null
   const activeEvent = selectedEvent ?? createdEvent ?? data?.events[0] ?? null
-  const nextSetupStep = data?.setup.find((step) => step.status !== 'done') ?? null
   const filteredCommunities = useMemo(() => {
     const needle = search.trim().toLowerCase()
     if (!needle) return ownedCommunities
@@ -320,6 +321,11 @@ export default function Home() {
   function chooseRevenueModel(model: RevenueModel) {
     setPendingModel(model)
     api.completeOnboarding({ revenueModel: model }).catch(() => undefined)
+    if (model === 'referral') {
+      setReferralPresetTarget(null)
+      setReferralMetric('joins')
+      setCampaignTitle('Invite 3 members')
+    }
     if (data && communityId) {
       go(screenForModel(model))
     } else {
@@ -688,7 +694,7 @@ export default function Home() {
       title: campaignTitle.trim(),
       reward: referralReward.trim() || 'Unlock bonus content',
       threshold: Math.max(1, Number(referralThreshold || 3)),
-      metric: 'joins' as const,
+      metric: referralMetric,
       status: 'active' as const,
       ...(referralPresetTarget ? { targetType: referralPresetTarget.type, targetId: referralPresetTarget.id } : {}),
     }
@@ -697,6 +703,7 @@ export default function Home() {
       setData({ ...data, referralCampaigns: [campaign, ...data.referralCampaigns] })
       setCampaignTitle('')
       setReferralPresetTarget(null)
+      setReferralMetric('joins')
       setScreen('growth')
       showToast('Referral campaign created')
     } catch (error: any) {
@@ -711,6 +718,7 @@ export default function Home() {
     }
     setReferralPresetTarget({ type: 'plan', id: plan.id, label: plan.name })
     setCampaignTitle(`Invite 3 friends to ${plan.name}`)
+    setReferralMetric('joins')
     go('referralBuilder')
   }
 
@@ -1130,15 +1138,15 @@ export default function Home() {
         ) : (
           <AppFrame
             hideBack={screen === 'start' || screen === 'account'}
-            onBack={() => { if (screen === 'communities') go('account') }}
+            onBack={() => { if (screen === 'communities' || screen === 'more') go('account') }}
           >
             {screen === 'account' && me && (
               <AccountHome
                 me={me}
                 onSelectModel={chooseRevenueModel}
                 onOpenCommunity={(id) => selectCommunity(id, 'home')}
-                onOpenMemberCommunity={openMemberCommunity}
                 onAddCommunity={handleAddCommunity}
+                onOpenMore={() => go('more')}
               />
             )}
             {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
@@ -1151,7 +1159,15 @@ export default function Home() {
                 onAdd={handleAddCommunity}
               />
             )}
-            {screen !== 'account' && screen !== 'start' && screen !== 'communities' && (
+            {screen === 'more' && me && (
+              <MoreScreen
+                me={me}
+                onToast={showToast}
+                onOpenCommunity={(id) => selectCommunity(id, 'home')}
+                onOpenMemberCommunity={openMemberCommunity}
+              />
+            )}
+            {screen !== 'account' && screen !== 'start' && screen !== 'communities' && screen !== 'more' && (
               <div className="tg-loading">
                 <div className="tg-loader" />
                 <p>Loading CommunityOS</p>
@@ -1257,8 +1273,8 @@ export default function Home() {
               me={me}
               onSelectModel={chooseRevenueModel}
               onOpenCommunity={(id) => selectCommunity(id, 'home')}
-              onOpenMemberCommunity={openMemberCommunity}
               onAddCommunity={handleAddCommunity}
+              onOpenMore={() => go('more')}
             />
           )}
           {screen === 'communities' && (
@@ -1273,7 +1289,6 @@ export default function Home() {
           {screen === 'home' && (
             <CommunityHome
               data={data}
-              nextSetupStep={nextSetupStep}
               onNavigate={go}
               onCreateMembership={() => go('createDetails')}
               onShareCommunity={shareCommunity}
@@ -1327,6 +1342,7 @@ export default function Home() {
             <MoreScreen
               data={data}
               onToast={showToast}
+              onNavigate={go}
               onCreateEvent={() => go('eventBuilder')}
               onCreateProduct={() => go('productBuilder')}
               onOpenAiManager={() => go('aiManager')}
@@ -1423,14 +1439,17 @@ export default function Home() {
             />
           )}
           {screen === 'referralBuilder' && (
-            <ReferralBuilderScreen
+            <ReferralWizardScreen
               campaignTitle={campaignTitle}
               threshold={referralThreshold}
               reward={referralReward}
+              metric={referralMetric}
               presetLabel={referralPresetTarget?.label ?? null}
               onCampaignTitle={setCampaignTitle}
               onThreshold={setReferralThreshold}
               onReward={setReferralReward}
+              onMetric={setReferralMetric}
+              onClearPreset={() => setReferralPresetTarget(null)}
               onCancel={() => {
                 setReferralPresetTarget(null)
                 go('growth')
@@ -1557,7 +1576,7 @@ function IntroScreen({ index, onBack, onNext }: { index: number; onBack?: () => 
       <section className="tg-story-content">
         <h1>{slide.title}</h1>
         <p>{slide.text}</p>
-        <StoryArt label={slide.art} />
+        <StoryArt label={slide.title} icon={slide.icon} />
       </section>
       <footer className="tg-story-footer">
         <button type="button" onClick={onNext}>
@@ -1626,22 +1645,96 @@ function CommunityPicker({
   )
 }
 
+function nextActionIcon(target: NextAction['target']): IconName {
+  switch (target) {
+    case 'access':
+      return 'access'
+    case 'growth':
+      return 'growth'
+    case 'rewards':
+      return 'rewards'
+    case 'members':
+      return 'group'
+    case 'share':
+      return 'share'
+    case 'setup':
+      return 'membership'
+    case 'more':
+    default:
+      return 'settings'
+  }
+}
+
+function NextActionCard({
+  title,
+  detail,
+  cta,
+  icon,
+  onClick,
+}: {
+  title: string
+  detail: string
+  cta: string
+  icon: IconName
+  onClick: () => void
+}) {
+  return (
+    <section className="tg-callout">
+      <div className="tg-next-action-head">
+        <span className="tg-next-action-icon">
+          <RowIcon name={icon} />
+        </span>
+        <span>NEXT ACTION</span>
+      </div>
+      <h2>{title}</h2>
+      <p>{detail}</p>
+      <button type="button" onClick={onClick}>
+        {cta}
+      </button>
+    </section>
+  )
+}
+
+function RevenueSnapshotRow({
+  items,
+}: {
+  items: { key: string; icon: IconName; label: string; count?: number; onClick: () => void }[]
+}) {
+  return (
+    <div className="tg-revenue-grid">
+      {items.map((item) => (
+        <button key={item.key} className="tg-revenue-card" type="button" onClick={item.onClick}>
+          <span className="tg-revenue-icon">
+            <RowIcon name={item.icon} />
+          </span>
+          {typeof item.count === 'number' && <strong>{item.count}</strong>}
+          <small>{item.label}</small>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function AccountHome({
   me,
   onSelectModel,
   onOpenCommunity,
-  onOpenMemberCommunity,
   onAddCommunity,
+  onOpenMore,
 }: {
   me: MeDto
   onSelectModel: (model: RevenueModel) => void
   onOpenCommunity: (id: number) => void
-  onOpenMemberCommunity: (id: number) => void
   onAddCommunity: () => void
+  onOpenMore: () => void
 }) {
+  const nextAction = computeAccountNextAction(me)
   return (
     <section className="tg-screen with-fixed-button">
       <div className="tg-community-header">
+        <button className="tg-header-more-button" type="button" onClick={onOpenMore}>
+          More
+        </button>
         <AvatarMark className="tg-large-avatar" image={me.avatarUrl} label={me.username ?? 'CommunityOS'} />
         <h1>{me.username ? `@${me.username}` : 'CommunityOS'}</h1>
         <p>{me.accountStats.communities} owned communities</p>
@@ -1651,51 +1744,27 @@ function AccountHome({
         </div>
       </div>
 
-      <div className="tg-action-grid">
-        <ActionTile label="Membership" icon="plus" onClick={() => onSelectModel('membership')} />
-        <ActionTile label="Product" icon="link" onClick={() => onSelectModel('product')} />
-        <ActionTile label="More" icon="more" onClick={() => onSelectModel('event')} />
-      </div>
-
-      <SectionLabel>Account Stats</SectionLabel>
-      <ListGroup>
-        <ListRow tone="blue" icon="stars" title="Stars Revenue" detail={`${me.accountStats.monthlyStars.toLocaleString()} XTR collected`} meta={`${me.accountStats.activeSubscriptions} subs`} />
-        <ListRow tone={me.accountStats.accessIssues > 0 ? 'amber' : 'green'} icon="access" title="Access Health" detail={`${me.accountStats.accessIssues} access issue(s)`} />
-      </ListGroup>
-
-      <SectionLabel>Start Something New</SectionLabel>
-      <ListGroup>
-        <ListRow tone="blue" icon="membership" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelectModel('membership')} />
-        <ListRow tone="red" icon="product" title="Digital Product" detail="Sell files, courses, downloads, or guides." onClick={() => onSelectModel('product')} />
-        <ListRow tone="purple" icon="event" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelectModel('event')} />
-        <ListRow tone="green" icon="referral" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelectModel('referral')} />
-      </ListGroup>
-
-      <SectionLabel>Your Communities</SectionLabel>
-      <ListGroup>
-        {me.communities.map((community) => (
-          <ListRow
-            key={community.id}
-            avatar={initials(community.name)}
-            image={community.avatarUrl}
-            title={community.name}
-            detail={`${community.status === 'active' ? 'Active' : 'Setup'} community`}
-            onClick={() => onOpenCommunity(community.id)}
-          />
-        ))}
-        {me.communities.length === 0 && <EmptyBlock title="No community connected" detail="Add the bot to a group or channel to start." />}
-      </ListGroup>
-
-      {me.memberCommunities.length > 0 && (
-        <>
-          <SectionLabel>Member Access</SectionLabel>
-          <ListGroup>
-            {me.memberCommunities.map((community) => (
-              <ListRow key={community.id} avatar={initials(community.name)} image={community.avatarUrl} title={community.name} detail="Open member view" onClick={() => onOpenMemberCommunity(community.id)} />
-            ))}
-          </ListGroup>
-        </>
+      {nextAction && (
+        <NextActionCard
+          title={nextAction.title}
+          detail={nextAction.detail}
+          cta={nextAction.cta}
+          icon={nextAction.target === 'addCommunity' ? 'channel' : 'business'}
+          onClick={() => {
+            if (nextAction.target === 'addCommunity') onAddCommunity()
+            else onOpenCommunity(me.communities[0].id)
+          }}
+        />
       )}
+
+      <RevenueSnapshotRow
+        items={[
+          { key: 'membership', icon: 'membership', label: 'Memberships', onClick: () => onSelectModel('membership') },
+          { key: 'product', icon: 'product', label: 'Products', onClick: () => onSelectModel('product') },
+          { key: 'event', icon: 'event', label: 'Events', onClick: () => onSelectModel('event') },
+          { key: 'referral', icon: 'referral', label: 'Referrals', onClick: () => onSelectModel('referral') },
+        ]}
+      />
 
       <FixedButton label={me.communities.length ? 'Add Community' : 'Connect Telegram'} onClick={onAddCommunity} />
     </section>
@@ -1704,7 +1773,6 @@ function AccountHome({
 
 function CommunityHome({
   data,
-  nextSetupStep,
   onNavigate,
   onCreateMembership,
   onShareCommunity,
@@ -1714,7 +1782,6 @@ function CommunityHome({
   onEditProfile,
 }: {
   data: DashboardDto
-  nextSetupStep: DashboardDto['setup'][number] | null
   onNavigate: (screen: Screen) => void
   onCreateMembership: () => void
   onShareCommunity: () => void
@@ -1723,25 +1790,33 @@ function CommunityHome({
   onOpenEvent: (event: EventDto) => void
   onEditProfile: () => void
 }) {
+  const nextAction = computeNextAction(data)
   return (
     <section className="tg-screen with-fixed-button">
-      <CommunityHeader data={data} onEdit={onEditProfile} />
-      <div className="tg-action-grid">
-        <ActionTile label="Membership" icon="plus" onClick={onCreateMembership} />
-        <ActionTile label="Product" icon="link" onClick={() => onSelectModel('product')} />
-        <ActionTile label="More" icon="more" onClick={() => onNavigate('more')} />
-      </div>
+      <CommunityHeader data={data} onEdit={onEditProfile} onMore={() => onNavigate('more')} />
 
-      {nextSetupStep && (
-        <section className="tg-callout">
-          <span>NEXT STEP</span>
-          <h2>{nextSetupStep.title}</h2>
-          <p>{nextSetupStep.detail}</p>
-          <button type="button" onClick={onCreateMembership}>
-            Continue setup
-          </button>
-        </section>
+      {nextAction && (
+        <NextActionCard
+          title={nextAction.title}
+          detail={nextAction.detail}
+          cta={nextAction.cta}
+          icon={nextActionIcon(nextAction.target)}
+          onClick={() => {
+            if (nextAction.target === 'setup') onCreateMembership()
+            else if (nextAction.target === 'share') onShareCommunity()
+            else onNavigate(nextAction.target as Screen)
+          }}
+        />
       )}
+
+      <RevenueSnapshotRow
+        items={[
+          { key: 'membership', icon: 'membership', label: 'Memberships', count: data.plans.length, onClick: onCreateMembership },
+          { key: 'product', icon: 'product', label: 'Products', count: data.products.length, onClick: () => onSelectModel('product') },
+          { key: 'event', icon: 'event', label: 'Events', count: data.events.length, onClick: () => onSelectModel('event') },
+          { key: 'referral', icon: 'referral', label: 'Referrals', count: data.referralCampaigns.length, onClick: () => onSelectModel('referral') },
+        ]}
+      />
 
       <SectionLabel>Memberships</SectionLabel>
       <ListGroup>
@@ -1794,32 +1869,22 @@ function CommunityHome({
         {data.events.length === 0 && <ListRow tone="purple" icon="event" title="Create Event or AMA" detail="Sell tickets or collect registrations." onClick={() => onSelectModel('event')} />}
       </ListGroup>
 
-      <SectionLabel>Operations</SectionLabel>
-      <ListGroup>
-        <ListRow tone="green" icon="access" title="Access" detail={`${data.metrics.accessIssues} issues need review`} onClick={() => onNavigate('access')} />
-        <ListRow tone="purple" icon="growth" title="Growth" detail={`${data.metrics.referralActivations} referral activations`} onClick={() => onNavigate('growth')} />
-        <ListRow tone="amber" icon="rewards" title="Rewards" detail={`${data.rewardRules.length} reward rules`} onClick={() => onNavigate('rewards')} />
-      </ListGroup>
-
-      <SectionLabel>Recent Activity</SectionLabel>
-      <ListGroup>
-        {data.activity.slice(0, 4).map((item) => (
-          <ListRow key={item.id} title={item.title} detail={dateShort(item.createdAt)} />
-        ))}
-        {data.activity.length === 0 && <EmptyBlock title="No activity yet" detail="Payments, joins, access changes, and reward grants will show here." />}
-      </ListGroup>
-
       <FixedButton label={data.plans.length ? 'Share' : 'Create Membership'} onClick={data.plans.length ? onShareCommunity : onCreateMembership} />
     </section>
   )
 }
 
-function CommunityHeader({ data, onEdit }: { data: DashboardDto; onEdit?: () => void }) {
+function CommunityHeader({ data, onEdit, onMore }: { data: DashboardDto; onEdit?: () => void; onMore?: () => void }) {
   return (
     <section className="tg-community-header">
       <button className="tg-header-edit-button" type="button" onClick={onEdit} title="Edit profile">
         ✎
       </button>
+      {onMore && (
+        <button className="tg-header-more-button" type="button" onClick={onMore}>
+          More
+        </button>
+      )}
       <AvatarMark className="tg-large-avatar" image={data.community.avatarUrl} label={data.community.name} />
       <h1>{data.community.name}</h1>
       <p>{data.metrics.members} members</p>
@@ -2043,47 +2108,121 @@ function RewardsScreen({
 
 function MoreScreen({
   data,
+  me,
   onToast,
   onCreateEvent,
   onCreateProduct,
   onOpenAiManager,
   onOpenSettings,
+  onNavigate,
+  onOpenCommunity,
+  onOpenMemberCommunity,
 }: {
-  data: DashboardDto
+  data?: DashboardDto
+  me?: MeDto
   onToast: (message: string) => void
-  onCreateEvent: () => void
-  onCreateProduct: () => void
-  onOpenAiManager: () => void
-  onOpenSettings: () => void
+  onCreateEvent?: () => void
+  onCreateProduct?: () => void
+  onOpenAiManager?: () => void
+  onOpenSettings?: () => void
+  onNavigate?: (screen: Screen) => void
+  onOpenCommunity?: (id: number) => void
+  onOpenMemberCommunity?: (id: number) => void
 }) {
   const router = useRouter()
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">More</h1>
-      <ListGroup>
-        <ListRow tone="amber" icon="ai" title="AI Community Manager" detail={`${data.ai.faqCount} FAQ answers, report ${data.ai.weeklyReportStatus}`} onClick={onOpenAiManager} />
-        <ListRow tone="purple" icon="event" title="Events" detail={`${data.events.length} events`} onClick={onCreateEvent} />
-        <ListRow tone="red" icon="product" title="Products and Services" detail={`${data.products.length} products`} onClick={onCreateProduct} />
-        <ListRow tone="blue" icon="settings" title="Settings" detail="Bot permissions, Stars checkout, notifications" onClick={onOpenSettings} />
-      </ListGroup>
-      <SectionLabel>Events</SectionLabel>
-      <ListGroup>
-        {data.events.map((event) => (
-          <ListRow key={event.id} title={event.title} detail={`${event.type} on ${dateShort(event.startsAt)}`} meta={event.priceStars ? `${event.priceStars} XTR` : 'Free'} />
-        ))}
-        {data.events.length === 0 && <EmptyBlock title="No events yet" detail="Create webinars, AMAs, meetups, or challenges." />}
-      </ListGroup>
-      <SectionLabel>Products</SectionLabel>
-      <ListGroup>
-        {data.products.map((product) => (
-          <ListRow key={product.id} title={product.title} detail={`${product.type.replace('_', ' ')}. ${product.purchases} purchases`} meta={`${product.priceStars} XTR`} />
-        ))}
-        {data.products.length === 0 && <EmptyBlock title="No products yet" detail="Sell courses, downloads, premium content, and consultations." />}
-      </ListGroup>
+
+      {data && (
+        <>
+          <ListGroup>
+            <ListRow tone="amber" icon="ai" title="AI Community Manager" detail={`${data.ai.faqCount} FAQ answers, report ${data.ai.weeklyReportStatus}`} onClick={onOpenAiManager} />
+            <ListRow tone="purple" icon="event" title="Events" detail={`${data.events.length} events`} onClick={onCreateEvent} />
+            <ListRow tone="red" icon="product" title="Products and Services" detail={`${data.products.length} products`} onClick={onCreateProduct} />
+            <ListRow tone="blue" icon="settings" title="Settings" detail="Bot permissions, Stars checkout, notifications" onClick={onOpenSettings} />
+          </ListGroup>
+
+          <SectionLabel>Operations</SectionLabel>
+          <ListGroup>
+            <ListRow tone="green" icon="access" title="Access" detail={`${data.metrics.accessIssues} issues need review`} onClick={() => onNavigate?.('access')} />
+            <ListRow tone="purple" icon="growth" title="Growth" detail={`${data.metrics.referralActivations} referral activations`} onClick={() => onNavigate?.('growth')} />
+            <ListRow tone="amber" icon="rewards" title="Rewards" detail={`${data.rewardRules.length} reward rules`} onClick={() => onNavigate?.('rewards')} />
+          </ListGroup>
+
+          <SectionLabel>Recent Activity</SectionLabel>
+          <ListGroup>
+            {data.activity.slice(0, 4).map((item) => (
+              <ListRow key={item.id} title={item.title} detail={dateShort(item.createdAt)} />
+            ))}
+            {data.activity.length === 0 && <EmptyBlock title="No activity yet" detail="Payments, joins, access changes, and reward grants will show here." />}
+          </ListGroup>
+
+          <SectionLabel>Events</SectionLabel>
+          <ListGroup>
+            {data.events.map((event) => (
+              <ListRow key={event.id} title={event.title} detail={`${event.type} on ${dateShort(event.startsAt)}`} meta={event.priceStars ? `${event.priceStars} XTR` : 'Free'} />
+            ))}
+            {data.events.length === 0 && <EmptyBlock title="No events yet" detail="Create webinars, AMAs, meetups, or challenges." />}
+          </ListGroup>
+
+          <SectionLabel>Products</SectionLabel>
+          <ListGroup>
+            {data.products.map((product) => (
+              <ListRow key={product.id} title={product.title} detail={`${product.type.replace('_', ' ')}. ${product.purchases} purchases`} meta={`${product.priceStars} XTR`} />
+            ))}
+            {data.products.length === 0 && <EmptyBlock title="No products yet" detail="Sell courses, downloads, premium content, and consultations." />}
+          </ListGroup>
+        </>
+      )}
+
+      {me && (
+        <>
+          <SectionLabel>Account</SectionLabel>
+          <ListGroup>
+            <ListRow tone="blue" icon="stars" title="Stars Revenue" detail={`${me.accountStats.monthlyStars.toLocaleString()} XTR collected`} meta={`${me.accountStats.activeSubscriptions} subs`} />
+            <ListRow tone={me.accountStats.accessIssues > 0 ? 'amber' : 'green'} icon="access" title="Access Health" detail={`${me.accountStats.accessIssues} access issue(s)`} />
+          </ListGroup>
+
+          <SectionLabel>Your Communities</SectionLabel>
+          <ListGroup>
+            {me.communities.map((community) => (
+              <ListRow
+                key={community.id}
+                avatar={initials(community.name)}
+                image={community.avatarUrl}
+                title={community.name}
+                detail={`${community.status === 'active' ? 'Active' : 'Setup'} community`}
+                onClick={() => onOpenCommunity?.(community.id)}
+              />
+            ))}
+            {me.communities.length === 0 && <EmptyBlock title="No community connected" detail="Add the bot to a group or channel to start." />}
+          </ListGroup>
+
+          {me.memberCommunities.length > 0 && (
+            <>
+              <SectionLabel>Member Access</SectionLabel>
+              <ListGroup>
+                {me.memberCommunities.map((community) => (
+                  <ListRow
+                    key={community.id}
+                    avatar={initials(community.name)}
+                    image={community.avatarUrl}
+                    title={community.name}
+                    detail="Open member view"
+                    onClick={() => onOpenMemberCommunity?.(community.id)}
+                  />
+                ))}
+              </ListGroup>
+            </>
+          )}
+        </>
+      )}
+
       <SectionLabel>Developer tools</SectionLabel>
       <ListGroup>
         <ListRow title="Restart intro" detail="Replay the onboarding walkthrough" onClick={() => router.push('/')} />
-        <ListRow title="Member preview" detail="See this community the way a member does" onClick={() => router.push(`/member/${data.community.id}`)} />
+        {data && <ListRow title="Member preview" detail="See this community the way a member does" onClick={() => router.push(`/member/${data.community.id}`)} />}
         <ListRow title="Platform admin" detail="Open the CommunityOS admin dashboard" onClick={() => router.push('/admin')} />
       </ListGroup>
     </section>
@@ -2381,49 +2520,150 @@ function EventBuilderScreen({
   )
 }
 
-function ReferralBuilderScreen({
+const REFERRAL_METRICS: { value: 'joins' | 'purchases' | 'revenue'; title: string; detail: string }[] = [
+  { value: 'joins', title: 'Invite members', detail: 'Reward members when their invites join the community.' },
+  { value: 'purchases', title: 'Drive purchases', detail: 'Reward members when their invites make a purchase.' },
+  { value: 'revenue', title: 'Grow revenue', detail: 'Reward members based on the revenue their invites generate.' },
+]
+
+function referralThresholdLabel(metric: 'joins' | 'purchases' | 'revenue') {
+  if (metric === 'purchases') return 'Purchase target'
+  if (metric === 'revenue') return 'Revenue target (XTR)'
+  return 'Invite milestone'
+}
+
+function referralGoalCopy(metric: 'joins' | 'purchases' | 'revenue', threshold: string) {
+  const count = threshold || '3'
+  if (metric === 'purchases') return `Drive ${count} purchases`
+  if (metric === 'revenue') return `Reach ${count} XTR revenue`
+  return `Invite ${count} members`
+}
+
+function ReferralWizardScreen({
   campaignTitle,
   threshold,
   reward,
+  metric,
   presetLabel,
   onCampaignTitle,
   onThreshold,
   onReward,
+  onMetric,
+  onClearPreset,
   onCancel,
   onSubmit,
 }: {
   campaignTitle: string
   threshold: string
   reward: string
+  metric: 'joins' | 'purchases' | 'revenue'
   presetLabel?: string | null
   onCampaignTitle: (value: string) => void
   onThreshold: (value: string) => void
   onReward: (value: string) => void
+  onMetric: (value: 'joins' | 'purchases' | 'revenue') => void
+  onClearPreset: () => void
   onCancel: () => void
   onSubmit: (event: FormEvent) => void
 }) {
+  const [step, setStep] = useState(0)
+  const steps = ['Goal', 'Target', 'Reward', 'Preview']
+
+  function handleNext() {
+    if (step < steps.length - 1) setStep(step + 1)
+  }
+  function handleBack() {
+    if (step > 0) setStep(step - 1)
+    else onCancel()
+  }
+
   return (
-    <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
+    <form
+      className="tg-screen with-fixed-button"
+      onSubmit={(event) => {
+        if (step < steps.length - 1) {
+          event.preventDefault()
+          handleNext()
+        } else {
+          onSubmit(event)
+        }
+      }}
+    >
       <div className="tg-form-title">
         <h1>Referral Reward</h1>
         <p>{presetLabel ? `Create a referral reward just for ${presetLabel}.` : 'Create a simple milestone loop members can understand and share.'}</p>
-        <button className="tg-text-button" type="button" onClick={onCancel}>Cancel</button>
+        <button className="tg-text-button" type="button" onClick={handleBack}>
+          {step === 0 ? 'Cancel' : 'Back'}
+        </button>
       </div>
-      <SectionLabel>Campaign</SectionLabel>
-      <div className="tg-input-group">
-        <input value={campaignTitle} onChange={(event) => onCampaignTitle(event.target.value)} aria-label="Campaign title" />
-        <label>
-          <span>Join Milestone</span>
-          <input value={threshold} onChange={(event) => onThreshold(event.target.value)} inputMode="numeric" />
-        </label>
-        <textarea value={reward} onChange={(event) => onReward(event.target.value)} aria-label="Reward" />
+      <div className="tg-progress-bars" aria-label={`Step ${step + 1} of ${steps.length}`}>
+        {steps.map((label, index) => (
+          <span key={label} className={index <= step ? 'active' : ''} />
+        ))}
       </div>
-      <section className="tg-callout">
-        <span>MEMBER JOURNEY</span>
-        <h2>Invite {threshold || 3} members</h2>
-        <p>{reward}</p>
-      </section>
-      <FixedButton label="Create Campaign" submit />
+
+      {step === 0 && (
+        <>
+          <SectionLabel>Campaign name</SectionLabel>
+          <div className="tg-input-group">
+            <input value={campaignTitle} onChange={(event) => onCampaignTitle(event.target.value)} aria-label="Campaign title" />
+          </div>
+          <SectionLabel>Reward goal</SectionLabel>
+          <ListGroup>
+            {REFERRAL_METRICS.map((option) => (
+              <ListRow
+                key={option.value}
+                tone="green"
+                icon="referral"
+                title={option.title}
+                detail={option.detail}
+                meta={metric === option.value ? 'Selected' : undefined}
+                onClick={() => onMetric(option.value)}
+              />
+            ))}
+          </ListGroup>
+        </>
+      )}
+
+      {step === 1 && (
+        <>
+          <SectionLabel>{referralThresholdLabel(metric)}</SectionLabel>
+          <div className="tg-input-group">
+            <input value={threshold} onChange={(event) => onThreshold(event.target.value)} inputMode="numeric" aria-label={referralThresholdLabel(metric)} />
+          </div>
+          <SectionLabel>Applies to</SectionLabel>
+          <ListGroup>
+            {presetLabel ? (
+              <>
+                <ListRow tone="green" icon="referral" title={presetLabel} detail="This specific item" meta="Selected" />
+                <ListRow tone="blue" icon="business" title="Whole community" detail="Switch to a community-wide reward" onClick={onClearPreset} />
+              </>
+            ) : (
+              <ListRow tone="blue" icon="business" title="Whole community" detail="This reward applies to your entire community" meta="Selected" />
+            )}
+          </ListGroup>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <SectionLabel>Reward</SectionLabel>
+          <div className="tg-input-group">
+            <textarea value={reward} onChange={(event) => onReward(event.target.value)} aria-label="Reward" />
+          </div>
+        </>
+      )}
+
+      {step === 3 && (
+        <section className="tg-callout">
+          <span>MEMBER JOURNEY</span>
+          <h2>{referralGoalCopy(metric, threshold)}</h2>
+          <p>{reward || 'Unlock bonus content'}</p>
+          <p>{presetLabel ? `Applies to ${presetLabel}.` : 'Applies to your whole community.'}</p>
+        </section>
+      )}
+
+      <FixedButton label={step === steps.length - 1 ? 'Activate Campaign' : 'Next'} submit />
     </form>
   )
 }
@@ -2742,9 +2982,9 @@ function PublishScreen({
 function ShareGuide({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const [step, setStep] = useState(0)
   const slides = [
-    { title: 'Tap Share on any membership, product, or event', art: 'Share' },
-    { title: 'We send a message with a button to your group or your DMs', art: 'Send' },
-    { title: 'Tapping it opens CommunityOS straight into the offer', art: 'Open' },
+    { title: 'Tap Share on any membership, product, or event', icon: 'share' as IconName },
+    { title: 'We send a message with a button to your group or your DMs', icon: 'comment' as IconName },
+    { title: 'Tapping it opens CommunityOS straight into the offer', icon: 'business' as IconName },
   ]
   return (
     <main className="tg-story">
@@ -2759,7 +2999,7 @@ function ShareGuide({ onBack, onDone }: { onBack: () => void; onDone: () => void
         ))}
       </div>
       <section className="tg-story-content simple">
-        <StoryArt label={slides[step].art} compact />
+        <StoryArt label={slides[step].title} icon={slides[step].icon} compact />
         <h1>{slides[step].title}</h1>
       </section>
       <footer className="tg-story-footer">
@@ -2818,21 +3058,21 @@ function OfferWizard({
     ? `Register for this ${event.type} on ${dateShort(event.startsAt)}${event.accessLink ? ' — access link included.' : '.'}`
     : 'Register and get event details and access link.'
 
-  const slides = [
+  const slides: { title: string; detail: string; icon: IconName }[] = [
     {
       title: `Get ${title}`,
       detail: [description, chat ? `Join ${chat.activeMembers} members in ${chat.title}.` : null].filter(Boolean).join(' '),
-      icon: plan ? 'M' : product ? 'D' : 'E',
+      icon: plan ? 'membership' : product ? 'product' : 'event',
     },
     {
       title: 'Pay with Telegram Stars',
       detail: `Only ${price} — fast, secure, and supported in Telegram.`,
-      icon: 'XTR',
+      icon: 'stars',
     },
     {
       title: 'You\'ll get',
       detail: whatYoullGet,
-      icon: 'C',
+      icon: 'channel',
     },
   ]
 
@@ -2860,7 +3100,7 @@ function OfferWizard({
         ))}
       </div>
       <section className="tg-story-content">
-        <StoryArt label={slides[step].icon} imageUrl={imageUrl} compact />
+        <StoryArt label={slides[step].title} icon={slides[step].icon} imageUrl={imageUrl} compact />
         <h1>{slides[step].title}</h1>
         <p>{slides[step].detail}</p>
       </section>
@@ -3253,6 +3493,8 @@ type IconName =
   | 'subscription'
   | 'channel'
   | 'group'
+  | 'business'
+  | 'bot'
 
 function RowIcon({ name }: { name: IconName }) {
   switch (name) {
@@ -3392,6 +3634,25 @@ function RowIcon({ name }: { name: IconName }) {
           <circle cx="15.5" cy="9" r="3" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.12" />
           <path d="M3.6 18.6c.5-3 2.3-4.6 4.9-4.6s4.4 1.6 4.9 4.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           <path d="M10.6 18.6c.5-3 2.3-4.6 4.9-4.6s4.4 1.6 4.9 4.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      )
+    case 'business':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M4 20V10.5l8-4.5 8 4.5V20" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" fill="currentColor" fillOpacity="0.1" />
+          <path d="M9 20v-5.5h6V20" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+          <path d="M4 10.5h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      )
+    case 'bot':
+      return (
+        <svg viewBox="0 0 24 24" fill="none">
+          <rect x="5" y="9" width="14" height="10" rx="3" stroke="currentColor" strokeWidth="1.6" fill="currentColor" fillOpacity="0.1" />
+          <path d="M12 9V6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <circle cx="12" cy="4.6" r="1.3" fill="currentColor" />
+          <circle cx="9" cy="14" r="1.3" fill="currentColor" />
+          <circle cx="15" cy="14" r="1.3" fill="currentColor" />
+          <path d="M3.5 12.5h1.5M19 12.5h1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
         </svg>
       )
     default:
@@ -3538,11 +3799,27 @@ function AvatarMark({ className, image, label }: { className: string; image?: st
   )
 }
 
-function StoryArt({ label, compact, imageUrl }: { label: string; compact?: boolean; imageUrl?: string | null }) {
+function StoryArt({
+  label,
+  compact,
+  imageUrl,
+  icon,
+}: {
+  label: string
+  compact?: boolean
+  imageUrl?: string | null
+  icon?: IconName
+}) {
   return (
     <div className={`tg-story-art ${compact ? 'compact' : ''}`} aria-hidden="true">
-      <span className={`tg-story-art-card ${imageUrl ? 'has-image' : ''}`}>
-        {imageUrl ? <img src={imageUrl} alt="" /> : (<><i /><b>{label}</b></>)}
+      <span className={`tg-story-art-card ${imageUrl ? 'has-image' : ''} ${!imageUrl && icon ? 'has-icon' : ''}`}>
+        {imageUrl ? (
+          <img src={imageUrl} alt="" />
+        ) : icon ? (
+          <RowIcon name={icon} />
+        ) : (
+          <><i /><b>{label}</b></>
+        )}
       </span>
     </div>
   )
