@@ -336,6 +336,46 @@ export interface AdminDashboardDto {
   issues: Array<{ id: number; title: string; community: string; severity: 'high' | 'medium' | 'low'; status: string }>
 }
 
+export interface PlatformAdminDto {
+  id: number
+  userId: number
+  telegramId: number | null
+  username: string | null
+  role: string
+  createdAt: string
+}
+
+export interface AuditEventDto {
+  id: number
+  actorUserId: number | null
+  communityId: number | null
+  eventType: string
+  payload: Record<string, unknown>
+  createdAt: string
+}
+
+export interface AdminPaymentDto {
+  id: number
+  communityId: number | null
+  community: string
+  buyerUserId: number | null
+  buyer: string | null
+  productId: number | null
+  invoiceId: string | null
+  stars: number
+  amountCents: number
+  status: string
+  source: string
+  paidAt: string | null
+  createdAt: string
+}
+
+export interface AdminSearchResultDto {
+  communities: Array<{ id: number; name: string; handle: string | null; status: string; owner_id: number }>
+  users: Array<{ id: number; username: string | null; telegram_id: number }>
+  payments: AdminPaymentDto[]
+}
+
 export interface AiProviderConfigDto {
   id: number
   provider: 'anthropic' | 'openai' | 'gemini' | 'custom'
@@ -609,7 +649,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   admin: {
-    getDashboard: async () => (await request<{ dashboard: AdminDashboardDto }>('/api/admin/dashboard')).dashboard,
+    getDashboard: () => request<AdminDashboardDto>('/api/admin/dashboard'),
     listAiProviders: async () => (await request<{ providers: AiProviderConfigDto[] }>('/api/admin/ai-providers')).providers,
     createAiProvider: (body: {
       provider: AiProviderConfigDto['provider']
@@ -631,6 +671,42 @@ export const api = {
       }),
     deleteAiProvider: (id: number) =>
       request<{ ok: boolean }>(`/api/admin/ai-providers?id=${id}`, { method: 'DELETE' }),
+    listAdmins: async () => (await request<{ admins: PlatformAdminDto[] }>('/api/admin/admins')).admins,
+    addAdmin: (body: { telegramId?: number; userId?: number; role?: string }) =>
+      request<{ ok: boolean; admin?: PlatformAdminDto; error?: string }>('/api/admin/admins', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    removeAdmin: (userId: number) =>
+      request<{ ok: boolean; error?: string }>(`/api/admin/admins?userId=${userId}`, { method: 'DELETE' }),
+    listAudit: async (filters: { communityId?: number; actorId?: number; type?: string } = {}) => {
+      const params = new URLSearchParams()
+      if (filters.communityId) params.set('communityId', String(filters.communityId))
+      if (filters.actorId) params.set('actorId', String(filters.actorId))
+      if (filters.type) params.set('type', filters.type)
+      const qs = params.toString()
+      return (await request<{ events: AuditEventDto[] }>(`/api/admin/audit${qs ? `?${qs}` : ''}`)).events
+    },
+    search: (q: string) => request<AdminSearchResultDto>(`/api/admin/search?q=${encodeURIComponent(q)}`),
+    getCommunity: (id: number) => request<any>(`/api/admin/communities/${id}`),
+    setCommunityStatus: (id: number, action: 'activate' | 'pause' | 'archive') =>
+      request<{ ok: boolean; community: { id: number; status: string } }>(`/api/admin/communities/${id}`, {
+        method: 'POST',
+        body: JSON.stringify({ action }),
+      }),
+    listPayments: async (filters: { status?: string; communityId?: number; days?: number } = {}) => {
+      const params = new URLSearchParams()
+      if (filters.status) params.set('status', filters.status)
+      if (filters.communityId) params.set('communityId', String(filters.communityId))
+      if (filters.days) params.set('days', String(filters.days))
+      const qs = params.toString()
+      return (await request<{ payments: AdminPaymentDto[] }>(`/api/admin/payments${qs ? `?${qs}` : ''}`)).payments
+    },
+    resolveIssue: (logId: number) =>
+      request<{ ok: boolean; logId?: number; error?: string }>('/api/admin/issues', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'resolve', logId }),
+      }),
   },
 }
 
