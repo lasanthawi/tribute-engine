@@ -43,8 +43,6 @@ type Screen =
   | 'rewards'
   | 'more'
   | 'createDetails'
-  | 'preview'
-  | 'payments'
   | 'publish'
   | 'shareGuide'
   | 'productBuilder'
@@ -1172,6 +1170,8 @@ export default function Home() {
           <AppFrame
             hideBack={screen === 'start' || screen === 'account'}
             onBack={() => { if (screen === 'communities' || screen === 'more') go('account') }}
+            rightLabel={screen === 'account' ? 'More' : undefined}
+            onRightAction={screen === 'account' ? () => go('more') : undefined}
           >
             {screen === 'account' && me && (
               <AccountHome
@@ -1179,7 +1179,6 @@ export default function Home() {
                 onSelectModel={chooseRevenueModel}
                 onOpenCommunity={(id) => selectCommunity(id, 'home')}
                 onAddCommunity={handleAddCommunity}
-                onOpenMore={() => go('more')}
               />
             )}
             {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
@@ -1288,8 +1287,6 @@ export default function Home() {
               rewards: 'home',
               more: 'home',
               createDetails: 'home',
-              preview: 'createDetails',
-              payments: 'preview',
               publish: 'home',
               shareGuide: 'publish',
               productBuilder: 'home',
@@ -1304,6 +1301,8 @@ export default function Home() {
             }
             go(previous[screen])
           }}
+          rightLabel={screen === 'home' || screen === 'account' ? 'More' : undefined}
+          onRightAction={screen === 'home' || screen === 'account' ? () => go('more') : undefined}
         >
           {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
           {screen === 'account' && me && (
@@ -1312,7 +1311,6 @@ export default function Home() {
               onSelectModel={chooseRevenueModel}
               onOpenCommunity={(id) => selectCommunity(id, 'home')}
               onAddCommunity={handleAddCommunity}
-              onOpenMore={() => go('more')}
             />
           )}
           {screen === 'communities' && (
@@ -1510,38 +1508,22 @@ export default function Home() {
             />
           )}
           {screen === 'createDetails' && (
-            <CreateDetailsScreen
+            <MembershipBuilderScreen
               title={membershipTitle}
               description={membershipDescription}
               buttonText={buttonText}
               coverPreview={coverPreview}
               coverName={coverName}
+              monthlyStars={monthlyStars}
+              yearlyStars={yearlyStars}
               onTitle={setMembershipTitle}
               onDescription={setMembershipDescription}
               onButtonText={setButtonText}
               onCoverFile={handleCoverFile}
-              onCancel={() => go('home')}
-              onSubmit={() => go('preview')}
-            />
-          )}
-          {screen === 'preview' && (
-            <PreviewScreen
-              communityName={data.community.name}
-              title={membershipTitle}
-              description={membershipDescription}
-              buttonText={buttonText}
-              coverPreview={coverPreview}
-              onNext={() => go('payments')}
-            />
-          )}
-          {screen === 'payments' && (
-            <PaymentScreen
-              monthlyStars={monthlyStars}
-              yearlyStars={yearlyStars}
               onMonthlyStars={setMonthlyStars}
               onYearlyStars={setYearlyStars}
-              onCancel={() => go('preview')}
-              onCreate={createMembership}
+              onCancel={() => go('home')}
+              onSubmit={createMembership}
               submitting={submitting}
             />
           )}
@@ -1767,21 +1749,16 @@ function AccountHome({
   onSelectModel,
   onOpenCommunity,
   onAddCommunity,
-  onOpenMore,
 }: {
   me: MeDto
   onSelectModel: (model: RevenueModel) => void
   onOpenCommunity: (id: number) => void
   onAddCommunity: () => void
-  onOpenMore: () => void
 }) {
   const nextAction = computeAccountNextAction(me)
   return (
     <section className="tg-screen with-fixed-button">
       <div className="tg-community-header">
-        <button className="tg-header-more-button" type="button" onClick={onOpenMore}>
-          More
-        </button>
         <AvatarMark className="tg-large-avatar" image={me.avatarUrl} label={me.username ?? 'CommunityOS'} />
         <h1>{me.username ? `@${me.username}` : 'CommunityOS'}</h1>
         <p>{me.accountStats.communities} owned communities</p>
@@ -1840,7 +1817,7 @@ function CommunityHome({
   const nextAction = computeNextAction(data)
   return (
     <section className="tg-screen with-fixed-button">
-      <CommunityHeader data={data} onEdit={onEditProfile} onMore={() => onNavigate('more')} />
+      <CommunityHeader data={data} onEdit={onEditProfile} />
 
       {nextAction && (
         <NextActionCard
@@ -1921,17 +1898,12 @@ function CommunityHome({
   )
 }
 
-function CommunityHeader({ data, onEdit, onMore }: { data: DashboardDto; onEdit?: () => void; onMore?: () => void }) {
+function CommunityHeader({ data, onEdit }: { data: DashboardDto; onEdit?: () => void }) {
   return (
     <section className="tg-community-header">
       <button className="tg-header-edit-button" type="button" onClick={onEdit} title="Edit profile">
         ✎
       </button>
-      {onMore && (
-        <button className="tg-header-more-button" type="button" onClick={onMore}>
-          More
-        </button>
-      )}
       <AvatarMark className="tg-large-avatar" image={data.community.avatarUrl} label={data.community.name} />
       <h1>{data.community.name}</h1>
       <p>{data.metrics.members} members</p>
@@ -2791,39 +2763,43 @@ function PreviewCard({ title, description, buttonText, coverUrl }: { title: stri
   )
 }
 
-function CreateDetailsScreen({
+function MembershipBuilderScreen({
   title,
   description,
   buttonText,
   coverPreview,
   coverName,
+  monthlyStars,
+  yearlyStars,
   onTitle,
   onDescription,
   onButtonText,
   onCoverFile,
+  onMonthlyStars,
+  onYearlyStars,
   onCancel,
   onSubmit,
+  submitting,
 }: {
   title: string
   description: string
   buttonText: string
   coverPreview: string | null
   coverName: string | null
+  monthlyStars: string
+  yearlyStars: string
   onTitle: (value: string) => void
   onDescription: (value: string) => void
   onButtonText: (value: string) => void
   onCoverFile: (file: File | null) => void
+  onMonthlyStars: (value: string) => void
+  onYearlyStars: (value: string) => void
   onCancel: () => void
-  onSubmit: () => void
+  onSubmit: (event?: FormEvent) => void
+  submitting?: boolean
 }) {
   return (
-    <form
-      className="tg-screen with-fixed-button"
-      onSubmit={(event) => {
-        event.preventDefault()
-        onSubmit()
-      }}
-    >
+    <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
       <div className="tg-form-title">
         <h1>Create Membership</h1>
         <p>Add clear details. New members will see this in Telegram before they subscribe.</p>
@@ -2840,97 +2816,29 @@ function CreateDetailsScreen({
       <div className="tg-input-group single">
         <input value={buttonText} onChange={(event) => onButtonText(event.target.value)} aria-label="Button text" />
       </div>
-      <SectionLabel>Membership Cover</SectionLabel>
-      <label className="tg-upload-card">
-        <input type="file" accept="image/*" onChange={(event) => onCoverFile(event.currentTarget.files?.[0] ?? null)} />
-        <div>
-          {coverPreview ? <span className="tg-cover-preview" style={{ backgroundImage: `url(${coverPreview})` }} /> : <span>Upload Cover</span>}
-        </div>
-        {coverName && <small>{coverName}</small>}
-      </label>
-      <FixedButton label="Done" submit />
-    </form>
-  )
-}
-
-function PreviewScreen({
-  communityName,
-  title,
-  description,
-  buttonText,
-  coverPreview,
-  onNext,
-}: {
-  communityName: string
-  title: string
-  description: string
-  buttonText: string
-  coverPreview: string | null
-  onNext: () => void
-}) {
-  return (
-    <section className="tg-screen with-fixed-button">
-      <h1 className="tg-center-title">Membership Preview</h1>
-      <div className="tg-message-preview">
-        <div className={coverPreview ? 'tg-preview-cover has-image' : 'tg-preview-cover'}>
-          {coverPreview ? <span style={{ backgroundImage: `url(${coverPreview})` }} /> : <span>CommunityOS</span>}
-        </div>
-        <div className="tg-preview-body">
-          <small>{communityName}</small>
-          <strong>{title}</strong>
-          <p>{description}</p>
-          <button type="button">{buttonText}</button>
-        </div>
-      </div>
-      <FixedButton label="Next" onClick={onNext} />
-    </section>
-  )
-}
-
-function PaymentScreen({
-  monthlyStars,
-  yearlyStars,
-  onMonthlyStars,
-  onYearlyStars,
-  onCancel,
-  onCreate,
-  submitting,
-}: {
-  monthlyStars: string
-  yearlyStars: string
-  onMonthlyStars: (value: string) => void
-  onYearlyStars: (value: string) => void
-  onCancel: () => void
-  onCreate: (event?: FormEvent) => void
-  submitting?: boolean
-}) {
-  return (
-    <form className="tg-screen with-fixed-button" onSubmit={onCreate}>
-      <div className="tg-form-title">
-        <h1>Set Up Payments</h1>
-        <p>Set your Stars price, billing periods, and checkout options.</p>
-        <button className="tg-text-button" type="button" onClick={onCancel}>
-          Back
-        </button>
-      </div>
-      <ListGroup>
-        <ListRow title="Currency" detail="Telegram Stars" meta="XTR" />
-        <ListRow title="Payment Methods" detail="Telegram native checkout" meta="All" />
-      </ListGroup>
-      <SectionLabel>Subscription Periods</SectionLabel>
+      <SectionLabel>Cover</SectionLabel>
+      <UploadBox label="Upload Cover" preview={coverPreview} fileName={coverName} accept="image/*" onFile={onCoverFile} />
+      <SectionLabel>Pricing</SectionLabel>
       <div className="tg-input-group">
-        <label>
-          <span>1 Month</span>
-          <input value={monthlyStars} onChange={(event) => onMonthlyStars(event.target.value)} inputMode="numeric" />
-          {Number(monthlyStars) > 0 && <small className="tg-input-hint inline">≈ {formatUsdApprox(Number(monthlyStars))} for subscribers</small>}
-        </label>
-        <label>
-          <span>1 Year</span>
-          <input value={yearlyStars} onChange={(event) => onYearlyStars(event.target.value)} inputMode="numeric" />
-          {Number(yearlyStars) > 0 && <small className="tg-input-hint inline">≈ {formatUsdApprox(Number(yearlyStars))} for subscribers</small>}
-        </label>
+        <input
+          value={monthlyStars}
+          onChange={(event) => onMonthlyStars(event.target.value)}
+          inputMode="numeric"
+          placeholder="Monthly price in Stars"
+          aria-label="Monthly price in Stars"
+        />
+        {Number(monthlyStars) > 0 && <small className="tg-input-hint">≈ {formatUsdApprox(Number(monthlyStars))}/month for subscribers</small>}
+        <input
+          value={yearlyStars}
+          onChange={(event) => onYearlyStars(event.target.value)}
+          inputMode="numeric"
+          placeholder="Yearly price in Stars (optional)"
+          aria-label="Yearly price in Stars (optional)"
+        />
+        {Number(yearlyStars) > 0 && <small className="tg-input-hint">≈ {formatUsdApprox(Number(yearlyStars))}/year for subscribers</small>}
       </div>
-      <FixedButton label="Create" onClick={() => onCreate()} disabled={submitting} />
+      <PreviewCard title={title} description={description} buttonText={buttonText || 'Subscribe'} coverUrl={coverPreview} />
+      <FixedButton label="Create Membership" submit disabled={submitting} />
     </form>
   )
 }
