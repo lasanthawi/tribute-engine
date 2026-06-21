@@ -280,6 +280,21 @@ export interface MeDto {
   memberCommunities: CommunitySummaryDto[]
 }
 
+export interface PlatformOverviewDto {
+  communities: number
+  activeCommunities: number
+  newCommunities30d: number
+  publishers: number
+  stars30d: number
+  revenueCents30d: number
+  revenueCentsAllTime: number
+  mrrCents: number
+  expiredSubs30d: number
+  accessSuccessRate: number
+  pendingJoinRequests: number
+  accessFailures: number
+}
+
 export interface AdminDashboardDto {
   metrics: {
     communities: number
@@ -289,9 +304,70 @@ export interface AdminDashboardDto {
     accessFailures: number
     aiRequests: number
   }
+  overview: PlatformOverviewDto
   communities: Array<CommunitySummaryDto & { owner: string; members: number; revenueCents: number; healthScore: number }>
   payments: Array<{ id: number; community: string; buyer: string; stars: number; status: string; createdAt: string }>
   issues: Array<{ id: number; title: string; community: string; severity: 'high' | 'medium' | 'low'; status: string }>
+}
+
+export interface AdminCommunityDetailDto {
+  community: {
+    id: number
+    name: string
+    handle: string | null
+    description: string | null
+    status: string
+    telegramChatId: number | null
+    owner: string
+  }
+  metrics: {
+    healthScore: number
+    members: number
+    activeSubscriptions: number
+    pendingRenewals: number
+    monthlyRevenueCents: number
+    monthlyStars: number
+    accessIssues: number
+    productsSold: number
+  }
+  members: MemberRowDto[]
+  logs: Array<{ id: number; action: string; status: string; message: string | null; created_at: string }>
+  payments: Array<{ id: number; buyer_user_id: number; amount_stars: number; status: string; created_at: string }>
+}
+
+export interface PlatformAdminDto {
+  id: number
+  userId: number
+  role: string
+  username: string | null
+  telegramId: number | null
+  createdAt: string
+}
+
+export interface AuditEventDto {
+  id: number
+  actor: string
+  community: string | null
+  eventType: string
+  payload: Record<string, unknown>
+  createdAt: string
+}
+
+export interface AdminPaymentDto {
+  id: number
+  community: string
+  buyer: string
+  stars: number
+  amountCents: number
+  status: string
+  source: string | null
+  createdAt: string
+}
+
+export interface AdminSearchDto {
+  communities: Array<{ id: number; name: string; handle: string | null; status: string }>
+  users: Array<{ id: number; username: string | null; telegramId: number }>
+  payments: Array<{ id: number; communityId: number; buyerUserId: number; stars: number; status: string; createdAt: string }>
 }
 
 export interface InvoiceDto {
@@ -491,6 +567,49 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+
+  // --- Platform admin ---
+  getAdminDashboard: () => request<AdminDashboardDto>('/api/admin/dashboard'),
+  getAdminCommunity: (communityId: number | string) =>
+    request<AdminCommunityDetailDto>(`/api/admin/communities/${communityId}`),
+  setCommunityStatus: (communityId: number | string, status: 'active' | 'paused' | 'archived') =>
+    request<{ ok: boolean }>(`/api/admin/communities/${communityId}`, {
+      method: 'POST',
+      body: JSON.stringify({ action: status === 'active' ? 'activate' : status === 'paused' ? 'pause' : 'archive' }),
+    }),
+  adminRevokeAccess: (communityId: number, userId: number) =>
+    request<{ ok: boolean }>('/api/admin/members', { method: 'POST', body: JSON.stringify({ action: 'revoke', communityId, userId }) }),
+  adminRestoreAccess: (communityId: number, userId: number) =>
+    request<{ ok: boolean }>('/api/admin/members', { method: 'POST', body: JSON.stringify({ action: 'restore', communityId, userId }) }),
+  adminSyncAccess: (communityId?: number) =>
+    request<{ ok: boolean; scanned: number; synced: number }>('/api/admin/members', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'sync', communityId }),
+    }),
+  adminResolveIssue: (logId: number) =>
+    request<{ ok: boolean }>('/api/admin/issues', { method: 'POST', body: JSON.stringify({ action: 'resolve', logId }) }),
+  listAdminPayments: (params: { status?: string; communityId?: number; days?: number } = {}) => {
+    const query = new URLSearchParams()
+    if (params.status) query.set('status', params.status)
+    if (params.communityId) query.set('communityId', String(params.communityId))
+    if (params.days) query.set('days', String(params.days))
+    const qs = query.toString()
+    return request<{ payments: AdminPaymentDto[] }>(`/api/admin/payments${qs ? `?${qs}` : ''}`)
+  },
+  listPlatformAdmins: () => request<{ admins: PlatformAdminDto[] }>('/api/admin/admins'),
+  addPlatformAdmin: (body: { telegramId?: number; userId?: number; role?: string }) =>
+    request<{ ok: boolean; reason?: string }>('/api/admin/admins', { method: 'POST', body: JSON.stringify(body) }),
+  removePlatformAdmin: (userId: number) =>
+    request<{ ok: boolean; reason?: string }>(`/api/admin/admins?userId=${userId}`, { method: 'DELETE' }),
+  listAuditEvents: (params: { communityId?: number; actorId?: number; type?: string } = {}) => {
+    const query = new URLSearchParams()
+    if (params.communityId) query.set('communityId', String(params.communityId))
+    if (params.actorId) query.set('actorId', String(params.actorId))
+    if (params.type) query.set('type', params.type)
+    const qs = query.toString()
+    return request<{ events: AuditEventDto[] }>(`/api/admin/audit${qs ? `?${qs}` : ''}`)
+  },
+  adminSearch: (q: string) => request<AdminSearchDto>(`/api/admin/search?q=${encodeURIComponent(q)}`),
 }
 
 export function money(cents: number, currency = 'USD') {
