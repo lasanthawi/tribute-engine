@@ -353,6 +353,7 @@ export interface InvoiceDto {
   currency: string
   prices: Array<{ label: string; amount: number }>
   invoiceLink?: string | null
+  invoiceError?: string | null
 }
 
 export interface UploadAssetDto {

@@ -64,11 +64,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       interval,
       buyerUserId: userId,
     })
-    const invoiceLink = await createTelegramInvoiceLink(process.env.TELEGRAM_BOT_TOKEN || '', invoice).catch((error) => {
-      console.error('createInvoiceLink failed:', error)
-      return null
-    })
-    res.status(200).json({ invoice: { ...invoice, invoiceLink } })
+    let invoiceLink: string | null = null
+    let invoiceError: string | null = null
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      invoiceError = 'TELEGRAM_BOT_TOKEN is not configured for this bot'
+    } else {
+      invoiceLink = await createTelegramInvoiceLink(process.env.TELEGRAM_BOT_TOKEN, invoice).catch((error) => {
+        console.error('createInvoiceLink failed:', error)
+        invoiceError = error?.message || 'Telegram could not create the invoice link'
+        return null
+      })
+    }
+    res.status(200).json({ invoice: { ...invoice, invoiceLink, invoiceError } })
   } catch (error) {
     console.error('communities/[id]/payments/invoices error:', error)
     res.status(500).json({ error: 'Internal error' })

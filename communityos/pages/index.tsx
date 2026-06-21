@@ -74,6 +74,14 @@ const introSlides = [
   },
 ]
 
+function paymentStatusMessage(status: string, itemTitle: string): string {
+  if (status === 'paid') return `Payment complete — ${itemTitle} is unlocked`
+  if (status === 'cancelled') return 'Payment cancelled — nothing was charged'
+  if (status === 'failed') return 'Payment failed — tap the button again to retry'
+  if (status === 'pending') return 'Payment pending — this will update once it clears'
+  return `Payment ${status}`
+}
+
 export default function Home() {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('publisher')
@@ -102,6 +110,7 @@ export default function Home() {
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [coverName, setCoverName] = useState<string | null>(null)
   const [createdPlan, setCreatedPlan] = useState<PlanDto | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [campaignTitle, setCampaignTitle] = useState('Invite 3 members')
   const [rewardTitle, setRewardTitle] = useState('Founding Member Badge')
   const [rewardTriggerType, setRewardTriggerType] = useState<RewardTriggerType>('member_joined')
@@ -252,7 +261,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!toast) return
-    const timeout = window.setTimeout(() => setToast(null), 1800)
+    const timeout = window.setTimeout(() => setToast(null), Math.min(5000, Math.max(1800, toast.length * 60)))
     return () => window.clearTimeout(timeout)
   }, [toast])
 
@@ -359,7 +368,7 @@ export default function Home() {
 
   async function createMembership(event?: FormEvent) {
     event?.preventDefault()
-    if (!data || !communityId || !membershipTitle.trim()) return
+    if (!data || !communityId || !membershipTitle.trim() || submitting) return
     const stars = Math.max(1, Number(monthlyStars || 0))
     const body = {
       name: membershipTitle.trim(),
@@ -369,6 +378,7 @@ export default function Home() {
       interval: 'month',
     }
 
+    setSubmitting(true)
     try {
       const response = await api.createPlan(communityId, body)
       const plan = {
@@ -397,6 +407,8 @@ export default function Home() {
       showToast('Membership created')
     } catch (error: any) {
       showToast(error.message || 'Membership creation failed')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -502,7 +514,8 @@ export default function Home() {
 
   async function createProductOffer(event?: FormEvent) {
     event?.preventDefault()
-    if (!communityId || !data || !productTitle.trim()) return
+    if (!communityId || !data || !productTitle.trim() || submitting) return
+    setSubmitting(true)
     try {
       const { product } = await api.createProduct(communityId, {
         title: productTitle.trim(),
@@ -524,6 +537,8 @@ export default function Home() {
       showToast('Product created')
     } catch (error: any) {
       showToast(error.message || 'Product creation failed')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -554,7 +569,8 @@ export default function Home() {
 
   async function createEventOffer(event?: FormEvent) {
     event?.preventDefault()
-    if (!communityId || !data || !eventTitle.trim()) return
+    if (!communityId || !data || !eventTitle.trim() || submitting) return
+    setSubmitting(true)
     try {
       const { event: created } = await api.createEvent(communityId, {
         title: eventTitle.trim(),
@@ -572,6 +588,8 @@ export default function Home() {
       showToast('Event created')
     } catch (error: any) {
       showToast(error.message || 'Event creation failed')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -823,39 +841,6 @@ export default function Home() {
     }
   }
 
-  async function createEventDraft() {
-    if (!data || !communityId) return
-    const body = {
-      title: 'Weekly Community Session',
-      type: 'webinar' as const,
-      startsAt: new Date(Date.now() + 86400000 * 7).toISOString(),
-      priceStars: 0,
-    }
-    try {
-      const { event } = await api.createEvent(communityId, body)
-      setData({ ...data, events: [event, ...data.events] })
-      showToast('Event draft created')
-    } catch (error: any) {
-      showToast(error.message || 'Event creation failed')
-    }
-  }
-
-  async function createProductDraft() {
-    if (!data || !communityId) return
-    const body = {
-      title: 'Premium Download',
-      type: 'download' as const,
-      priceStars: 199,
-    }
-    try {
-      const { product } = await api.createProduct(communityId, body)
-      setData({ ...data, products: [product, ...data.products] })
-      showToast('Product draft created')
-    } catch (error: any) {
-      showToast(error.message || 'Product creation failed')
-    }
-  }
-
   async function copyOrOpenTelegramUrl(url: string, successMessage: string) {
     if (!url) {
       showToast('Set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME first')
@@ -973,12 +958,12 @@ export default function Home() {
       })
       if (response.invoice.invoiceLink) {
         openInvoiceLink(response.invoice.invoiceLink, async (status) => {
-          showToast(`Payment ${status}`)
+          showToast(paymentStatusMessage(status, product.title))
           if (status === 'paid') await refreshMemberDashboard()
         })
         showToast('Opening Telegram invoice')
       } else {
-        showToast('Invoice stored, but bot invoice link is not configured')
+        showToast(response.invoice.invoiceError || 'Invoice stored, but the bot invoice link is not configured')
       }
     } catch (error: any) {
       showToast(error.message || 'Invoice creation failed')
@@ -1006,12 +991,12 @@ export default function Home() {
       })
       if (response.invoice.invoiceLink) {
         openInvoiceLink(response.invoice.invoiceLink, async (status) => {
-          showToast(`Payment ${status}`)
+          showToast(paymentStatusMessage(status, plan.name))
           if (status === 'paid') await refreshMemberDashboard()
         })
         showToast('Opening Telegram invoice')
       } else {
-        showToast('Invoice stored, but bot invoice link is not configured')
+        showToast(response.invoice.invoiceError || 'Invoice stored, but the bot invoice link is not configured')
       }
     } catch (error: any) {
       showToast(error.message || 'Invoice creation failed')
@@ -1031,12 +1016,12 @@ export default function Home() {
         })
         if (response.invoice.invoiceLink) {
           openInvoiceLink(response.invoice.invoiceLink, async (status) => {
-            showToast(`Payment ${status}`)
+            showToast(paymentStatusMessage(status, event.title))
             if (status === 'paid') await refreshMemberDashboard()
           })
           showToast('Opening Telegram invoice')
         } else {
-          showToast('Invoice stored, but bot invoice link is not configured')
+          showToast(response.invoice.invoiceError || 'Invoice stored, but the bot invoice link is not configured')
         }
         return
       }
@@ -1386,6 +1371,7 @@ export default function Home() {
               onDeliveryFile={handleProductFile}
               onCancel={() => go('home')}
               onSubmit={createProductOffer}
+              submitting={submitting}
             />
           )}
           {screen === 'productPublish' && activeProduct && (
@@ -1420,6 +1406,7 @@ export default function Home() {
               onCoverFile={handleEventCover}
               onCancel={() => go('home')}
               onSubmit={createEventOffer}
+              submitting={submitting}
             />
           )}
           {screen === 'eventPublish' && activeEvent && (
@@ -1499,6 +1486,7 @@ export default function Home() {
               onYearlyStars={setYearlyStars}
               onCancel={() => go('preview')}
               onCreate={createMembership}
+              submitting={submitting}
             />
           )}
           {screen === 'publish' && (
@@ -2241,6 +2229,7 @@ function ProductBuilderScreen({
   onDeliveryFile,
   onCancel,
   onSubmit,
+  submitting,
 }: {
   title: string
   description: string
@@ -2264,6 +2253,7 @@ function ProductBuilderScreen({
   onDeliveryFile: (file: File | null) => void
   onCancel: () => void
   onSubmit: (event?: FormEvent) => void
+  submitting?: boolean
 }) {
   return (
     <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
@@ -2309,7 +2299,7 @@ function ProductBuilderScreen({
         <input value={buttonText} onChange={(event) => onButtonText(event.target.value)} aria-label="Button text" />
       </div>
       <PreviewCard title={title} description={description} buttonText={buttonText || 'Buy'} coverUrl={cover.preview} />
-      <FixedButton label="Create Product" submit />
+      <FixedButton label="Create Product" submit disabled={submitting} />
     </form>
   )
 }
@@ -2331,6 +2321,7 @@ function EventBuilderScreen({
   onCoverFile,
   onCancel,
   onSubmit,
+  submitting,
 }: {
   title: string
   description: string
@@ -2348,6 +2339,7 @@ function EventBuilderScreen({
   onCoverFile: (file: File | null) => void
   onCancel: () => void
   onSubmit: (event?: FormEvent) => void
+  submitting?: boolean
 }) {
   return (
     <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
@@ -2385,7 +2377,7 @@ function EventBuilderScreen({
         <input value={priceStars} onChange={(event) => onPriceStars(event.target.value)} inputMode="numeric" aria-label="Event price in Stars" />
       </div>
       <PreviewCard title={title} description={description} buttonText={Number(priceStars) > 0 ? 'Get Ticket' : 'Register'} coverUrl={cover.preview} />
-      <FixedButton label="Create Event" submit />
+      <FixedButton label="Create Event" submit disabled={submitting} />
     </form>
   )
 }
@@ -2614,6 +2606,7 @@ function PaymentScreen({
   onYearlyStars,
   onCancel,
   onCreate,
+  submitting,
 }: {
   monthlyStars: string
   yearlyStars: string
@@ -2621,6 +2614,7 @@ function PaymentScreen({
   onYearlyStars: (value: string) => void
   onCancel: () => void
   onCreate: (event?: FormEvent) => void
+  submitting?: boolean
 }) {
   return (
     <form className="tg-screen with-fixed-button" onSubmit={onCreate}>
@@ -2646,7 +2640,7 @@ function PaymentScreen({
           <input value={yearlyStars} onChange={(event) => onYearlyStars(event.target.value)} inputMode="numeric" />
         </label>
       </div>
-      <FixedButton label="Create" onClick={() => onCreate()} />
+      <FixedButton label="Create" onClick={() => onCreate()} disabled={submitting} />
     </form>
   )
 }
@@ -3140,6 +3134,8 @@ function MemberHome({
         {data.products.map((product) => (
           <ListRow
             key={product.id}
+            icon="P"
+            image={product.coverUrl}
             title={product.title}
             detail={product.owned ? 'Unlocked' : product.type.replace('_', ' ')}
             meta={product.owned ? 'Open' : `${product.priceStars} XTR`}
@@ -3153,6 +3149,8 @@ function MemberHome({
         {data.events.map((event) => (
           <ListRow
             key={event.id}
+            icon="E"
+            image={event.coverUrl}
             title={event.title}
             detail={`${event.type} on ${dateShort(event.startsAt)}`}
             meta={event.registered ? 'Open' : event.priceStars ? `${event.priceStars} XTR` : 'Free'}
@@ -3248,6 +3246,7 @@ function ListRow({
   meta,
   icon,
   avatar,
+  image,
   tone = 'blue',
   onClick,
 }: {
@@ -3256,12 +3255,17 @@ function ListRow({
   meta?: string
   icon?: string
   avatar?: string
+  image?: string | null
   tone?: 'blue' | 'red' | 'purple' | 'green' | 'amber'
   onClick?: () => void
 }) {
   const content = (
     <>
-      {(icon || avatar) && <span className={`tg-row-icon ${tone}`}>{avatar ?? icon}</span>}
+      {image ? (
+        <span className="tg-row-icon-image" style={{ backgroundImage: `url(${image})` }} />
+      ) : (
+        (icon || avatar) && <span className={`tg-row-icon ${tone}`}>{avatar ?? icon}</span>
+      )}
       <span className="tg-row-main">
         <strong>{title}</strong>
         {detail && <small>{detail}</small>}
@@ -3400,11 +3404,21 @@ function MenuButton({ communityId }: { communityId: number }) {
   )
 }
 
-function FixedButton({ label, onClick, submit }: { label: string; onClick?: () => void; submit?: boolean }) {
+function FixedButton({
+  label,
+  onClick,
+  submit,
+  disabled,
+}: {
+  label: string
+  onClick?: () => void
+  submit?: boolean
+  disabled?: boolean
+}) {
   return (
     <div className="tg-fixed-button">
-      <button type={submit ? 'submit' : 'button'} onClick={onClick}>
-        {label}
+      <button type={submit ? 'submit' : 'button'} onClick={onClick} disabled={disabled}>
+        {disabled ? 'Working…' : label}
       </button>
     </div>
   )

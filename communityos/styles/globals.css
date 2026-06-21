@@ -320,6 +320,16 @@ a {
   background: var(--tg-amber);
 }
 
+.tg-row-icon-image {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  background-position: center;
+  background-size: cover;
+  background-color: #eaf6ff;
+}
+
 .tg-row-main,
 .tg-member-row > div:nth-child(2) {
   display: grid;
