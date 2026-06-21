@@ -114,6 +114,24 @@ export async function syncCommunityAvatar(communityId: number, telegramChatId: n
   if (error) throw error
 }
 
+// Retries the avatar sync on read whenever it hasn't succeeded yet — covers a
+// chat photo set/changed after the bot already connected, and a sync that
+// previously failed (e.g. the storage bucket didn't exist yet). Every screen
+// that shows a community avatar should read it through here instead of the
+// raw `avatar_path` column so a stale null doesn't stick forever.
+export async function ensureCommunityAvatar(community: {
+  id: number
+  avatar_path: string | null
+  telegram_chat_id: number | null
+}): Promise<string | null> {
+  if (community.avatar_path || !community.telegram_chat_id) return community.avatar_path
+  await syncCommunityAvatar(community.id, community.telegram_chat_id).catch((error) =>
+    console.error('ensureCommunityAvatar failed:', error)
+  )
+  const { data: refreshed } = await supabase.from('communities').select('avatar_path').eq('id', community.id).maybeSingle()
+  return refreshed?.avatar_path ?? null
+}
+
 // Telegram only exposes a linked discussion group on the channel's own getChat
 // response (`linked_chat_id`). Call this whenever a channel is (re)confirmed
 // as admin-connected so Comment Access knows which group to moderate.

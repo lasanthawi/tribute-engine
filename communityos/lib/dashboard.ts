@@ -1,4 +1,4 @@
-import { getCommentAccessStatus, listChats, listAccessLogs, listJoinRequests, syncCommunityAvatar } from './access-control'
+import { ensureCommunityAvatar, getCommentAccessStatus, listChats, listAccessLogs, listJoinRequests } from './access-control'
 import { getAiManager } from './ai'
 import { getCommunityMetrics, listActivity } from './analytics'
 import { signedAssetUrl } from './assets'
@@ -13,7 +13,6 @@ import { listReferrals } from './referrals'
 import { listRewardRules, listRewards } from './rewards'
 import { computeSetup } from './setup'
 import { centsToStars } from './star-rate'
-import { supabase } from './supabase'
 import type { DashboardDto } from './api-client'
 import type { CommunityMetrics } from './analytics'
 
@@ -49,18 +48,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
   const community = await getCommunity(communityId)
   if (!community) return null
 
-  let communityAvatarPath = community.avatar_path
-  if (!communityAvatarPath && community.telegram_chat_id) {
-    await syncCommunityAvatar(communityId, community.telegram_chat_id).catch((error) =>
-      console.error('buildDashboard syncCommunityAvatar failed:', error)
-    )
-    const { data: refreshed } = await supabase
-      .from('communities')
-      .select('avatar_path')
-      .eq('id', communityId)
-      .maybeSingle()
-    communityAvatarPath = refreshed?.avatar_path ?? null
-  }
+  const communityAvatarPath = await ensureCommunityAvatar(community)
 
   const [
     metrics,

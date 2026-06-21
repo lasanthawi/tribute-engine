@@ -1,17 +1,19 @@
 import { getCommunityMetrics } from './analytics'
+import { ensureCommunityAvatar } from './access-control'
 import { signedAssetUrl } from './assets'
 import { sb, supabase } from './supabase'
 import type { CommunitySummaryDto, MeDto } from './api-client'
 import type { CommunityRow } from './supabase'
 
 async function toSummary(row: CommunityRow): Promise<CommunitySummaryDto> {
+  const avatarPath = await ensureCommunityAvatar(row)
   return {
     id: row.id,
     name: row.name,
     handle: row.handle,
     description: row.description,
     status: row.status,
-    avatarUrl: await signedAssetUrl(row.avatar_path, 86400),
+    avatarUrl: await signedAssetUrl(avatarPath, 86400),
   }
 }
 
