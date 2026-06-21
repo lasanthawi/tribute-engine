@@ -75,6 +75,7 @@ export default function Home() {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('publisher')
   const [screen, setScreen] = useState<Screen>('intro')
+  const [booted, setBooted] = useState(false)
   const [introIndex, setIntroIndex] = useState(0)
   const [data, setData] = useState<DashboardDto | null>(null)
   const [memberProfile, setMemberProfile] = useState<MemberProfileDto | null>(null)
@@ -233,6 +234,8 @@ export default function Home() {
         } else {
           setAuthError(err?.message || 'unknown_error')
         }
+      } finally {
+        if (!cancelled) setBooted(true)
       }
     }
 
@@ -1033,7 +1036,7 @@ export default function Home() {
           <title>CommunityOS</title>
           <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         </Head>
-        {screen === 'intro' ? (
+        {booted && screen === 'intro' ? (
           <IntroScreen
             index={introIndex}
             onBack={introIndex > 0 ? () => setIntroIndex((v) => v - 1) : undefined}
