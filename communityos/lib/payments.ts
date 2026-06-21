@@ -1,17 +1,13 @@
 import { sb } from './supabase'
 import { creditCommunityXp } from './xp'
+import { evaluateRewardRules } from './reward-rules'
 import { signedAssetUrl } from './assets'
 import { ensureMember } from './communities'
 import { createOrUpdateSubscription, createSubscriptionPeriod } from './memberships'
+import { STAR_TO_CENTS, starsToCents } from './star-rate'
 import type { PurchaseDto } from './api-client'
 
-// Telegram Stars are priced 1:1 in the invoice; we persist an approximate cash
-// value so revenue rolls up alongside manual/fiat plans. ~1 Star ≈ $0.013.
-export const STAR_TO_CENTS = 1.3
-
-export function starsToCents(stars: number): number {
-  return Math.round(stars * STAR_TO_CENTS)
-}
+export { STAR_TO_CENTS, starsToCents }
 
 export type ProductType = 'course' | 'download' | 'premium_content' | 'consultation'
 
@@ -433,6 +429,9 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
   })
 
   await creditCommunityXp(communityId, input.buyerUserId, 50, 'purchase', { metadata: { stars: input.stars } })
+  await evaluateRewardRules(communityId, input.buyerUserId, 'purchase_completed').catch((error) =>
+    console.error('evaluateRewardRules(purchase_completed) failed:', error)
+  )
 
   return {
     ok: true as const,

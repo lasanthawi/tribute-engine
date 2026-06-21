@@ -9,6 +9,7 @@ import {
   listJoinRequests,
   restoreMemberAccess,
   revokeMemberAccess,
+  setCommentAccess,
   suspendMemberAccess,
   syncPendingAccess,
 } from '@/lib/access-control'
@@ -65,6 +66,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       if (action === 'sync') {
         return res.status(200).json({ ok: true, ...(await syncPendingAccess(communityId)) })
+      }
+      if (action === 'set_comment_access') {
+        const enabled = !!req.body?.enabled
+        const result = await setCommentAccess(communityId, enabled)
+        return res.status(result.ok ? 200 : 400).json(result)
       }
       return res.status(400).json({ error: 'Unknown action' })
     }

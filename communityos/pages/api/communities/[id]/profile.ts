@@ -15,13 +15,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!allowed) return res.status(403).json({ error: 'Forbidden' })
 
     if (req.method === 'PATCH' || req.method === 'PUT') {
-      const { name, handle, description, telegramInviteUrl } = req.body ?? {}
+      const { name, handle, description, telegramInviteUrl, settings } = req.body ?? {}
       const updates: Record<string, any> = {}
 
       if (typeof name === 'string' && name.trim()) updates.name = name.trim()
       if (typeof handle === 'string') updates.handle = handle.trim() || null
       if (typeof description === 'string') updates.description = description.trim() || null
       if (typeof telegramInviteUrl === 'string') updates.telegram_invite_url = telegramInviteUrl.trim() || null
+      if (settings && typeof settings === 'object') {
+        const current = await getCommunity(communityId)
+        updates.settings = { ...(current?.settings ?? {}), ...settings }
+      }
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ error: 'At least one field is required' })
@@ -44,6 +48,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           handle: (data as any).handle,
           description: (data as any).description,
           status: (data as any).status,
+          settings: {
+            starsCheckoutEnabled: (data as any).settings?.starsCheckoutEnabled !== false,
+            notificationsEnabled: (data as any).settings?.notificationsEnabled !== false,
+          },
         },
       })
     }

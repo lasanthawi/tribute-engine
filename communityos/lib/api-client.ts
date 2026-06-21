@@ -26,6 +26,8 @@ export interface CommunitySummaryDto {
   description: string | null
   status: string
   telegramInviteUrl?: string | null
+  avatarUrl?: string | null
+  settings?: { starsCheckoutEnabled: boolean; notificationsEnabled: boolean }
 }
 
 export interface SetupStepDto {
@@ -76,6 +78,22 @@ export interface TelegramChatDto {
   activeMembers: number
 }
 
+export interface CommentAccessDto {
+  linked: boolean
+  discussionBotStatus: 'admin' | 'missing_permissions' | 'not_connected' | null
+  enabled: boolean
+}
+
+export interface ScheduledPostDto {
+  id: number
+  communityId: number
+  targetType: 'plan' | 'product' | 'event'
+  targetId: number
+  intervalHours: number
+  nextRunAt: string
+  status: 'active' | 'paused'
+}
+
 export interface PlanDto {
   id: number
   name: string
@@ -113,6 +131,8 @@ export interface ReferralCampaignDto {
   joins: number
   purchases: number
   revenueCents: number
+  targetType?: 'plan' | 'product' | 'event' | null
+  targetId?: number | null
 }
 
 export interface RewardDto {
@@ -123,10 +143,20 @@ export interface RewardDto {
   claimed: boolean
 }
 
+export type RewardTriggerType =
+  | 'member_joined'
+  | 'referral_joined'
+  | 'referral_activated'
+  | 'purchase_completed'
+  | 'event_registered'
+  | 'manual'
+
 export interface RewardRuleDto {
   id: number
   title: string
   trigger: string
+  triggerType: RewardTriggerType
+  triggerCount: number
   reward: string
   status: 'active' | 'draft'
 }
@@ -160,6 +190,12 @@ export interface AiManagerDto {
   weeklyReportStatus: 'ready' | 'scheduled' | 'not_configured'
   faqCount: number
   suggestions: HealthSignalDto[]
+  settings: {
+    faqEnabled: boolean
+    welcomeEnabled: boolean
+    reportsEnabled: boolean
+    tone: string
+  }
 }
 
 export interface EventDto {
@@ -245,6 +281,8 @@ export interface DashboardDto {
   ai: AiManagerDto
   events: EventDto[]
   products: ProductDto[]
+  commentAccess: CommentAccessDto
+  scheduledPosts: ScheduledPostDto[]
 }
 
 export interface MemberProfileDto {
@@ -259,6 +297,7 @@ export interface MemberProfileDto {
   products: ProductDto[]
   purchases: PurchaseDto[]
   activity: ActivityDto[]
+  chats: TelegramChatDto[]
 }
 
 export interface MeDto {
@@ -280,21 +319,6 @@ export interface MeDto {
   memberCommunities: CommunitySummaryDto[]
 }
 
-export interface PlatformOverviewDto {
-  communities: number
-  activeCommunities: number
-  newCommunities30d: number
-  publishers: number
-  stars30d: number
-  revenueCents30d: number
-  revenueCentsAllTime: number
-  mrrCents: number
-  expiredSubs30d: number
-  accessSuccessRate: number
-  pendingJoinRequests: number
-  accessFailures: number
-}
-
 export interface AdminDashboardDto {
   metrics: {
     communities: number
@@ -304,70 +328,22 @@ export interface AdminDashboardDto {
     accessFailures: number
     aiRequests: number
   }
-  overview: PlatformOverviewDto
   communities: Array<CommunitySummaryDto & { owner: string; members: number; revenueCents: number; healthScore: number }>
   payments: Array<{ id: number; community: string; buyer: string; stars: number; status: string; createdAt: string }>
   issues: Array<{ id: number; title: string; community: string; severity: 'high' | 'medium' | 'low'; status: string }>
 }
 
-export interface AdminCommunityDetailDto {
-  community: {
-    id: number
-    name: string
-    handle: string | null
-    description: string | null
-    status: string
-    telegramChatId: number | null
-    owner: string
-  }
-  metrics: {
-    healthScore: number
-    members: number
-    activeSubscriptions: number
-    pendingRenewals: number
-    monthlyRevenueCents: number
-    monthlyStars: number
-    accessIssues: number
-    productsSold: number
-  }
-  members: MemberRowDto[]
-  logs: Array<{ id: number; action: string; status: string; message: string | null; created_at: string }>
-  payments: Array<{ id: number; buyer_user_id: number; amount_stars: number; status: string; created_at: string }>
-}
-
-export interface PlatformAdminDto {
+export interface AiProviderConfigDto {
   id: number
-  userId: number
-  role: string
-  username: string | null
-  telegramId: number | null
+  provider: 'anthropic' | 'openai' | 'gemini' | 'custom'
+  label: string
+  model: string
+  baseUrl: string | null
+  apiKeyEnvVar: string
+  enabled: boolean
+  priority: number
   createdAt: string
-}
-
-export interface AuditEventDto {
-  id: number
-  actor: string
-  community: string | null
-  eventType: string
-  payload: Record<string, unknown>
-  createdAt: string
-}
-
-export interface AdminPaymentDto {
-  id: number
-  community: string
-  buyer: string
-  stars: number
-  amountCents: number
-  status: string
-  source: string | null
-  createdAt: string
-}
-
-export interface AdminSearchDto {
-  communities: Array<{ id: number; name: string; handle: string | null; status: string }>
-  users: Array<{ id: number; username: string | null; telegramId: number }>
-  payments: Array<{ id: number; communityId: number; buyerUserId: number; stars: number; status: string; createdAt: string }>
+  updatedAt: string
 }
 
 export interface InvoiceDto {
@@ -377,6 +353,7 @@ export interface InvoiceDto {
   currency: string
   prices: Array<{ label: string; amount: number }>
   invoiceLink?: string | null
+  invoiceError?: string | null
 }
 
 export interface UploadAssetDto {
@@ -420,9 +397,17 @@ export function emptyDashboardForCommunity(community: CommunitySummaryDto): Dash
       weeklyReportStatus: 'not_configured',
       faqCount: 0,
       suggestions: [],
+      settings: {
+        faqEnabled: true,
+        welcomeEnabled: true,
+        reportsEnabled: true,
+        tone: 'friendly',
+      },
     },
     events: [],
     products: [],
+    commentAccess: { linked: false, discussionBotStatus: null, enabled: true },
+    scheduledPosts: [],
   }
 }
 
@@ -472,6 +457,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ action: decision, joinRequestId }),
     }),
+  setCommentAccess: (communityId: number | string, enabled: boolean) =>
+    request<{ ok: boolean; reason?: string }>(`/api/communities/${communityId}/access`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'set_comment_access', enabled }),
+    }),
+  activateAutoPosting: (
+    communityId: number | string,
+    body: { targetType: 'plan' | 'product' | 'event'; targetId: number; intervalHours?: number }
+  ) =>
+    request<{ ok: boolean; scheduledPost: ScheduledPostDto }>(`/api/communities/${communityId}/scheduled-posts`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'activate', ...body }),
+    }),
+  pauseAutoPosting: (communityId: number | string, body: { targetType: 'plan' | 'product' | 'event'; targetId: number }) =>
+    request<{ ok: boolean; scheduledPost: ScheduledPostDto | null }>(`/api/communities/${communityId}/scheduled-posts`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'pause', ...body }),
+    }),
   syncAccess: (communityId: number | string) =>
     request<{ ok: boolean; scanned?: number; synced?: number; demo?: boolean }>(`/api/communities/${communityId}/access`, {
       method: 'POST',
@@ -487,16 +490,45 @@ export const api = {
     }),
   createReferralCampaign: (
     communityId: number | string,
-    body: { title: string; reward?: string; status?: 'draft' | 'active' | 'paused'; threshold?: number; metric?: 'joins' | 'purchases' | 'revenue' }
+    body: {
+      title: string
+      reward?: string
+      status?: 'draft' | 'active' | 'paused'
+      threshold?: number
+      metric?: 'joins' | 'purchases' | 'revenue'
+      targetType?: 'plan' | 'product' | 'event'
+      targetId?: number
+    }
   ) =>
     request<{ campaign: ReferralCampaignDto }>(`/api/communities/${communityId}/referral-campaigns`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  createRewardRule: (communityId: number | string, body: { title: string; trigger?: string; reward?: string; status?: 'draft' | 'active' }) =>
+  createRewardRule: (
+    communityId: number | string,
+    body: { title: string; triggerType: RewardTriggerType; triggerCount?: number; xpReward?: number; status?: 'draft' | 'active' }
+  ) =>
     request<{ rule: RewardRuleDto }>(`/api/communities/${communityId}/rewards`, {
       method: 'POST',
       body: JSON.stringify({ action: 'create_rule', ...body }),
+    }),
+  generateAiReport: (communityId: number | string) =>
+    request<{ ok: boolean; report: { status: 'ready'; summary: string } }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'report' }),
+    }),
+  askAi: (communityId: number | string, question: string) =>
+    request<{ answer: string }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'ask', question }),
+    }),
+  updateAiSettings: (
+    communityId: number | string,
+    body: Partial<{ faqEnabled: boolean; welcomeEnabled: boolean; reportsEnabled: boolean; tone: string }>
+  ) =>
+    request<{ ok: boolean; settings: AiManagerDto['settings'] }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update_settings', ...body }),
     }),
   uploadAsset: (
     communityId: number | string,
@@ -561,55 +593,42 @@ export const api = {
     }),
   updateCommunityProfile: (
     communityId: number | string,
-    body: { name?: string; handle?: string | null; description?: string | null; telegramInviteUrl?: string | null }
+    body: {
+      name?: string
+      handle?: string | null
+      description?: string | null
+      telegramInviteUrl?: string | null
+      settings?: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>
+    }
   ) =>
     request<{ community: CommunitySummaryDto }>(`/api/communities/${communityId}/profile`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
-
-  // --- Platform admin ---
-  getAdminDashboard: () => request<AdminDashboardDto>('/api/admin/dashboard'),
-  getAdminCommunity: (communityId: number | string) =>
-    request<AdminCommunityDetailDto>(`/api/admin/communities/${communityId}`),
-  setCommunityStatus: (communityId: number | string, status: 'active' | 'paused' | 'archived') =>
-    request<{ ok: boolean }>(`/api/admin/communities/${communityId}`, {
-      method: 'POST',
-      body: JSON.stringify({ action: status === 'active' ? 'activate' : status === 'paused' ? 'pause' : 'archive' }),
-    }),
-  adminRevokeAccess: (communityId: number, userId: number) =>
-    request<{ ok: boolean }>('/api/admin/members', { method: 'POST', body: JSON.stringify({ action: 'revoke', communityId, userId }) }),
-  adminRestoreAccess: (communityId: number, userId: number) =>
-    request<{ ok: boolean }>('/api/admin/members', { method: 'POST', body: JSON.stringify({ action: 'restore', communityId, userId }) }),
-  adminSyncAccess: (communityId?: number) =>
-    request<{ ok: boolean; scanned: number; synced: number }>('/api/admin/members', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'sync', communityId }),
-    }),
-  adminResolveIssue: (logId: number) =>
-    request<{ ok: boolean }>('/api/admin/issues', { method: 'POST', body: JSON.stringify({ action: 'resolve', logId }) }),
-  listAdminPayments: (params: { status?: string; communityId?: number; days?: number } = {}) => {
-    const query = new URLSearchParams()
-    if (params.status) query.set('status', params.status)
-    if (params.communityId) query.set('communityId', String(params.communityId))
-    if (params.days) query.set('days', String(params.days))
-    const qs = query.toString()
-    return request<{ payments: AdminPaymentDto[] }>(`/api/admin/payments${qs ? `?${qs}` : ''}`)
+  admin: {
+    getDashboard: async () => (await request<{ dashboard: AdminDashboardDto }>('/api/admin/dashboard')).dashboard,
+    listAiProviders: async () => (await request<{ providers: AiProviderConfigDto[] }>('/api/admin/ai-providers')).providers,
+    createAiProvider: (body: {
+      provider: AiProviderConfigDto['provider']
+      label: string
+      model: string
+      baseUrl?: string | null
+      apiKeyEnvVar: string
+      enabled?: boolean
+      priority?: number
+    }) =>
+      request<{ provider: AiProviderConfigDto }>('/api/admin/ai-providers', { method: 'POST', body: JSON.stringify(body) }),
+    updateAiProvider: (
+      id: number,
+      body: Partial<{ label: string; model: string; baseUrl: string | null; apiKeyEnvVar: string; enabled: boolean; priority: number }>
+    ) =>
+      request<{ provider: AiProviderConfigDto }>('/api/admin/ai-providers', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, ...body }),
+      }),
+    deleteAiProvider: (id: number) =>
+      request<{ ok: boolean }>(`/api/admin/ai-providers?id=${id}`, { method: 'DELETE' }),
   },
-  listPlatformAdmins: () => request<{ admins: PlatformAdminDto[] }>('/api/admin/admins'),
-  addPlatformAdmin: (body: { telegramId?: number; userId?: number; role?: string }) =>
-    request<{ ok: boolean; reason?: string }>('/api/admin/admins', { method: 'POST', body: JSON.stringify(body) }),
-  removePlatformAdmin: (userId: number) =>
-    request<{ ok: boolean; reason?: string }>(`/api/admin/admins?userId=${userId}`, { method: 'DELETE' }),
-  listAuditEvents: (params: { communityId?: number; actorId?: number; type?: string } = {}) => {
-    const query = new URLSearchParams()
-    if (params.communityId) query.set('communityId', String(params.communityId))
-    if (params.actorId) query.set('actorId', String(params.actorId))
-    if (params.type) query.set('type', params.type)
-    const qs = query.toString()
-    return request<{ events: AuditEventDto[] }>(`/api/admin/audit${qs ? `?${qs}` : ''}`)
-  },
-  adminSearch: (q: string) => request<AdminSearchDto>(`/api/admin/search?q=${encodeURIComponent(q)}`),
 }
 
 export function money(cents: number, currency = 'USD') {

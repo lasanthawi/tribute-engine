@@ -2,6 +2,16 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
 import { claimReward, createReward, createRewardRule, listRewards } from '@/lib/rewards'
+import type { RewardTriggerType } from '@/lib/api-client'
+
+const TRIGGER_TYPES: RewardTriggerType[] = [
+  'member_joined',
+  'referral_joined',
+  'referral_activated',
+  'purchase_completed',
+  'event_registered',
+  'manual',
+]
 
 interface RewardRow {
   id: number
@@ -49,12 +59,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!allowed) return res.status(403).json({ error: 'Forbidden' })
 
       if (action === 'create_rule') {
-        const { title, trigger, reward, status } = req.body ?? {}
+        const { title, triggerType, triggerCount, xpReward, status } = req.body ?? {}
         if (!title || typeof title !== 'string') return res.status(400).json({ error: 'title is required' })
         const rule = await createRewardRule(communityId, {
           title,
-          trigger: typeof trigger === 'string' ? trigger : 'Manual unlock',
-          xpReward: typeof reward === 'string' ? Number(reward.replace(/[^0-9]/g, '')) || 0 : 0,
+          triggerType: TRIGGER_TYPES.includes(triggerType) ? triggerType : 'manual',
+          triggerCount: typeof triggerCount === 'number' ? triggerCount : 1,
+          xpReward: typeof xpReward === 'number' ? xpReward : 0,
           status: status === 'draft' ? 'draft' : 'active',
         })
         return res.status(201).json({ rule })

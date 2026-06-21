@@ -2,12 +2,9 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { getCommunity, requireCommunityOwner } from '@/lib/communities'
 import { listPlans } from '@/lib/memberships'
+import { botUsernameFromEnv, deepLinkForTarget, getConnectedChatInfo, planShareCaption, resolveShareTarget, sendShareMessage } from '@/lib/share-content'
+import { centsToStars } from '@/lib/star-rate'
 import { supabase } from '@/lib/supabase'
-import { sendTelegramMessage } from '@/lib/telegram'
-
-function escapeHtml(value: string) {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
 
 function publicBaseUrl(req: NextApiRequest) {
   const configured = process.env.MINI_APP_URL || process.env.NEXT_PUBLIC_MINI_APP_URL
@@ -46,14 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const plan = plans.find((item) => item.id === planId)
     if (!plan) return res.status(404).json({ error: 'Plan not found' })
 
-    const { data: owner, error: ownerError } = await supabase
-      .from('users')
-      .select('telegram_id')
-      .eq('id', userId)
-      .maybeSingle()
-    if (ownerError) throw ownerError
-
-    const targetChatId = community.telegram_chat_id ?? owner?.telegram_id
+    const { target, chatId: targetChatId } = await resolveShareTarget(communityId, userId)
     if (!targetChatId) return res.status(400).json({ error: 'No Telegram chat is available for sharing' })
 
     const baseUrl = publicBaseUrl(req)
@@ -62,22 +52,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // web_app inline buttons are rejected by Telegram in group chats — they only
     // work in private chats. A `startapp` deep link instead launches the Mini App
     // directly from any chat type, with no bot-chat detour.
-    const botUsername = (process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
+    const botUsername = botUsernameFromEnv()
     if (!botUsername) return res.status(400).json({ error: 'TELEGRAM_BOT_USERNAME is not configured' })
-    const deepLink = `https://t.me/${botUsername}?startapp=co_${communityId}_plan_${plan.id}`
+    const deepLink = deepLinkForTarget(botUsername, communityId, 'plan', plan.id)
     const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : 'Subscribe'
-    const stars = Math.round((plan.price_cents ?? 0) / 10)
-    const text = [
-      `<b>${escapeHtml(plan.name)}</b>`,
-      plan.description ? escapeHtml(plan.description) : null,
-      stars > 0 ? `${stars} XTR per ${escapeHtml(plan.interval)}` : null,
-      `Tap below to subscribe to ${escapeHtml(community.name)}.`,
-    ]
-      .filter(Boolean)
-      .join('\n\n')
+    const stars = centsToStars(plan.price_cents ?? 0)
+    const chatInfo = await getConnectedChatInfo(communityId, community.telegram_chat_id ?? null)
+    const text = planShareCaption(community.name, plan, stars, chatInfo)
 
-    await sendTelegramMessage(botToken, targetChatId, text, 'HTML', {
-      inline_keyboard: [[{ text: buttonText, url: deepLink }]],
+    await sendShareMessage({
+      botToken,
+      chatId: targetChatId,
+      caption: text,
+      buttonText,
+      deepLink,
+      photoFileId: chatInfo?.photoFileId,
     })
 
     await supabase.from('community_activity_events').insert({
@@ -88,13 +77,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metadata: { planId: plan.id, targetChatId },
     })
 
-    res.status(200).json({
-      ok: true,
-      target: community.telegram_chat_id ? 'community_chat' : 'owner_chat',
-      url: deepLink,
-    })
+    res.status(200).json({ ok: true, target, url: deepLink })
   } catch (error) {
     console.error('communities/[id]/plans/share error:', error)
+    if (error instanceof Error && error.message.startsWith('Telegram send')) {
+      return res.status(502).json({ error: error.message })
+    }
     res.status(500).json({ error: 'Internal error' })
   }
 }

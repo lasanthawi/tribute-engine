@@ -17,12 +17,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'GET') return res.status(200).json({ campaigns: await listReferralCampaigns(communityId) })
 
     if (req.method === 'POST') {
-      const { title, reward, status } = req.body ?? {}
+      const { title, reward, status, targetType, targetId } = req.body ?? {}
       if (!title || typeof title !== 'string') return res.status(400).json({ error: 'title is required' })
+      const validTargetType = targetType === 'plan' || targetType === 'product' || targetType === 'event' ? targetType : undefined
       const campaign = await createReferralCampaign(communityId, {
         title,
         reward: typeof reward === 'string' ? reward : undefined,
         status,
+        targetType: validTargetType,
+        targetId: validTargetType && Number.isFinite(Number(targetId)) ? Number(targetId) : undefined,
       })
       return res.status(201).json({ campaign })
     }

@@ -1,7 +1,18 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { approveJoinRequest, autoLinkChatToCommunity, findCommunityForChat, grantMemberAccess, recordJoinRequest, upsertTelegramChat } from '@/lib/access-control'
+import {
+  approveJoinRequest,
+  autoLinkChatToCommunity,
+  findCommunityForChat,
+  grantMemberAccess,
+  recordJoinRequest,
+  syncCommunityAvatar,
+  syncDiscussionBotStatus,
+  syncDiscussionChat,
+  upsertTelegramChat,
+} from '@/lib/access-control'
 import { findInvoiceByPayload, recordSuccessfulPayment } from '@/lib/payments'
 import { recordClickByCode, registerReferredJoin } from '@/lib/referrals'
+import { parseOfferCode } from '@/lib/start-params'
 import { answerPreCheckoutQuery, sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
 import { getOrCreateUser } from '@/lib/telegram-auth'
 import { supabase } from '@/lib/supabase'
@@ -19,14 +30,8 @@ function inlineKeyboard(url = MINI_APP_URL, label = 'Open CommunityOS') {
 
 function parseStartParam(value?: string) {
   if (!value) return null
-  const offer = /^co_(\d+)_(plan|product|event)_(\d+)$/.exec(value)
-  if (offer) {
-    return {
-      communityId: Number(offer[1]),
-      kind: offer[2] as 'plan' | 'product' | 'event',
-      itemId: Number(offer[3]),
-    }
-  }
+  const offer = parseOfferCode(value)
+  if (offer) return offer
   const community = /^(?:community_|co_)(\d+)(?:_\d+)?$/.exec(value)
   if (community) return { communityId: Number(community[1]), kind: null, itemId: null }
   return null
@@ -154,6 +159,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               '*CommunityOS connected* ✅\n\nAccess control is active. Paying members will receive invite links automatically.',
               'Markdown'
             )
+            await syncCommunityAvatar(communityId, mcm.chat.id).catch((error) => console.error('syncCommunityAvatar failed:', error))
+            await syncDiscussionChat(communityId, telegramChatId).catch((error) => console.error('syncDiscussionChat failed:', error))
           }
         }
 
@@ -167,6 +174,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             botStatus: 'not_connected',
           }).catch(() => undefined)
         }
+
+        // This event may instead describe the bot's membership in a linked discussion
+        // group, which has no direct community_id of its own — match it back to whichever
+        // channel row already recorded this chat as its discussion_chat_id.
+        await syncDiscussionBotStatus(telegramChatId, botIsAdmin ? 'admin' : botRemoved ? 'not_connected' : 'missing_permissions').catch(
+          (error) => console.error('syncDiscussionBotStatus failed:', error)
+        )
       }
 
       return res.status(200).json({ ok: true })

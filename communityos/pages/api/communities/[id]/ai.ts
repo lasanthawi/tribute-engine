@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
-import { generateWeeklyReport, getAiManager } from '@/lib/ai'
+import { answerFaqQuestion, generateWeeklyReport, getAiManager, updateAiSettings } from '@/lib/ai'
 import { requireCommunityOwner } from '@/lib/communities'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -18,6 +18,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ai: await getAiManager(communityId) })
     }
     if (req.method === 'POST') {
+      const body = (req.body ?? {}) as Record<string, unknown>
+      const action = typeof body.action === 'string' ? body.action : 'report'
+
+      if (action === 'ask') {
+        const question = typeof body.question === 'string' ? body.question.trim() : ''
+        if (!question) return res.status(400).json({ error: 'Question is required' })
+        const answer = await answerFaqQuestion(communityId, question)
+        return res.status(200).json({ answer })
+      }
+
+      if (action === 'update_settings') {
+        await updateAiSettings(communityId, {
+          faqEnabled: typeof body.faqEnabled === 'boolean' ? body.faqEnabled : undefined,
+          welcomeEnabled: typeof body.welcomeEnabled === 'boolean' ? body.welcomeEnabled : undefined,
+          reportsEnabled: typeof body.reportsEnabled === 'boolean' ? body.reportsEnabled : undefined,
+          tone: typeof body.tone === 'string' ? body.tone : undefined,
+        })
+        const ai = await getAiManager(communityId)
+        return res.status(200).json({ ok: true, settings: ai.settings })
+      }
+
       const report = await generateWeeklyReport(communityId)
       return res.status(200).json({ ok: true, report })
     }

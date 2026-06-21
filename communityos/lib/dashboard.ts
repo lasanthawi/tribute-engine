@@ -1,6 +1,8 @@
-import { listChats, listAccessLogs, listJoinRequests } from './access-control'
+import { getCommentAccessStatus, listChats, listAccessLogs, listJoinRequests } from './access-control'
 import { getAiManager } from './ai'
 import { getCommunityMetrics, listActivity } from './analytics'
+import { signedAssetUrl } from './assets'
+import { listScheduledPosts } from './auto-posting'
 import { getCommunity, listMembers } from './communities'
 import { listEvents } from './events'
 import { createReferralCampaign, listReferralCampaigns } from './growth'
@@ -10,11 +12,12 @@ import { listProducts } from './payments'
 import { listReferrals } from './referrals'
 import { listRewardRules, listRewards } from './rewards'
 import { computeSetup } from './setup'
+import { centsToStars } from './star-rate'
 import type { DashboardDto } from './api-client'
 import type { CommunityMetrics } from './analytics'
 
 export function planStarsFromCents(priceCents: number): number {
-  return Math.round(priceCents / 10)
+  return centsToStars(priceCents)
 }
 
 const emptyMetrics: CommunityMetrics = {
@@ -45,8 +48,26 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
   const community = await getCommunity(communityId)
   if (!community) return null
 
-  const [metrics, members, chats, plans, referrals, referralCampaigns, rewards, rewardRules, activity, accessLogs, joinRequests, ai, events, products, setup] =
-    await Promise.all([
+  const [
+    metrics,
+    members,
+    chats,
+    plans,
+    referrals,
+    referralCampaigns,
+    rewards,
+    rewardRules,
+    activity,
+    accessLogs,
+    joinRequests,
+    ai,
+    events,
+    products,
+    setup,
+    avatarUrl,
+    commentAccess,
+    scheduledPosts,
+  ] = await Promise.all([
       optionalSection('metrics', emptyMetrics, () => getCommunityMetrics(communityId)),
       optionalSection('members', [], () => listMembers(communityId)),
       optionalSection('chats', [], () => listChats(communityId)),
@@ -58,12 +79,23 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       optionalSection('activity', [], () => listActivity(communityId)),
       optionalSection('accessLogs', [], () => listAccessLogs(communityId)),
       optionalSection('joinRequests', [], () => listJoinRequests(communityId)),
-      optionalSection('ai', { healthScore: 0, weeklyReportStatus: 'not_configured', faqCount: 0, suggestions: [] }, () =>
-        getAiManager(communityId)
+      optionalSection(
+        'ai',
+        {
+          healthScore: 0,
+          weeklyReportStatus: 'not_configured' as const,
+          faqCount: 0,
+          suggestions: [],
+          settings: { faqEnabled: true, welcomeEnabled: true, reportsEnabled: true, tone: 'friendly' },
+        },
+        () => getAiManager(communityId)
       ),
       optionalSection('events', [], () => listEvents(communityId)),
       optionalSection('products', [], () => listProducts(communityId)),
       optionalSection('setup', [], () => computeSetup(communityId)),
+      optionalSection('avatarUrl', null, () => signedAssetUrl(community.avatar_path, 86400)),
+      optionalSection('commentAccess', { linked: false, discussionBotStatus: null, enabled: true }, () => getCommentAccessStatus(communityId)),
+      optionalSection('scheduledPosts', [], () => listScheduledPosts(communityId)),
     ])
 
   return {
@@ -73,6 +105,11 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       handle: community.handle,
       description: community.description,
       status: community.status,
+      avatarUrl,
+      settings: {
+        starsCheckoutEnabled: (community.settings as any)?.starsCheckoutEnabled !== false,
+        notificationsEnabled: (community.settings as any)?.notificationsEnabled !== false,
+      },
     },
     setup,
     metrics,
@@ -118,6 +155,8 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
     ai,
     events,
     products,
+    commentAccess,
+    scheduledPosts,
   }
 }
 

@@ -1,5 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
+import { listChats } from '@/lib/access-control'
 import { requireUser } from '@/lib/api-auth'
+import { signedAssetUrl } from '@/lib/assets'
 import { getCommunity, getMemberProfile, listMembers } from '@/lib/communities'
 import { listEvents } from '@/lib/events'
 import { getReferralCampaignProgress } from '@/lib/growth'
@@ -7,6 +9,7 @@ import { listMemberSubscriptions, listPlans } from '@/lib/memberships'
 import { listMemberPurchases, listProducts } from '@/lib/payments'
 import { referralLink } from '@/lib/referrals'
 import { listRewards } from '@/lib/rewards'
+import { centsToStars } from '@/lib/star-rate'
 import { supabase } from '@/lib/supabase'
 
 async function optional<T>(label: string, fallback: T, loader: () => Promise<T>): Promise<T> {
@@ -32,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!community) return res.status(404).json({ error: 'Community not found' })
 
     await getMemberProfile(communityId, userId)
-    const [members, plans, subscriptions, rewards, events, products, purchases, referralProgress, activityRows] = await Promise.all([
+    const [members, plans, subscriptions, rewards, events, products, purchases, referralProgress, activityRows, chats, avatarUrl] = await Promise.all([
       optional('members', [], () => listMembers(communityId)),
       optional('plans', [], () => listPlans(communityId)),
       optional('subscriptions', [], () => listMemberSubscriptions(communityId, userId)),
@@ -50,6 +53,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .order('created_at', { ascending: false })
           .limit(20)
       }),
+      optional('chats', [], () => listChats(communityId)),
+      optional('avatarUrl', null, () => signedAssetUrl(community.avatar_path, 86400)),
     ])
     const member =
       members.find((row) => row.id === userId) ?? {
@@ -75,7 +80,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         handle: community.handle,
         description: community.description,
         status: community.status,
+        avatarUrl,
       },
+      chats,
       member,
       referralLink: referralLink(communityId, userId),
       plans: plans.map((plan) => ({
@@ -83,7 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         name: plan.name,
         description: plan.description,
         priceCents: plan.price_cents,
-        stars: Math.round(plan.price_cents / 10),
+        stars: centsToStars(plan.price_cents),
         currency: plan.currency,
         interval: plan.interval,
         status: plan.status,

@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
-import { supabase } from '@/lib/supabase'
-import { broadcastCustomMessage } from '@/lib/notifications'
+import { broadcastCustomMessage } from '../../../lib/notifications'
+import { supabase } from '../../../lib/supabase'
+import { sendTelegramMessage, TelegramUpdate } from '../../../lib/telegram'
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || '')

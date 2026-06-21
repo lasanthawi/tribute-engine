@@ -2,12 +2,8 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { getCommunity, requireCommunityOwner } from '@/lib/communities'
 import { listProducts } from '@/lib/payments'
+import { botUsernameFromEnv, deepLinkForTarget, getConnectedChatInfo, productShareCaption, resolveShareTarget, sendShareMessage } from '@/lib/share-content'
 import { supabase } from '@/lib/supabase'
-import { sendTelegramMessage } from '@/lib/telegram'
-
-function escapeHtml(value: string) {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
 
 function publicBaseUrl(req: NextApiRequest) {
   const configured = process.env.MINI_APP_URL || process.env.NEXT_PUBLIC_MINI_APP_URL
@@ -44,28 +40,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const product = (await listProducts(communityId)).find((item) => item.id === productId)
     if (!product) return res.status(404).json({ error: 'Product not found' })
 
-    const { data: owner, error: ownerError } = await supabase.from('users').select('telegram_id').eq('id', userId).maybeSingle()
-    if (ownerError) throw ownerError
-    const targetChatId = community.telegram_chat_id ?? owner?.telegram_id
+    const { target, chatId: targetChatId } = await resolveShareTarget(communityId, userId)
     if (!targetChatId) return res.status(400).json({ error: 'No Telegram chat is available for sharing' })
 
     // web_app inline buttons only work in private chats; a `startapp` deep link
     // launches the Mini App directly from any chat type, with no bot-chat detour.
-    const botUsername = (process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
+    const botUsername = botUsernameFromEnv()
     if (!botUsername) return res.status(400).json({ error: 'TELEGRAM_BOT_USERNAME is not configured' })
-    const deepLink = `https://t.me/${botUsername}?startapp=co_${communityId}_product_${product.id}`
+    const deepLink = deepLinkForTarget(botUsername, communityId, 'product', product.id)
     const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : product.buttonText || 'Buy'
-    const text = [
-      `<b>${escapeHtml(product.title)}</b>`,
-      product.description ? escapeHtml(product.description) : null,
-      product.priceStars ? `${product.priceStars} XTR` : 'Free',
-      `Tap below to get it from ${escapeHtml(community.name)}.`,
-    ]
-      .filter(Boolean)
-      .join('\n\n')
+    const chatInfo = await getConnectedChatInfo(communityId, community.telegram_chat_id ?? null)
+    const text = productShareCaption(community.name, product, chatInfo)
 
-    await sendTelegramMessage(botToken, targetChatId, text, 'HTML', {
-      inline_keyboard: [[{ text: buttonText, url: deepLink }]],
+    await sendShareMessage({
+      botToken,
+      chatId: targetChatId,
+      caption: text,
+      buttonText,
+      deepLink,
+      photoFileId: chatInfo?.photoFileId,
     })
 
     await supabase.from('community_activity_events').insert({
@@ -76,9 +69,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metadata: { productId: product.id, targetChatId },
     })
 
-    res.status(200).json({ ok: true, target: community.telegram_chat_id ? 'community_chat' : 'owner_chat', url: deepLink })
+    res.status(200).json({ ok: true, target, url: deepLink })
   } catch (error) {
     console.error('communities/[id]/products/share error:', error)
+    if (error instanceof Error && error.message.startsWith('Telegram send')) {
+      return res.status(502).json({ error: error.message })
+    }
     res.status(500).json({ error: 'Internal error' })
   }
 }

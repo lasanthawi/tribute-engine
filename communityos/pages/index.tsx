@@ -4,6 +4,7 @@ import { useRouter } from 'next/router'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityDto,
+  CommentAccessDto,
   DashboardDto,
   EventDto,
   MeDto,
@@ -14,6 +15,8 @@ import {
   PurchaseDto,
   ReferralCampaignDto,
   RewardRuleDto,
+  RewardTriggerType,
+  ScheduledPostDto,
   SubscriptionDto,
   TelegramChatDto,
   api,
@@ -21,6 +24,8 @@ import {
   money,
 } from '@/lib/api-client'
 import { copyText, getInitData, getStartParam, haptic, initTelegramShell, openExternalLink, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
+import { centsToStars, starsToCents } from '@/lib/star-rate'
+import { parseOfferCode, parseReferralCode as parseReferralStartCode } from '@/lib/start-params'
 
 type Mode = 'publisher' | 'member'
 type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
@@ -48,6 +53,8 @@ type Screen =
   | 'referralBuilder'
   | 'communityProfile'
   | 'offerWizard'
+  | 'aiManager'
+  | 'settings'
 
 const introSlides = [
   {
@@ -67,10 +74,19 @@ const introSlides = [
   },
 ]
 
+function paymentStatusMessage(status: string, itemTitle: string): string {
+  if (status === 'paid') return `Payment complete — ${itemTitle} is unlocked`
+  if (status === 'cancelled') return 'Payment cancelled — nothing was charged'
+  if (status === 'failed') return 'Payment failed — tap the button again to retry'
+  if (status === 'pending') return 'Payment pending — this will update once it clears'
+  return `Payment ${status}`
+}
+
 export default function Home() {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('publisher')
   const [screen, setScreen] = useState<Screen>('intro')
+  const [booted, setBooted] = useState(false)
   const [introIndex, setIntroIndex] = useState(0)
   const [data, setData] = useState<DashboardDto | null>(null)
   const [memberProfile, setMemberProfile] = useState<MemberProfileDto | null>(null)
@@ -94,8 +110,14 @@ export default function Home() {
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [coverName, setCoverName] = useState<string | null>(null)
   const [createdPlan, setCreatedPlan] = useState<PlanDto | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [campaignTitle, setCampaignTitle] = useState('Invite 3 members')
   const [rewardTitle, setRewardTitle] = useState('Founding Member Badge')
+  const [rewardTriggerType, setRewardTriggerType] = useState<RewardTriggerType>('member_joined')
+  const [rewardTriggerCount, setRewardTriggerCount] = useState('1')
+  const [aiQuestion, setAiQuestion] = useState('')
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null)
+  const [aiBusy, setAiBusy] = useState(false)
   const [productTitle, setProductTitle] = useState('Premium Download')
   const [productDescription, setProductDescription] = useState('A paid resource for your Telegram community.')
   const [productType, setProductType] = useState<ProductDto['type']>('download')
@@ -119,6 +141,7 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<EventDto | null>(null)
   const [referralThreshold, setReferralThreshold] = useState('3')
   const [referralReward, setReferralReward] = useState('Unlock bonus content')
+  const [referralPresetTarget, setReferralPresetTarget] = useState<{ type: 'plan' | 'product' | 'event'; id: number; label: string } | null>(null)
   const [profileName, setProfileName] = useState('')
   const [profileHandle, setProfileHandle] = useState('')
   const [profileDescription, setProfileDescription] = useState('')
@@ -156,15 +179,13 @@ export default function Home() {
       try {
         // Track referral clicks from app deep links (start_param format: co_communityId_referrerId)
         const sp = getStartParam()
-        if (sp && /^co_\d+_\d+$/.test(sp)) {
-          const [, commId, refId] = sp.split('_')
-          if (commId && refId) {
-            await fetch('/api/referrals/track', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getInitData() },
-              body: JSON.stringify({ communityId: Number(commId), referrerId: Number(refId) }),
-            }).catch(() => undefined)
-          }
+        const referralStart = sp ? parseReferralStartCode(sp) : null
+        if (referralStart) {
+          await fetch('/api/referrals/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getInitData() },
+            body: JSON.stringify({ communityId: referralStart.communityId, referrerId: referralStart.referrerId }),
+          }).catch(() => undefined)
         }
 
         if (shouldOpenMemberMode) {
@@ -226,6 +247,8 @@ export default function Home() {
         } else {
           setAuthError(err?.message || 'unknown_error')
         }
+      } finally {
+        if (!cancelled) setBooted(true)
       }
     }
 
@@ -238,7 +261,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!toast) return
-    const timeout = window.setTimeout(() => setToast(null), 1800)
+    const timeout = window.setTimeout(() => setToast(null), Math.min(5000, Math.max(1800, toast.length * 60)))
     return () => window.clearTimeout(timeout)
   }, [toast])
 
@@ -345,16 +368,17 @@ export default function Home() {
 
   async function createMembership(event?: FormEvent) {
     event?.preventDefault()
-    if (!data || !communityId || !membershipTitle.trim()) return
+    if (!data || !communityId || !membershipTitle.trim() || submitting) return
     const stars = Math.max(1, Number(monthlyStars || 0))
     const body = {
       name: membershipTitle.trim(),
       description: membershipDescription.trim(),
-      priceCents: stars * 10,
+      priceCents: starsToCents(stars),
       stars,
       interval: 'month',
     }
 
+    setSubmitting(true)
     try {
       const response = await api.createPlan(communityId, body)
       const plan = {
@@ -372,7 +396,7 @@ export default function Home() {
         await api.createPlan(communityId, {
           name: `${body.name} (Annual)`,
           description: body.description,
-          priceCents: yStars * 10,
+          priceCents: starsToCents(yStars),
           stars: yStars,
           interval: 'year',
         }).catch(() => undefined)
@@ -383,6 +407,8 @@ export default function Home() {
       showToast('Membership created')
     } catch (error: any) {
       showToast(error.message || 'Membership creation failed')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -488,7 +514,8 @@ export default function Home() {
 
   async function createProductOffer(event?: FormEvent) {
     event?.preventDefault()
-    if (!communityId || !data || !productTitle.trim()) return
+    if (!communityId || !data || !productTitle.trim() || submitting) return
+    setSubmitting(true)
     try {
       const { product } = await api.createProduct(communityId, {
         title: productTitle.trim(),
@@ -510,6 +537,8 @@ export default function Home() {
       showToast('Product created')
     } catch (error: any) {
       showToast(error.message || 'Product creation failed')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -540,7 +569,8 @@ export default function Home() {
 
   async function createEventOffer(event?: FormEvent) {
     event?.preventDefault()
-    if (!communityId || !data || !eventTitle.trim()) return
+    if (!communityId || !data || !eventTitle.trim() || submitting) return
+    setSubmitting(true)
     try {
       const { event: created } = await api.createEvent(communityId, {
         title: eventTitle.trim(),
@@ -558,6 +588,8 @@ export default function Home() {
       showToast('Event created')
     } catch (error: any) {
       showToast(error.message || 'Event creation failed')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -653,11 +685,13 @@ export default function Home() {
       threshold: Math.max(1, Number(referralThreshold || 3)),
       metric: 'joins' as const,
       status: 'active' as const,
+      ...(referralPresetTarget ? { targetType: referralPresetTarget.type, targetId: referralPresetTarget.id } : {}),
     }
     try {
       const { campaign } = await api.createReferralCampaign(communityId, body)
       setData({ ...data, referralCampaigns: [campaign, ...data.referralCampaigns] })
       setCampaignTitle('')
+      setReferralPresetTarget(null)
       setScreen('growth')
       showToast('Referral campaign created')
     } catch (error: any) {
@@ -665,55 +699,145 @@ export default function Home() {
     }
   }
 
+  function openReferralRewardForPlan(plan: PlanDto | null) {
+    if (!plan) {
+      showToast('Save the membership first')
+      return
+    }
+    setReferralPresetTarget({ type: 'plan', id: plan.id, label: plan.name })
+    setCampaignTitle(`Invite 3 friends to ${plan.name}`)
+    go('referralBuilder')
+  }
+
   async function createRewardRule(event: FormEvent) {
     event.preventDefault()
     if (!data || !communityId || !rewardTitle.trim()) return
     const body = {
       title: rewardTitle.trim(),
-      trigger: 'Member reaches an XP or referral milestone',
-      reward: '+150 XP and badge',
+      triggerType: rewardTriggerType,
+      triggerCount: Math.max(1, Math.round(Number(rewardTriggerCount) || 1)),
+      xpReward: 150,
       status: 'active' as const,
     }
     try {
       const { rule } = await api.createRewardRule(communityId, body)
       setData({ ...data, rewardRules: [rule, ...data.rewardRules] })
       setRewardTitle('')
+      setRewardTriggerType('member_joined')
+      setRewardTriggerCount('1')
       showToast('Reward rule created')
     } catch (error: any) {
       showToast(error.message || 'Reward rule creation failed')
     }
   }
 
-  async function createEventDraft() {
+  async function generateAiReport() {
     if (!data || !communityId) return
-    const body = {
-      title: 'Weekly Community Session',
-      type: 'webinar' as const,
-      startsAt: new Date(Date.now() + 86400000 * 7).toISOString(),
-      priceStars: 0,
-    }
+    setAiBusy(true)
     try {
-      const { event } = await api.createEvent(communityId, body)
-      setData({ ...data, events: [event, ...data.events] })
-      showToast('Event draft created')
+      const { report } = await api.generateAiReport(communityId)
+      setData({ ...data, ai: { ...data.ai, weeklyReportStatus: report.status } })
+      showToast('Weekly report generated')
     } catch (error: any) {
-      showToast(error.message || 'Event creation failed')
+      showToast(error.message || 'Report generation failed')
+    } finally {
+      setAiBusy(false)
     }
   }
 
-  async function createProductDraft() {
+  async function askAiQuestion(event: FormEvent) {
+    event.preventDefault()
+    if (!communityId || !aiQuestion.trim()) return
+    setAiBusy(true)
+    try {
+      const { answer } = await api.askAi(communityId, aiQuestion.trim())
+      setAiAnswer(answer)
+    } catch (error: any) {
+      showToast(error.message || 'AI request failed')
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  async function updateAiSetting(partial: Partial<DashboardDto['ai']['settings']>) {
     if (!data || !communityId) return
-    const body = {
-      title: 'Premium Download',
-      type: 'download' as const,
-      priceStars: 199,
+    try {
+      const { settings } = await api.updateAiSettings(communityId, partial)
+      setData({ ...data, ai: { ...data.ai, settings } })
+    } catch (error: any) {
+      showToast(error.message || 'Settings update failed')
+    }
+  }
+
+  async function updateCommunitySetting(partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) {
+    if (!data || !communityId) return
+    try {
+      const { community } = await api.updateCommunityProfile(communityId, { settings: partial })
+      setData({ ...data, community: { ...data.community, settings: community.settings ?? data.community.settings } })
+    } catch (error: any) {
+      showToast(error.message || 'Settings update failed')
+    }
+  }
+
+  async function toggleCommentAccess() {
+    if (!data || !communityId) return
+    const next = !data.commentAccess.enabled
+    if (!data.commentAccess.linked) {
+      showToast('Link a discussion group to your channel first')
+      return
+    }
+    if (data.commentAccess.discussionBotStatus !== 'admin') {
+      showToast('Promote the bot to admin in your discussion group first')
+      return
+    }
+    if (!window.confirm(`Turn ${next ? 'on' : 'off'} comment access? This applies to your whole channel, not just this item.`)) {
+      return
     }
     try {
-      const { product } = await api.createProduct(communityId, body)
-      setData({ ...data, products: [product, ...data.products] })
-      showToast('Product draft created')
+      const result = await api.setCommentAccess(communityId, next)
+      if (!result.ok) {
+        showToast(result.reason || 'Comment access update failed')
+        return
+      }
+      setData({ ...data, commentAccess: { ...data.commentAccess, enabled: next } })
+      showToast(`Comment access turned ${next ? 'on' : 'off'} for your whole channel`)
     } catch (error: any) {
-      showToast(error.message || 'Product creation failed')
+      showToast(error.message || 'Comment access update failed')
+    }
+  }
+
+  async function toggleAutoPosting(targetType: 'plan' | 'product' | 'event', targetId: number) {
+    if (!data || !communityId) return
+    const existing = data.scheduledPosts.find((post) => post.targetType === targetType && post.targetId === targetId) ?? null
+
+    if (existing?.status === 'active') {
+      try {
+        const { scheduledPost } = await api.pauseAutoPosting(communityId, { targetType, targetId })
+        setData({
+          ...data,
+          scheduledPosts: data.scheduledPosts.map((post) => (post.id === scheduledPost?.id ? scheduledPost : post)),
+        })
+        showToast('Auto-posting turned off')
+      } catch (error: any) {
+        showToast(error.message || 'Auto-posting update failed')
+      }
+      return
+    }
+
+    const input = window.prompt('Repost this every how many hours? (24 = daily, 168 = weekly)', String(existing?.intervalHours ?? 168))
+    if (input === null) return
+    const intervalHours = Math.max(1, Math.round(Number(input)) || 168)
+    try {
+      const { scheduledPost } = await api.activateAutoPosting(communityId, { targetType, targetId, intervalHours })
+      setData({
+        ...data,
+        scheduledPosts: existing
+          ? data.scheduledPosts.map((post) => (post.id === scheduledPost.id ? scheduledPost : post))
+          : [...data.scheduledPosts, scheduledPost],
+      })
+      showToast(`Auto-posting turned on · every ${intervalHours}h`)
+    } catch (error: any) {
+      showToast(error.message || 'Auto-posting update failed')
     }
   }
 
@@ -755,7 +879,8 @@ export default function Home() {
 
   async function copyReferralLink() {
     if (!communityId) return
-    await copyOrOpenTelegramUrl(referralStartLink(communityId, member?.id), 'Referral link copied')
+    const link = memberProfile?.referralLink || referralStartLink(communityId, member?.id)
+    await copyOrOpenTelegramUrl(link, 'Referral link copied')
   }
 
   async function openSupport() {
@@ -833,12 +958,12 @@ export default function Home() {
       })
       if (response.invoice.invoiceLink) {
         openInvoiceLink(response.invoice.invoiceLink, async (status) => {
-          showToast(`Payment ${status}`)
+          showToast(paymentStatusMessage(status, product.title))
           if (status === 'paid') await refreshMemberDashboard()
         })
         showToast('Opening Telegram invoice')
       } else {
-        showToast('Invoice stored, but bot invoice link is not configured')
+        showToast(response.invoice.invoiceError || 'Invoice stored, but the bot invoice link is not configured')
       }
     } catch (error: any) {
       showToast(error.message || 'Invoice creation failed')
@@ -855,7 +980,7 @@ export default function Home() {
       return
     }
     try {
-      const stars = plan.stars || Math.max(1, Math.round(plan.priceCents / 10))
+      const stars = plan.stars || Math.max(1, centsToStars(plan.priceCents))
       const response = await api.createInvoice(communityId, {
         kind: 'plan',
         planId: plan.id,
@@ -866,12 +991,12 @@ export default function Home() {
       })
       if (response.invoice.invoiceLink) {
         openInvoiceLink(response.invoice.invoiceLink, async (status) => {
-          showToast(`Payment ${status}`)
+          showToast(paymentStatusMessage(status, plan.name))
           if (status === 'paid') await refreshMemberDashboard()
         })
         showToast('Opening Telegram invoice')
       } else {
-        showToast('Invoice stored, but bot invoice link is not configured')
+        showToast(response.invoice.invoiceError || 'Invoice stored, but the bot invoice link is not configured')
       }
     } catch (error: any) {
       showToast(error.message || 'Invoice creation failed')
@@ -891,12 +1016,12 @@ export default function Home() {
         })
         if (response.invoice.invoiceLink) {
           openInvoiceLink(response.invoice.invoiceLink, async (status) => {
-            showToast(`Payment ${status}`)
+            showToast(paymentStatusMessage(status, event.title))
             if (status === 'paid') await refreshMemberDashboard()
           })
           showToast('Opening Telegram invoice')
         } else {
-          showToast('Invoice stored, but bot invoice link is not configured')
+          showToast(response.invoice.invoiceError || 'Invoice stored, but the bot invoice link is not configured')
         }
         return
       }
@@ -984,7 +1109,7 @@ export default function Home() {
           <title>CommunityOS</title>
           <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         </Head>
-        {screen === 'intro' ? (
+        {booted && screen === 'intro' ? (
           <IntroScreen
             index={introIndex}
             onBack={introIndex > 0 ? () => setIntroIndex((v) => v - 1) : undefined}
@@ -1121,6 +1246,8 @@ export default function Home() {
               referralBuilder: 'growth',
               communityProfile: 'home',
               offerWizard: 'home',
+              aiManager: 'more',
+              settings: 'more',
             }
             go(previous[screen])
           }}
@@ -1190,6 +1317,10 @@ export default function Home() {
               data={data}
               rewardTitle={rewardTitle}
               onRewardTitle={setRewardTitle}
+              triggerType={rewardTriggerType}
+              onTriggerType={setRewardTriggerType}
+              triggerCount={rewardTriggerCount}
+              onTriggerCount={setRewardTriggerCount}
               onCreateReward={createRewardRule}
             />
           )}
@@ -1199,6 +1330,21 @@ export default function Home() {
               onToast={showToast}
               onCreateEvent={() => go('eventBuilder')}
               onCreateProduct={() => go('productBuilder')}
+              onOpenAiManager={() => go('aiManager')}
+              onOpenSettings={() => go('settings')}
+            />
+          )}
+          {screen === 'settings' && <SettingsScreen data={data} onUpdateSetting={updateCommunitySetting} />}
+          {screen === 'aiManager' && (
+            <AiManagerScreen
+              data={data}
+              question={aiQuestion}
+              answer={aiAnswer}
+              busy={aiBusy}
+              onQuestion={setAiQuestion}
+              onAsk={askAiQuestion}
+              onGenerateReport={generateAiReport}
+              onUpdateSettings={updateAiSetting}
             />
           )}
           {screen === 'productBuilder' && (
@@ -1225,6 +1371,7 @@ export default function Home() {
               onDeliveryFile={handleProductFile}
               onCancel={() => go('home')}
               onSubmit={createProductOffer}
+              submitting={submitting}
             />
           )}
           {screen === 'productPublish' && activeProduct && (
@@ -1259,6 +1406,7 @@ export default function Home() {
               onCoverFile={handleEventCover}
               onCancel={() => go('home')}
               onSubmit={createEventOffer}
+              submitting={submitting}
             />
           )}
           {screen === 'eventPublish' && activeEvent && (
@@ -1280,10 +1428,14 @@ export default function Home() {
               campaignTitle={campaignTitle}
               threshold={referralThreshold}
               reward={referralReward}
+              presetLabel={referralPresetTarget?.label ?? null}
               onCampaignTitle={setCampaignTitle}
               onThreshold={setReferralThreshold}
               onReward={setReferralReward}
-              onCancel={() => go('growth')}
+              onCancel={() => {
+                setReferralPresetTarget(null)
+                go('growth')
+              }}
               onSubmit={createCampaign}
             />
           )}
@@ -1334,6 +1486,7 @@ export default function Home() {
               onYearlyStars={setYearlyStars}
               onCancel={() => go('preview')}
               onCreate={createMembership}
+              submitting={submitting}
             />
           )}
           {screen === 'publish' && (
@@ -1348,6 +1501,11 @@ export default function Home() {
               onGuide={() => go('shareGuide')}
               onCopyLink={copyMembershipLink}
               onDelete={deleteMembershipPackage}
+              onReferralReward={() => openReferralRewardForPlan(activePlan)}
+              commentAccess={data.commentAccess}
+              onToggleCommentAccess={toggleCommentAccess}
+              autoPost={activePlan ? data.scheduledPosts.find((post) => post.targetType === 'plan' && post.targetId === activePlan.id) ?? null : null}
+              onToggleAutoPosting={() => activePlan && toggleAutoPosting('plan', activePlan.id)}
               onToast={showToast}
             />
           )}
@@ -1605,7 +1763,7 @@ function CommunityHome({
             icon="M"
             title={plan.name}
             detail={`${plan.subscribers} subscribers`}
-            meta={`${plan.stars || Math.round(plan.priceCents / 10)} XTR`}
+            meta={`${plan.stars || centsToStars(plan.priceCents)} XTR`}
             onClick={() => onNavigate('publish')}
           />
         ))}
@@ -1769,6 +1927,14 @@ function GrowthScreen({
   onCampaignTitle: (value: string) => void
   onCreateCampaign: (event: FormEvent) => void
 }) {
+  function targetLabel(campaign: ReferralCampaignDto) {
+    if (!campaign.targetType || !campaign.targetId) return null
+    const source = campaign.targetType === 'plan' ? data.plans : campaign.targetType === 'product' ? data.products : data.events
+    const item = (source as ({ id: number } & Record<string, any>)[]).find((row) => row.id === campaign.targetId)
+    return item ? item.name ?? item.title ?? null : null
+  }
+  const itemCampaigns = data.referralCampaigns.filter((campaign) => campaign.targetType && campaign.targetId)
+  const communityCampaigns = data.referralCampaigns.filter((campaign) => !campaign.targetType || !campaign.targetId)
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">Growth</h1>
@@ -1778,9 +1944,26 @@ function GrowthScreen({
         <p>Invite 3 friends, unlock bonus content.</p>
         <button type="submit">Create Campaign</button>
       </form>
-      <SectionLabel>Campaigns</SectionLabel>
+      {itemCampaigns.length > 0 && (
+        <>
+          <SectionLabel>For specific items</SectionLabel>
+          <ListGroup>
+            {itemCampaigns.map((campaign) => (
+              <ListRow
+                key={campaign.id}
+                tone="green"
+                icon="R"
+                title={campaign.title}
+                detail={`${targetLabel(campaign) ?? 'Item'} · ${campaign.clicks} clicks, ${campaign.joins} joins, ${campaign.purchases} purchases`}
+                meta={money(campaign.revenueCents)}
+              />
+            ))}
+          </ListGroup>
+        </>
+      )}
+      <SectionLabel>Community-wide</SectionLabel>
       <ListGroup>
-        {data.referralCampaigns.map((campaign) => (
+        {communityCampaigns.map((campaign) => (
           <ListRow
             key={campaign.id}
             tone="green"
@@ -1790,21 +1973,38 @@ function GrowthScreen({
             meta={money(campaign.revenueCents)}
           />
         ))}
-        {data.referralCampaigns.length === 0 && <EmptyBlock title="No campaigns yet" detail="Create a reward loop for invites, joins, and purchases." />}
+        {communityCampaigns.length === 0 && <EmptyBlock title="No campaigns yet" detail="Create a reward loop for invites, joins, and purchases." />}
       </ListGroup>
     </section>
   )
 }
 
+const REWARD_TRIGGER_OPTIONS: { value: RewardTriggerType; label: string }[] = [
+  { value: 'member_joined', label: 'Member joins the community' },
+  { value: 'referral_joined', label: 'Referred member joins' },
+  { value: 'referral_activated', label: 'Referred member activates' },
+  { value: 'purchase_completed', label: 'Member completes a purchase' },
+  { value: 'event_registered', label: 'Member registers for an event' },
+  { value: 'manual', label: 'Manual unlock' },
+]
+
 function RewardsScreen({
   data,
   rewardTitle,
   onRewardTitle,
+  triggerType,
+  onTriggerType,
+  triggerCount,
+  onTriggerCount,
   onCreateReward,
 }: {
   data: DashboardDto
   rewardTitle: string
   onRewardTitle: (value: string) => void
+  triggerType: RewardTriggerType
+  onTriggerType: (value: RewardTriggerType) => void
+  triggerCount: string
+  onTriggerCount: (value: string) => void
   onCreateReward: (event: FormEvent) => void
 }) {
   return (
@@ -1812,7 +2012,29 @@ function RewardsScreen({
       <h1 className="tg-left-title">Rewards</h1>
       <form className="tg-form-card" onSubmit={onCreateReward}>
         <SectionLabel>Create Reward Rule</SectionLabel>
-        <input value={rewardTitle} onChange={(event) => onRewardTitle(event.target.value)} />
+        <input value={rewardTitle} onChange={(event) => onRewardTitle(event.target.value)} aria-label="Reward rule title" />
+        <label>
+          <span>Trigger</span>
+          <select value={triggerType} onChange={(event) => onTriggerType(event.target.value as RewardTriggerType)}>
+            {REWARD_TRIGGER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {triggerType !== 'manual' && (
+          <label>
+            <span>After how many times</span>
+            <input
+              type="number"
+              min={1}
+              value={triggerCount}
+              onChange={(event) => onTriggerCount(event.target.value)}
+              aria-label="Trigger count"
+            />
+          </label>
+        )}
         <p>Grant XP, points, levels, badges, or perks when members complete an action.</p>
         <button type="submit">Create Reward</button>
       </form>
@@ -1832,20 +2054,24 @@ function MoreScreen({
   onToast,
   onCreateEvent,
   onCreateProduct,
+  onOpenAiManager,
+  onOpenSettings,
 }: {
   data: DashboardDto
   onToast: (message: string) => void
   onCreateEvent: () => void
   onCreateProduct: () => void
+  onOpenAiManager: () => void
+  onOpenSettings: () => void
 }) {
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">More</h1>
       <ListGroup>
-        <ListRow tone="amber" icon="AI" title="AI Community Manager" detail={`${data.ai.faqCount} FAQ answers, report ${data.ai.weeklyReportStatus}`} onClick={() => onToast('AI manager opened')} />
+        <ListRow tone="amber" icon="AI" title="AI Community Manager" detail={`${data.ai.faqCount} FAQ answers, report ${data.ai.weeklyReportStatus}`} onClick={onOpenAiManager} />
         <ListRow tone="purple" icon="E" title="Events" detail={`${data.events.length} events`} onClick={onCreateEvent} />
         <ListRow tone="red" icon="P" title="Products and Services" detail={`${data.products.length} products`} onClick={onCreateProduct} />
-        <ListRow tone="blue" icon="S" title="Settings" detail="Bot permissions, Stars checkout, notifications" onClick={() => onToast('Settings opened')} />
+        <ListRow tone="blue" icon="S" title="Settings" detail="Bot permissions, Stars checkout, notifications" onClick={onOpenSettings} />
       </ListGroup>
       <SectionLabel>Events</SectionLabel>
       <ListGroup>
@@ -1861,6 +2087,121 @@ function MoreScreen({
         ))}
         {data.products.length === 0 && <EmptyBlock title="No products yet" detail="Sell courses, downloads, premium content, and consultations." />}
       </ListGroup>
+    </section>
+  )
+}
+
+function SettingsScreen({
+  data,
+  onUpdateSetting,
+}: {
+  data: DashboardDto
+  onUpdateSetting: (partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) => void
+}) {
+  const settings = data.community.settings ?? { starsCheckoutEnabled: true, notificationsEnabled: true }
+  return (
+    <section className="tg-screen">
+      <h1 className="tg-left-title">Settings</h1>
+      <SectionLabel>Bot connection</SectionLabel>
+      <ListGroup>
+        {data.chats.map((chat) => <ChatRow key={chat.id} chat={chat} />)}
+        {data.chats.length === 0 && <EmptyBlock title="No group connected" detail="Add the bot as admin in a Telegram group or channel, then share a membership to confirm the connection." />}
+      </ListGroup>
+      <SectionLabel>Checkout and notifications</SectionLabel>
+      <ListGroup>
+        <ListRow
+          title="Stars checkout"
+          detail="Let members pay with Telegram Stars"
+          meta={settings.starsCheckoutEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSetting({ starsCheckoutEnabled: !settings.starsCheckoutEnabled })}
+        />
+        <ListRow
+          title="Notifications"
+          detail="Bot messages for renewals, access changes, and join requests"
+          meta={settings.notificationsEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSetting({ notificationsEnabled: !settings.notificationsEnabled })}
+        />
+      </ListGroup>
+    </section>
+  )
+}
+
+function AiManagerScreen({
+  data,
+  question,
+  answer,
+  busy,
+  onQuestion,
+  onAsk,
+  onGenerateReport,
+  onUpdateSettings,
+}: {
+  data: DashboardDto
+  question: string
+  answer: string | null
+  busy: boolean
+  onQuestion: (value: string) => void
+  onAsk: (event: FormEvent) => void
+  onGenerateReport: () => void
+  onUpdateSettings: (partial: Partial<DashboardDto['ai']['settings']>) => void
+}) {
+  const { settings } = data.ai
+  return (
+    <section className="tg-screen">
+      <h1 className="tg-left-title">AI Community Manager</h1>
+
+      <SectionLabel>Weekly Report</SectionLabel>
+      <div className="tg-form-card">
+        <p>Status: {data.ai.weeklyReportStatus}</p>
+        <button type="button" onClick={onGenerateReport} disabled={busy}>
+          {busy ? 'Working…' : 'Generate Report'}
+        </button>
+      </div>
+
+      <SectionLabel>Ask AI</SectionLabel>
+      <form className="tg-form-card" onSubmit={onAsk}>
+        <input
+          value={question}
+          onChange={(event) => onQuestion(event.target.value)}
+          placeholder="Ask a question a member might ask"
+        />
+        <button type="submit" disabled={busy || !question.trim()}>
+          {busy ? 'Asking…' : 'Ask'}
+        </button>
+        {answer && <p>{answer}</p>}
+      </form>
+
+      <SectionLabel>Settings</SectionLabel>
+      <ListGroup>
+        <ListRow
+          title="FAQ answers"
+          detail={`${data.ai.faqCount} curated entries`}
+          meta={settings.faqEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSettings({ faqEnabled: !settings.faqEnabled })}
+        />
+        <ListRow
+          title="Welcome messages"
+          detail="Greet members on their first access grant"
+          meta={settings.welcomeEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSettings({ welcomeEnabled: !settings.welcomeEnabled })}
+        />
+        <ListRow
+          title="Weekly reports"
+          detail="Summarize activity for the owner each week"
+          meta={settings.reportsEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSettings({ reportsEnabled: !settings.reportsEnabled })}
+        />
+      </ListGroup>
+
+      <SectionLabel>Tone</SectionLabel>
+      <div className="tg-form-card">
+        <select value={settings.tone} onChange={(event) => onUpdateSettings({ tone: event.target.value })}>
+          <option value="friendly">Friendly</option>
+          <option value="professional">Professional</option>
+          <option value="casual">Casual</option>
+          <option value="concise">Concise</option>
+        </select>
+      </div>
     </section>
   )
 }
@@ -1888,6 +2229,7 @@ function ProductBuilderScreen({
   onDeliveryFile,
   onCancel,
   onSubmit,
+  submitting,
 }: {
   title: string
   description: string
@@ -1911,6 +2253,7 @@ function ProductBuilderScreen({
   onDeliveryFile: (file: File | null) => void
   onCancel: () => void
   onSubmit: (event?: FormEvent) => void
+  submitting?: boolean
 }) {
   return (
     <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
@@ -1956,7 +2299,7 @@ function ProductBuilderScreen({
         <input value={buttonText} onChange={(event) => onButtonText(event.target.value)} aria-label="Button text" />
       </div>
       <PreviewCard title={title} description={description} buttonText={buttonText || 'Buy'} coverUrl={cover.preview} />
-      <FixedButton label="Create Product" submit />
+      <FixedButton label="Create Product" submit disabled={submitting} />
     </form>
   )
 }
@@ -1978,6 +2321,7 @@ function EventBuilderScreen({
   onCoverFile,
   onCancel,
   onSubmit,
+  submitting,
 }: {
   title: string
   description: string
@@ -1995,6 +2339,7 @@ function EventBuilderScreen({
   onCoverFile: (file: File | null) => void
   onCancel: () => void
   onSubmit: (event?: FormEvent) => void
+  submitting?: boolean
 }) {
   return (
     <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
@@ -2032,7 +2377,7 @@ function EventBuilderScreen({
         <input value={priceStars} onChange={(event) => onPriceStars(event.target.value)} inputMode="numeric" aria-label="Event price in Stars" />
       </div>
       <PreviewCard title={title} description={description} buttonText={Number(priceStars) > 0 ? 'Get Ticket' : 'Register'} coverUrl={cover.preview} />
-      <FixedButton label="Create Event" submit />
+      <FixedButton label="Create Event" submit disabled={submitting} />
     </form>
   )
 }
@@ -2041,6 +2386,7 @@ function ReferralBuilderScreen({
   campaignTitle,
   threshold,
   reward,
+  presetLabel,
   onCampaignTitle,
   onThreshold,
   onReward,
@@ -2050,6 +2396,7 @@ function ReferralBuilderScreen({
   campaignTitle: string
   threshold: string
   reward: string
+  presetLabel?: string | null
   onCampaignTitle: (value: string) => void
   onThreshold: (value: string) => void
   onReward: (value: string) => void
@@ -2060,7 +2407,7 @@ function ReferralBuilderScreen({
     <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
       <div className="tg-form-title">
         <h1>Referral Reward</h1>
-        <p>Create a simple milestone loop members can understand and share.</p>
+        <p>{presetLabel ? `Create a referral reward just for ${presetLabel}.` : 'Create a simple milestone loop members can understand and share.'}</p>
         <button className="tg-text-button" type="button" onClick={onCancel}>Cancel</button>
       </div>
       <SectionLabel>Campaign</SectionLabel>
@@ -2259,6 +2606,7 @@ function PaymentScreen({
   onYearlyStars,
   onCancel,
   onCreate,
+  submitting,
 }: {
   monthlyStars: string
   yearlyStars: string
@@ -2266,6 +2614,7 @@ function PaymentScreen({
   onYearlyStars: (value: string) => void
   onCancel: () => void
   onCreate: (event?: FormEvent) => void
+  submitting?: boolean
 }) {
   return (
     <form className="tg-screen with-fixed-button" onSubmit={onCreate}>
@@ -2290,11 +2639,8 @@ function PaymentScreen({
           <span>1 Year</span>
           <input value={yearlyStars} onChange={(event) => onYearlyStars(event.target.value)} inputMode="numeric" />
         </label>
-        <button className="tg-soft-button" type="button">
-          Add Another Period
-        </button>
       </div>
-      <FixedButton label="Create" onClick={() => onCreate()} />
+      <FixedButton label="Create" onClick={() => onCreate()} disabled={submitting} />
     </form>
   )
 }
@@ -2310,6 +2656,11 @@ function PublishScreen({
   onGuide,
   onCopyLink,
   onDelete,
+  onReferralReward,
+  commentAccess,
+  onToggleCommentAccess,
+  autoPost,
+  onToggleAutoPosting,
   onToast,
 }: {
   community: DashboardDto['community']
@@ -2322,8 +2673,24 @@ function PublishScreen({
   onGuide: () => void
   onCopyLink: () => void
   onDelete: () => void
+  onReferralReward: () => void
+  commentAccess: CommentAccessDto
+  onToggleCommentAccess: () => void
+  autoPost: ScheduledPostDto | null
+  onToggleAutoPosting: () => void
   onToast: (message: string) => void
 }) {
+  const commentAccessDetail = !commentAccess.linked
+    ? 'Link a discussion group to enable'
+    : commentAccess.discussionBotStatus !== 'admin'
+    ? 'Promote the bot in your discussion group'
+    : commentAccess.enabled
+    ? 'On · applies to your whole channel'
+    : 'Off · applies to your whole channel'
+  const autoPostDetail =
+    autoPost?.status === 'active'
+      ? `Every ${autoPost.intervalHours}h · next ${new Date(autoPost.nextRunAt).toLocaleDateString()}`
+      : 'Off'
   return (
     <section className="tg-screen with-fixed-button">
       <h1 className="tg-publish-title">{plan?.name ?? title}</h1>
@@ -2332,7 +2699,7 @@ function PublishScreen({
         <p>{plan?.description ?? description}</p>
         <div>
           <span>{community.name}</span>
-          <span>{plan ? `${plan.stars || Math.round(plan.priceCents / 10)} XTR` : 'Draft'}</span>
+          <span>{plan ? `${plan.stars || centsToStars(plan.priceCents)} XTR` : 'Draft'}</span>
         </div>
       </div>
       <div className="tg-action-grid">
@@ -2341,9 +2708,23 @@ function PublishScreen({
         <ActionTile label="More" icon="more" onClick={() => onToast('More options opened')} />
       </div>
       <ListGroup>
-        <ListRow tone="green" icon="C" title="Comment Access" detail="Off" onClick={() => onToast('Comment access opened')} />
-        <ListRow tone="blue" icon="A" title="Auto-posting" detail="Off" onClick={() => onToast('Auto-posting opened')} />
-        <ListRow tone="purple" icon="R" title="Referral Reward" detail="Invite 3 friends" onClick={() => onToast('Referral reward opened')} />
+        <ListRow
+          tone="green"
+          icon="C"
+          title="Comment Access"
+          detail={commentAccessDetail}
+          meta={commentAccess.linked && commentAccess.discussionBotStatus === 'admin' ? (commentAccess.enabled ? 'on' : 'off') : undefined}
+          onClick={onToggleCommentAccess}
+        />
+        <ListRow
+          tone="blue"
+          icon="A"
+          title="Auto-posting"
+          detail={autoPostDetail}
+          meta={autoPost?.status === 'active' ? 'on' : 'off'}
+          onClick={onToggleAutoPosting}
+        />
+        <ListRow tone="purple" icon="R" title="Referral Reward" detail="Invite 3 friends" onClick={onReferralReward} />
         {plan && <ListRow tone="red" icon="D" title="Delete Membership" detail="Remove this package from active offers" onClick={onDelete} />}
       </ListGroup>
       <div className="tg-empty-illustration">
@@ -2361,11 +2742,10 @@ function PublishScreen({
 
 function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; onDone: () => void; menuCommunityId: number }) {
   const [step, setStep] = useState(0)
-  const botUsername = configuredBotUsername() || 'CommunityOSBot'
   const slides = [
-    { title: 'How to share a membership', art: 'Share' },
-    { title: `Type @${botUsername} in any channel or chat`, art: '@bot' },
-    { title: 'Select a membership to share', art: 'Pick' },
+    { title: 'Tap Share on any membership, product, or event', art: 'Share' },
+    { title: 'We send a message with a button to your group or your DMs', art: 'Send' },
+    { title: 'Tapping it opens CommunityOS straight into the offer', art: 'Open' },
   ]
   return (
     <main className="tg-story">
@@ -2423,15 +2803,31 @@ function OfferWizard({
   const plan = intent.kind === 'plan' ? data.plans.find((p) => p.id === intent.id) : null
   const product = intent.kind === 'product' ? data.products.find((p) => p.id === intent.id) : null
   const event = intent.kind === 'event' ? data.events.find((e) => e.id === intent.id) : null
+  const chat = data.chats[0] ?? null
 
   const title = plan?.name || product?.title || event?.title || 'Offer'
   const description = plan?.description || product?.description || event?.description || ''
-  const price = plan ? `${plan.stars || Math.round(plan.priceCents / 10)} XTR` : product ? `${product.priceStars} XTR` : event ? `${event.priceStars || 0} XTR` : 'Free'
+  const price = plan ? `${plan.stars || centsToStars(plan.priceCents)} XTR` : product ? `${product.priceStars} XTR` : event ? `${event.priceStars || 0} XTR` : 'Free'
+  const imageUrl = product?.coverUrl || event?.coverUrl || data.community.avatarUrl || null
+
+  const whatYoullGet = plan
+    ? `Instant access to ${chat?.title ?? data.community.name}. Renews every ${plan.interval}.`
+    : product
+    ? product.deliveryType === 'file'
+      ? 'Instant file download as soon as payment confirms.'
+      : product.deliveryType === 'url'
+      ? 'An access link unlocks immediately after payment.'
+      : product.deliveryType === 'text'
+      ? 'Delivery instructions unlock immediately after payment.'
+      : 'Download or access your digital product.'
+    : event
+    ? `Register for this ${event.type} on ${dateShort(event.startsAt)}${event.accessLink ? ' — access link included.' : '.'}`
+    : 'Register and get event details and access link.'
 
   const slides = [
     {
       title: `Get ${title}`,
-      detail: description || 'Access exclusive content from this community.',
+      detail: [description, chat ? `Join ${chat.activeMembers} members in ${chat.title}.` : null].filter(Boolean).join(' '),
       icon: plan ? 'M' : product ? 'D' : 'E',
     },
     {
@@ -2441,11 +2837,7 @@ function OfferWizard({
     },
     {
       title: 'You\'ll get',
-      detail: plan
-        ? 'Instant access to the community and all benefits.'
-        : product
-        ? 'Download or access your digital product.'
-        : 'Register and get event details and access link.',
+      detail: whatYoullGet,
       icon: 'C',
     },
   ]
@@ -2456,9 +2848,16 @@ function OfferWizard({
         <button type="button" onClick={onCancel}>
           Back
         </button>
-        <div>
-          <strong>{data.community.name}</strong>
-          <span>offer preview</span>
+        <div className="tg-story-topbar-identity">
+          {data.community.avatarUrl ? (
+            <img className="tg-story-topbar-avatar" src={data.community.avatarUrl} alt="" />
+          ) : (
+            <span className="tg-story-topbar-avatar fallback">{initials(data.community.name)}</span>
+          )}
+          <div>
+            <strong>{chat ? chat.title : data.community.name}</strong>
+            <span>{chat ? `${chat.type === 'channel' ? 'Telegram channel' : 'Telegram group'}` : 'offer preview'}</span>
+          </div>
         </div>
       </header>
       <div className="tg-progress-bars" aria-label={`Step ${step + 1} of ${slides.length}`}>
@@ -2467,7 +2866,7 @@ function OfferWizard({
         ))}
       </div>
       <section className="tg-story-content">
-        <StoryArt label={slides[step].icon} compact />
+        <StoryArt label={slides[step].icon} imageUrl={imageUrl} compact />
         <h1>{slides[step].title}</h1>
         <p>{slides[step].detail}</p>
       </section>
@@ -2620,7 +3019,9 @@ function MemberHome({
           eyebrow="Membership"
           title={checkoutPlan.name}
           detail={checkoutPlan.description ?? `${checkoutPlan.interval} access to ${data.community.name}`}
-          meta={checkoutSubscription ? 'Active' : `${checkoutPlan.stars || Math.round(checkoutPlan.priceCents / 10)} XTR`}
+          secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
+          imageUrl={data.community.avatarUrl}
+          meta={checkoutSubscription ? 'Active' : `${checkoutPlan.stars || centsToStars(checkoutPlan.priceCents)} XTR`}
           cta={checkoutSubscription ? 'Manage Subscription' : 'Continue to Subscribe'}
           onClick={() => handlePlanAction(checkoutPlan)}
         />
@@ -2631,6 +3032,8 @@ function MemberHome({
           eyebrow="Digital Product"
           title={checkoutProduct.title}
           detail={checkoutProduct.owned ? 'Already unlocked on your dashboard.' : checkoutProduct.description ?? checkoutProduct.type.replace('_', ' ')}
+          secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
+          imageUrl={checkoutProduct.coverUrl ?? data.community.avatarUrl}
           meta={checkoutProduct.owned ? 'Unlocked' : `${checkoutProduct.priceStars} XTR`}
           cta={checkoutProduct.owned ? 'Open Product' : `Continue to ${checkoutProduct.buttonText ?? 'Buy'}`}
           onClick={() => onBuyProduct(checkoutProduct)}
@@ -2642,6 +3045,8 @@ function MemberHome({
           eyebrow="Event"
           title={checkoutEvent.title}
           detail={`${checkoutEvent.type} on ${dateShort(checkoutEvent.startsAt)}`}
+          secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
+          imageUrl={checkoutEvent.coverUrl ?? data.community.avatarUrl}
           meta={checkoutEvent.registered ? 'Registered' : checkoutEvent.priceStars ? `${checkoutEvent.priceStars} XTR` : 'Free'}
           cta={checkoutEvent.registered ? 'Open Event' : checkoutEvent.priceStars ? 'Continue to Get Ticket' : 'Continue to Register'}
           onClick={() => onEvent(checkoutEvent)}
@@ -2717,7 +3122,7 @@ function MemberHome({
             icon="M"
             title={plan.name}
             detail={isActive ? 'Active subscription' : isPastDue ? 'Payment needs attention' : plan.description ?? `${plan.interval} membership`}
-            meta={isActive ? 'Manage' : isPastDue ? 'Renew' : `${plan.stars || Math.round(plan.priceCents / 10)} XTR`}
+            meta={isActive ? 'Manage' : isPastDue ? 'Renew' : `${plan.stars || centsToStars(plan.priceCents)} XTR`}
             onClick={() => (existing ? handleSubscriptionAction(existing) : onBuyPlan(plan))}
           />
           )
@@ -2729,6 +3134,8 @@ function MemberHome({
         {data.products.map((product) => (
           <ListRow
             key={product.id}
+            icon="P"
+            image={product.coverUrl}
             title={product.title}
             detail={product.owned ? 'Unlocked' : product.type.replace('_', ' ')}
             meta={product.owned ? 'Open' : `${product.priceStars} XTR`}
@@ -2742,6 +3149,8 @@ function MemberHome({
         {data.events.map((event) => (
           <ListRow
             key={event.id}
+            icon="E"
+            image={event.coverUrl}
             title={event.title}
             detail={`${event.type} on ${dateShort(event.startsAt)}`}
             meta={event.registered ? 'Open' : event.priceStars ? `${event.priceStars} XTR` : 'Free'}
@@ -2796,6 +3205,8 @@ function CheckoutPrompt({
   eyebrow,
   title,
   detail,
+  secondary,
+  imageUrl,
   meta,
   cta,
   onClick,
@@ -2804,16 +3215,22 @@ function CheckoutPrompt({
   eyebrow: string
   title: string
   detail: string
+  secondary?: string | null
+  imageUrl?: string | null
   meta: string
   cta: string
   onClick: () => void
 }) {
   return (
     <section className={`tg-checkout-prompt ${tone}`}>
-      <div>
-        <small>{eyebrow}</small>
-        <h2>{title}</h2>
-        <p>{detail}</p>
+      <div className="tg-checkout-prompt-body">
+        {imageUrl && <span className="tg-checkout-prompt-thumb" style={{ backgroundImage: `url(${imageUrl})` }} />}
+        <div>
+          <small>{eyebrow}</small>
+          <h2>{title}</h2>
+          <p>{detail}</p>
+          {secondary && <span className="tg-checkout-prompt-secondary">{secondary}</span>}
+        </div>
       </div>
       <strong>{meta}</strong>
       <button type="button" onClick={onClick}>
@@ -2829,6 +3246,7 @@ function ListRow({
   meta,
   icon,
   avatar,
+  image,
   tone = 'blue',
   onClick,
 }: {
@@ -2837,12 +3255,17 @@ function ListRow({
   meta?: string
   icon?: string
   avatar?: string
+  image?: string | null
   tone?: 'blue' | 'red' | 'purple' | 'green' | 'amber'
   onClick?: () => void
 }) {
   const content = (
     <>
-      {(icon || avatar) && <span className={`tg-row-icon ${tone}`}>{avatar ?? icon}</span>}
+      {image ? (
+        <span className="tg-row-icon-image" style={{ backgroundImage: `url(${image})` }} />
+      ) : (
+        (icon || avatar) && <span className={`tg-row-icon ${tone}`}>{avatar ?? icon}</span>
+      )}
       <span className="tg-row-main">
         <strong>{title}</strong>
         {detail && <small>{detail}</small>}
@@ -2935,12 +3358,11 @@ function ChatRow({ chat }: { chat: TelegramChatDto }) {
   return <ListRow tone={chat.botStatus === 'admin' ? 'green' : 'amber'} icon="T" title={chat.title} detail={`${chat.type}. ${chat.activeMembers} active members`} meta={status} />
 }
 
-function StoryArt({ label, compact }: { label: string; compact?: boolean }) {
+function StoryArt({ label, compact, imageUrl }: { label: string; compact?: boolean; imageUrl?: string | null }) {
   return (
     <div className={`tg-story-art ${compact ? 'compact' : ''}`} aria-hidden="true">
-      <span className="tg-story-art-card">
-        <i />
-        <b>{label}</b>
+      <span className={`tg-story-art-card ${imageUrl ? 'has-image' : ''}`}>
+        {imageUrl ? <img src={imageUrl} alt="" /> : (<><i /><b>{label}</b></>)}
       </span>
     </div>
   )
@@ -2982,11 +3404,21 @@ function MenuButton({ communityId }: { communityId: number }) {
   )
 }
 
-function FixedButton({ label, onClick, submit }: { label: string; onClick?: () => void; submit?: boolean }) {
+function FixedButton({
+  label,
+  onClick,
+  submit,
+  disabled,
+}: {
+  label: string
+  onClick?: () => void
+  submit?: boolean
+  disabled?: boolean
+}) {
   return (
     <div className="tg-fixed-button">
-      <button type={submit ? 'submit' : 'button'} onClick={onClick}>
-        {label}
+      <button type={submit ? 'submit' : 'button'} onClick={onClick} disabled={disabled}>
+        {disabled ? 'Working…' : label}
       </button>
     </div>
   )
@@ -3042,13 +3474,9 @@ function parseCheckoutIntent(query: Record<string, string | string[] | undefined
 function parseStartParam(value: string): { communityId: number | null; intent: CheckoutIntent } {
   if (!value) return { communityId: null, intent: null }
 
-  const offer = /^co_(\d+)_(plan|product|event)_(\d+)$/.exec(value)
+  const offer = parseOfferCode(value)
   if (offer) {
-    const communityId = Number(offer[1])
-    const id = Number(offer[3])
-    if (Number.isFinite(communityId) && Number.isFinite(id)) {
-      return { communityId, intent: { kind: offer[2] as 'plan' | 'product' | 'event', id } }
-    }
+    return { communityId: offer.communityId, intent: { kind: offer.kind, id: offer.itemId } }
   }
 
   const community = /^(?:community_|co_)(\d+)(?:_\d+)?$/.exec(value)
@@ -3072,7 +3500,7 @@ function normalizeDashboard(dashboard: DashboardDto): DashboardDto {
     nextActions: dashboard.nextActions ?? [],
     members: dashboard.members ?? [],
     chats: dashboard.chats ?? [],
-    plans: (dashboard.plans ?? []).map((plan) => ({ ...plan, stars: plan.stars ?? Math.round(plan.priceCents / 10) })),
+    plans: (dashboard.plans ?? []).map((plan) => ({ ...plan, stars: plan.stars ?? centsToStars(plan.priceCents) })),
     referrals: dashboard.referrals ?? [],
     referralCampaigns: dashboard.referralCampaigns ?? [],
     rewards: dashboard.rewards ?? [],
@@ -3123,6 +3551,7 @@ function dashboardFromMemberProfile(profile: MemberProfileDto): DashboardDto {
       healthScore: profile.member.accessStatus === 'granted' ? 100 : 60,
     },
     members: [profile.member],
+    chats: profile.chats ?? [],
     plans: profile.plans ?? [],
     rewards: profile.rewards,
     referralCampaigns: profile.referralCampaigns ?? [],

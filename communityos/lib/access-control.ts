@@ -1,7 +1,11 @@
 import { AccessLogRow, sb, supabase } from './supabase'
-import type { JoinRequestDto, TelegramChatDto } from './api-client'
-import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, unbanChatMember } from './telegram'
-import { createCommunity } from './communities'
+import type { CommentAccessDto, JoinRequestDto, TelegramChatDto } from './api-client'
+import { ASSET_BUCKET } from './assets'
+import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, getChat, getFile, setChatPermissions, unbanChatMember } from './telegram'
+import { createCommunity, getCommunity } from './communities'
+import { activateCommunityReferral } from './referrals'
+import { sendWelcomeMessage } from './notifications'
+import { evaluateRewardRules } from './reward-rules'
 
 export async function logAccessEvent(
   communityId: number,
@@ -78,6 +82,116 @@ export async function upsertTelegramChat(opts: {
     { onConflict: 'community_id,telegram_chat_id' }
   )
   if (error) throw error
+}
+
+// Pulls the chat's current profile photo straight from the Bot API and stores
+// it in Supabase Storage, so the Mini App can show the real channel/group
+// image instead of a generic placeholder. Best-effort: a missing photo or a
+// failed download/upload should never block the chat-connection flow.
+export async function syncCommunityAvatar(communityId: number, telegramChatId: number): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  if (!botToken) return
+
+  const chat = await getChat(botToken, telegramChatId)
+  if (!chat?.photoBigFileId) return
+
+  const filePath = await getFile(botToken, chat.photoBigFileId)
+  if (!filePath) return
+
+  const fileRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`)
+  if (!fileRes.ok) return
+  const buffer = Buffer.from(await fileRes.arrayBuffer())
+
+  const path = `${communityId}/avatar/${Date.now()}.jpg`
+  const { error: uploadError } = await sb.storage.from(ASSET_BUCKET).upload(path, buffer, {
+    contentType: 'image/jpeg',
+    upsert: false,
+  })
+  if (uploadError) throw uploadError
+
+  const { error } = await supabase.from('communities').update({ avatar_path: path } as any).eq('id', communityId)
+  if (error) throw error
+}
+
+// Telegram only exposes a linked discussion group on the channel's own getChat
+// response (`linked_chat_id`). Call this whenever a channel is (re)confirmed
+// as admin-connected so Comment Access knows which group to moderate.
+export async function syncDiscussionChat(communityId: number, telegramChatId: string): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  if (!botToken) return
+  const chat = await getChat(botToken, telegramChatId)
+  if (!chat?.linkedChatId) return
+  const { error } = await sb
+    .from('telegram_chats')
+    .update({ discussion_chat_id: chat.linkedChatId })
+    .eq('community_id', communityId)
+    .eq('telegram_chat_id', telegramChatId)
+  if (error) throw error
+}
+
+// The bot's own membership in a discussion group arrives as a separate
+// my_chat_member event for that group's chat id — match it back to whichever
+// channel row already recorded it as discussion_chat_id.
+export async function syncDiscussionBotStatus(
+  telegramChatId: string,
+  status: 'admin' | 'missing_permissions' | 'not_connected'
+): Promise<void> {
+  const { error } = await sb.from('telegram_chats').update({ discussion_bot_status: status }).eq('discussion_chat_id', Number(telegramChatId))
+  if (error) throw error
+}
+
+export async function getCommentAccessStatus(communityId: number): Promise<CommentAccessDto> {
+  const { data: chat } = await sb
+    .from('telegram_chats')
+    .select('discussion_chat_id, discussion_bot_status')
+    .eq('community_id', communityId)
+    .eq('bot_status', 'admin')
+    .not('discussion_chat_id', 'is', null)
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  const community = await getCommunity(communityId)
+  return {
+    linked: !!chat?.discussion_chat_id,
+    discussionBotStatus: chat?.discussion_bot_status ?? null,
+    enabled: (community?.settings as any)?.commentAccessEnabled !== false,
+  }
+}
+
+// Comment Access is inherently channel-wide: Telegram exposes one permission
+// set per discussion group, not per post, so this can never be scoped to a
+// single plan/product/event.
+export async function setCommentAccess(communityId: number, enabled: boolean): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  if (!botToken) return { ok: false, reason: 'Bot is not configured.' }
+
+  const { data: chat } = await sb
+    .from('telegram_chats')
+    .select('discussion_chat_id, discussion_bot_status')
+    .eq('community_id', communityId)
+    .eq('bot_status', 'admin')
+    .not('discussion_chat_id', 'is', null)
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (!chat?.discussion_chat_id) return { ok: false, reason: 'Link a discussion group to your channel first.' }
+  if (chat.discussion_bot_status !== 'admin') return { ok: false, reason: 'Promote the bot to admin in your discussion group first.' }
+
+  await setChatPermissions(botToken, chat.discussion_chat_id, {
+    can_send_messages: enabled,
+    can_send_other_messages: enabled,
+  })
+
+  const community = await getCommunity(communityId)
+  const { error } = await supabase
+    .from('communities')
+    .update({ settings: { ...(community?.settings ?? {}), commentAccessEnabled: enabled } } as any)
+    .eq('id', communityId)
+  if (error) throw error
+
+  return { ok: true }
 }
 
 export async function findCommunityForChat(telegramChatId: string): Promise<number | null> {
@@ -264,6 +378,14 @@ export async function recordJoinRequest(opts: {
 // Grants a member access: marks them granted, records a grant row, and — when a
 // chat + bot token are available — issues a single-use Telegram invite link.
 export async function grantMemberAccess(communityId: number, userId: number) {
+  const { data: before } = await supabase
+    .from('community_members')
+    .select('access_status')
+    .eq('community_id', communityId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  const isFirstGrant = before?.access_status !== 'granted'
+
   await supabase
     .from('community_members')
     .update({ access_status: 'granted', last_active_at: new Date().toISOString() })
@@ -286,6 +408,32 @@ export async function grantMemberAccess(communityId: number, userId: number) {
     userId,
     message: inviteLink ? `Invite link issued: ${inviteLink}` : 'Access granted.',
   })
+
+  // Referral activation and the welcome message should only fire once, on the
+  // member's actual first grant — not on renewals or a restore-after-suspend.
+  if (isFirstGrant) {
+    const { data: pendingReferral } = await supabase
+      .from('community_referrals')
+      .select('id, referrer_id')
+      .eq('community_id', communityId)
+      .eq('referee_id', userId)
+      .eq('status', 'joined')
+      .maybeSingle()
+    if (pendingReferral) {
+      await activateCommunityReferral(communityId, pendingReferral.referrer_id, userId).catch((error) =>
+        console.error('activateCommunityReferral failed:', error)
+      )
+    }
+
+    const [telegramId, community] = await Promise.all([getTelegramUserId(userId), getCommunity(communityId)])
+    if (telegramId && community) {
+      await sendWelcomeMessage(telegramId, community.name)
+    }
+
+    await evaluateRewardRules(communityId, userId, 'member_joined').catch((error) =>
+      console.error('evaluateRewardRules(member_joined) failed:', error)
+    )
+  }
 
   return { ok: true as const, inviteLink }
 }

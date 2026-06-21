@@ -34,7 +34,7 @@ export interface TelegramUpdate {
 
 export async function sendTelegramMessage(
   botToken: string,
-  chatId: number,
+  chatId: number | string,
   text: string,
   parseMode: 'Markdown' | 'HTML' = 'Markdown',
   replyMarkup?: unknown
@@ -52,9 +52,90 @@ export async function sendTelegramMessage(
     }),
   })
 
-  if (!res.ok) {
-    throw new Error(`Telegram sendMessage failed: ${res.status}`)
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || body?.ok === false) {
+    throw new Error(`Telegram sendMessage failed: ${res.status} ${body?.description ?? ''}`.trim())
   }
+}
+
+export async function sendTelegramPhoto(
+  botToken: string,
+  chatId: number | string,
+  photo: string,
+  caption: string,
+  parseMode: 'Markdown' | 'HTML' = 'Markdown',
+  replyMarkup?: unknown
+): Promise<void> {
+  if (!botToken) return
+
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      photo,
+      caption,
+      parse_mode: parseMode,
+      reply_markup: replyMarkup,
+    }),
+  })
+
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || body?.ok === false) {
+    throw new Error(`Telegram sendPhoto failed: ${res.status} ${body?.description ?? ''}`.trim())
+  }
+}
+
+export interface TelegramChatInfo {
+  id: number
+  title?: string
+  photoBigFileId?: string | null
+  linkedChatId?: number | null
+}
+
+export async function getChat(botToken: string, chatId: number | string): Promise<TelegramChatInfo | null> {
+  if (!botToken) return null
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram getChat failed: ${res.status} ${body?.description ?? ''}`)
+  const result = body.result ?? {}
+  return {
+    id: result.id,
+    title: result.title,
+    photoBigFileId: result.photo?.big_file_id ?? null,
+    linkedChatId: result.linked_chat_id ?? null,
+  }
+}
+
+export async function getFile(botToken: string, fileId: string): Promise<string | null> {
+  if (!botToken) return null
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/getFile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_id: fileId }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram getFile failed: ${res.status} ${body?.description ?? ''}`)
+  return body.result?.file_path ?? null
+}
+
+export async function setChatPermissions(
+  botToken: string,
+  chatId: number | string,
+  permissions: { can_send_messages?: boolean; can_send_other_messages?: boolean }
+): Promise<void> {
+  if (!botToken) return
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/setChatPermissions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, permissions }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram setChatPermissions failed: ${res.status} ${body?.description ?? ''}`)
 }
 
 export async function createChatInviteLink(
