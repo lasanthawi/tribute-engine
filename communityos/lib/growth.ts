@@ -7,6 +7,8 @@ export interface CreateCampaignInput {
   status?: 'draft' | 'active' | 'paused'
   threshold?: number
   metric?: 'joins' | 'purchases' | 'revenue'
+  targetType?: 'plan' | 'product' | 'event'
+  targetId?: number
 }
 
 function encodeReward(input: CreateCampaignInput) {
@@ -51,6 +53,8 @@ export async function listReferralCampaigns(communityId: number): Promise<Referr
       joins: row.joins,
       purchases: row.purchases,
       revenueCents: row.revenue_cents,
+      targetType: row.target_type ?? null,
+      targetId: row.target_id ?? null,
     }
   })
 }
@@ -63,6 +67,8 @@ export async function createReferralCampaign(communityId: number, input: CreateC
       title: input.title,
       reward: encodeReward(input),
       status: input.status ?? 'active',
+      target_type: input.targetType ?? null,
+      target_id: input.targetId ?? null,
     })
     .select('*')
     .single()
@@ -78,6 +84,8 @@ export async function createReferralCampaign(communityId: number, input: CreateC
     joins: data.joins,
     purchases: data.purchases,
     revenueCents: data.revenue_cents,
+    targetType: data.target_type ?? null,
+    targetId: data.target_id ?? null,
   }
 }
 

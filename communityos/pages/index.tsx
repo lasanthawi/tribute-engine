@@ -129,6 +129,7 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<EventDto | null>(null)
   const [referralThreshold, setReferralThreshold] = useState('3')
   const [referralReward, setReferralReward] = useState('Unlock bonus content')
+  const [referralPresetTarget, setReferralPresetTarget] = useState<{ type: 'plan' | 'product' | 'event'; id: number; label: string } | null>(null)
   const [profileName, setProfileName] = useState('')
   const [profileHandle, setProfileHandle] = useState('')
   const [profileDescription, setProfileDescription] = useState('')
@@ -663,16 +664,28 @@ export default function Home() {
       threshold: Math.max(1, Number(referralThreshold || 3)),
       metric: 'joins' as const,
       status: 'active' as const,
+      ...(referralPresetTarget ? { targetType: referralPresetTarget.type, targetId: referralPresetTarget.id } : {}),
     }
     try {
       const { campaign } = await api.createReferralCampaign(communityId, body)
       setData({ ...data, referralCampaigns: [campaign, ...data.referralCampaigns] })
       setCampaignTitle('')
+      setReferralPresetTarget(null)
       setScreen('growth')
       showToast('Referral campaign created')
     } catch (error: any) {
       showToast(error.message || 'Campaign creation failed')
     }
+  }
+
+  function openReferralRewardForPlan(plan: PlanDto | null) {
+    if (!plan) {
+      showToast('Save the membership first')
+      return
+    }
+    setReferralPresetTarget({ type: 'plan', id: plan.id, label: plan.name })
+    setCampaignTitle(`Invite 3 friends to ${plan.name}`)
+    go('referralBuilder')
   }
 
   async function createRewardRule(event: FormEvent) {
@@ -1350,10 +1363,14 @@ export default function Home() {
               campaignTitle={campaignTitle}
               threshold={referralThreshold}
               reward={referralReward}
+              presetLabel={referralPresetTarget?.label ?? null}
               onCampaignTitle={setCampaignTitle}
               onThreshold={setReferralThreshold}
               onReward={setReferralReward}
-              onCancel={() => go('growth')}
+              onCancel={() => {
+                setReferralPresetTarget(null)
+                go('growth')
+              }}
               onSubmit={createCampaign}
             />
           )}
@@ -1418,6 +1435,7 @@ export default function Home() {
               onGuide={() => go('shareGuide')}
               onCopyLink={copyMembershipLink}
               onDelete={deleteMembershipPackage}
+              onReferralReward={() => openReferralRewardForPlan(activePlan)}
               onToast={showToast}
             />
           )}
@@ -1839,6 +1857,14 @@ function GrowthScreen({
   onCampaignTitle: (value: string) => void
   onCreateCampaign: (event: FormEvent) => void
 }) {
+  function targetLabel(campaign: ReferralCampaignDto) {
+    if (!campaign.targetType || !campaign.targetId) return null
+    const source = campaign.targetType === 'plan' ? data.plans : campaign.targetType === 'product' ? data.products : data.events
+    const item = (source as ({ id: number } & Record<string, any>)[]).find((row) => row.id === campaign.targetId)
+    return item ? item.name ?? item.title ?? null : null
+  }
+  const itemCampaigns = data.referralCampaigns.filter((campaign) => campaign.targetType && campaign.targetId)
+  const communityCampaigns = data.referralCampaigns.filter((campaign) => !campaign.targetType || !campaign.targetId)
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">Growth</h1>
@@ -1848,9 +1874,26 @@ function GrowthScreen({
         <p>Invite 3 friends, unlock bonus content.</p>
         <button type="submit">Create Campaign</button>
       </form>
-      <SectionLabel>Campaigns</SectionLabel>
+      {itemCampaigns.length > 0 && (
+        <>
+          <SectionLabel>For specific items</SectionLabel>
+          <ListGroup>
+            {itemCampaigns.map((campaign) => (
+              <ListRow
+                key={campaign.id}
+                tone="green"
+                icon="R"
+                title={campaign.title}
+                detail={`${targetLabel(campaign) ?? 'Item'} · ${campaign.clicks} clicks, ${campaign.joins} joins, ${campaign.purchases} purchases`}
+                meta={money(campaign.revenueCents)}
+              />
+            ))}
+          </ListGroup>
+        </>
+      )}
+      <SectionLabel>Community-wide</SectionLabel>
       <ListGroup>
-        {data.referralCampaigns.map((campaign) => (
+        {communityCampaigns.map((campaign) => (
           <ListRow
             key={campaign.id}
             tone="green"
@@ -1860,7 +1903,7 @@ function GrowthScreen({
             meta={money(campaign.revenueCents)}
           />
         ))}
-        {data.referralCampaigns.length === 0 && <EmptyBlock title="No campaigns yet" detail="Create a reward loop for invites, joins, and purchases." />}
+        {communityCampaigns.length === 0 && <EmptyBlock title="No campaigns yet" detail="Create a reward loop for invites, joins, and purchases." />}
       </ListGroup>
     </section>
   )
@@ -2232,6 +2275,7 @@ function ReferralBuilderScreen({
   campaignTitle,
   threshold,
   reward,
+  presetLabel,
   onCampaignTitle,
   onThreshold,
   onReward,
@@ -2241,6 +2285,7 @@ function ReferralBuilderScreen({
   campaignTitle: string
   threshold: string
   reward: string
+  presetLabel?: string | null
   onCampaignTitle: (value: string) => void
   onThreshold: (value: string) => void
   onReward: (value: string) => void
@@ -2251,7 +2296,7 @@ function ReferralBuilderScreen({
     <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
       <div className="tg-form-title">
         <h1>Referral Reward</h1>
-        <p>Create a simple milestone loop members can understand and share.</p>
+        <p>{presetLabel ? `Create a referral reward just for ${presetLabel}.` : 'Create a simple milestone loop members can understand and share.'}</p>
         <button className="tg-text-button" type="button" onClick={onCancel}>Cancel</button>
       </div>
       <SectionLabel>Campaign</SectionLabel>
@@ -2498,6 +2543,7 @@ function PublishScreen({
   onGuide,
   onCopyLink,
   onDelete,
+  onReferralReward,
   onToast,
 }: {
   community: DashboardDto['community']
@@ -2510,6 +2556,7 @@ function PublishScreen({
   onGuide: () => void
   onCopyLink: () => void
   onDelete: () => void
+  onReferralReward: () => void
   onToast: (message: string) => void
 }) {
   return (
@@ -2531,7 +2578,7 @@ function PublishScreen({
       <ListGroup>
         <ListRow tone="green" icon="C" title="Comment Access" detail="Off" onClick={() => onToast('Comment access opened')} />
         <ListRow tone="blue" icon="A" title="Auto-posting" detail="Off" onClick={() => onToast('Auto-posting opened')} />
-        <ListRow tone="purple" icon="R" title="Referral Reward" detail="Invite 3 friends" onClick={() => onToast('Referral reward opened')} />
+        <ListRow tone="purple" icon="R" title="Referral Reward" detail="Invite 3 friends" onClick={onReferralReward} />
         {plan && <ListRow tone="red" icon="D" title="Delete Membership" detail="Remove this package from active offers" onClick={onDelete} />}
       </ListGroup>
       <div className="tg-empty-illustration">

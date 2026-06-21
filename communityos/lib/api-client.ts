@@ -114,6 +114,8 @@ export interface ReferralCampaignDto {
   joins: number
   purchases: number
   revenueCents: number
+  targetType?: 'plan' | 'product' | 'event' | null
+  targetId?: number | null
 }
 
 export interface RewardDto {
@@ -448,7 +450,15 @@ export const api = {
     }),
   createReferralCampaign: (
     communityId: number | string,
-    body: { title: string; reward?: string; status?: 'draft' | 'active' | 'paused'; threshold?: number; metric?: 'joins' | 'purchases' | 'revenue' }
+    body: {
+      title: string
+      reward?: string
+      status?: 'draft' | 'active' | 'paused'
+      threshold?: number
+      metric?: 'joins' | 'purchases' | 'revenue'
+      targetType?: 'plan' | 'product' | 'event'
+      targetId?: number
+    }
   ) =>
     request<{ campaign: ReferralCampaignDto }>(`/api/communities/${communityId}/referral-campaigns`, {
       method: 'POST',
