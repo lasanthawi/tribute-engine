@@ -78,6 +78,12 @@ export interface TelegramChatDto {
   activeMembers: number
 }
 
+export interface CommentAccessDto {
+  linked: boolean
+  discussionBotStatus: 'admin' | 'missing_permissions' | 'not_connected' | null
+  enabled: boolean
+}
+
 export interface PlanDto {
   id: number
   name: string
@@ -265,6 +271,7 @@ export interface DashboardDto {
   ai: AiManagerDto
   events: EventDto[]
   products: ProductDto[]
+  commentAccess: CommentAccessDto
 }
 
 export interface MemberProfileDto {
@@ -387,6 +394,7 @@ export function emptyDashboardForCommunity(community: CommunitySummaryDto): Dash
     },
     events: [],
     products: [],
+    commentAccess: { linked: false, discussionBotStatus: null, enabled: true },
   }
 }
 
@@ -435,6 +443,11 @@ export const api = {
     request<{ ok: boolean }>(`/api/communities/${communityId}/access`, {
       method: 'POST',
       body: JSON.stringify({ action: decision, joinRequestId }),
+    }),
+  setCommentAccess: (communityId: number | string, enabled: boolean) =>
+    request<{ ok: boolean; reason?: string }>(`/api/communities/${communityId}/access`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'set_comment_access', enabled }),
     }),
   syncAccess: (communityId: number | string) =>
     request<{ ok: boolean; scanned?: number; synced?: number; demo?: boolean }>(`/api/communities/${communityId}/access`, {

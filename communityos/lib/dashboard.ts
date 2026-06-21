@@ -1,4 +1,4 @@
-import { listChats, listAccessLogs, listJoinRequests } from './access-control'
+import { getCommentAccessStatus, listChats, listAccessLogs, listJoinRequests } from './access-control'
 import { getAiManager } from './ai'
 import { getCommunityMetrics, listActivity } from './analytics'
 import { signedAssetUrl } from './assets'
@@ -47,7 +47,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
   const community = await getCommunity(communityId)
   if (!community) return null
 
-  const [metrics, members, chats, plans, referrals, referralCampaigns, rewards, rewardRules, activity, accessLogs, joinRequests, ai, events, products, setup, avatarUrl] =
+  const [metrics, members, chats, plans, referrals, referralCampaigns, rewards, rewardRules, activity, accessLogs, joinRequests, ai, events, products, setup, avatarUrl, commentAccess] =
     await Promise.all([
       optionalSection('metrics', emptyMetrics, () => getCommunityMetrics(communityId)),
       optionalSection('members', [], () => listMembers(communityId)),
@@ -75,6 +75,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       optionalSection('products', [], () => listProducts(communityId)),
       optionalSection('setup', [], () => computeSetup(communityId)),
       optionalSection('avatarUrl', null, () => signedAssetUrl(community.avatar_path, 86400)),
+      optionalSection('commentAccess', { linked: false, discussionBotStatus: null, enabled: true }, () => getCommentAccessStatus(communityId)),
     ])
 
   return {
@@ -134,6 +135,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
     ai,
     events,
     products,
+    commentAccess,
   }
 }
 

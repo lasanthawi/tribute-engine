@@ -4,6 +4,7 @@ import { useRouter } from 'next/router'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityDto,
+  CommentAccessDto,
   DashboardDto,
   EventDto,
   MeDto,
@@ -759,6 +760,33 @@ export default function Home() {
     }
   }
 
+  async function toggleCommentAccess() {
+    if (!data || !communityId) return
+    const next = !data.commentAccess.enabled
+    if (!data.commentAccess.linked) {
+      showToast('Link a discussion group to your channel first')
+      return
+    }
+    if (data.commentAccess.discussionBotStatus !== 'admin') {
+      showToast('Promote the bot to admin in your discussion group first')
+      return
+    }
+    if (!window.confirm(`Turn ${next ? 'on' : 'off'} comment access? This applies to your whole channel, not just this item.`)) {
+      return
+    }
+    try {
+      const result = await api.setCommentAccess(communityId, next)
+      if (!result.ok) {
+        showToast(result.reason || 'Comment access update failed')
+        return
+      }
+      setData({ ...data, commentAccess: { ...data.commentAccess, enabled: next } })
+      showToast(`Comment access turned ${next ? 'on' : 'off'} for your whole channel`)
+    } catch (error: any) {
+      showToast(error.message || 'Comment access update failed')
+    }
+  }
+
   async function createEventDraft() {
     if (!data || !communityId) return
     const body = {
@@ -1450,6 +1478,8 @@ export default function Home() {
               onCopyLink={copyMembershipLink}
               onDelete={deleteMembershipPackage}
               onReferralReward={() => openReferralRewardForPlan(activePlan)}
+              commentAccess={data.commentAccess}
+              onToggleCommentAccess={toggleCommentAccess}
               onToast={showToast}
             />
           )}
@@ -2595,6 +2625,8 @@ function PublishScreen({
   onCopyLink,
   onDelete,
   onReferralReward,
+  commentAccess,
+  onToggleCommentAccess,
   onToast,
 }: {
   community: DashboardDto['community']
@@ -2608,8 +2640,17 @@ function PublishScreen({
   onCopyLink: () => void
   onDelete: () => void
   onReferralReward: () => void
+  commentAccess: CommentAccessDto
+  onToggleCommentAccess: () => void
   onToast: (message: string) => void
 }) {
+  const commentAccessDetail = !commentAccess.linked
+    ? 'Link a discussion group to enable'
+    : commentAccess.discussionBotStatus !== 'admin'
+    ? 'Promote the bot in your discussion group'
+    : commentAccess.enabled
+    ? 'On · applies to your whole channel'
+    : 'Off · applies to your whole channel'
   return (
     <section className="tg-screen with-fixed-button">
       <h1 className="tg-publish-title">{plan?.name ?? title}</h1>
@@ -2627,7 +2668,14 @@ function PublishScreen({
         <ActionTile label="More" icon="more" onClick={() => onToast('More options opened')} />
       </div>
       <ListGroup>
-        <ListRow tone="green" icon="C" title="Comment Access" detail="Off" onClick={() => onToast('Comment access opened')} />
+        <ListRow
+          tone="green"
+          icon="C"
+          title="Comment Access"
+          detail={commentAccessDetail}
+          meta={commentAccess.linked && commentAccess.discussionBotStatus === 'admin' ? (commentAccess.enabled ? 'on' : 'off') : undefined}
+          onClick={onToggleCommentAccess}
+        />
         <ListRow tone="blue" icon="A" title="Auto-posting" detail="Off" onClick={() => onToast('Auto-posting opened')} />
         <ListRow tone="purple" icon="R" title="Referral Reward" detail="Invite 3 friends" onClick={onReferralReward} />
         {plan && <ListRow tone="red" icon="D" title="Delete Membership" detail="Remove this package from active offers" onClick={onDelete} />}

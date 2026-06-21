@@ -1,7 +1,7 @@
 import { AccessLogRow, sb, supabase } from './supabase'
-import type { JoinRequestDto, TelegramChatDto } from './api-client'
+import type { CommentAccessDto, JoinRequestDto, TelegramChatDto } from './api-client'
 import { ASSET_BUCKET } from './assets'
-import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, getChat, getFile, unbanChatMember } from './telegram'
+import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, getChat, getFile, setChatPermissions, unbanChatMember } from './telegram'
 import { createCommunity, getCommunity } from './communities'
 import { activateCommunityReferral } from './referrals'
 import { sendWelcomeMessage } from './notifications'
@@ -111,6 +111,87 @@ export async function syncCommunityAvatar(communityId: number, telegramChatId: n
 
   const { error } = await supabase.from('communities').update({ avatar_path: path } as any).eq('id', communityId)
   if (error) throw error
+}
+
+// Telegram only exposes a linked discussion group on the channel's own getChat
+// response (`linked_chat_id`). Call this whenever a channel is (re)confirmed
+// as admin-connected so Comment Access knows which group to moderate.
+export async function syncDiscussionChat(communityId: number, telegramChatId: string): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  if (!botToken) return
+  const chat = await getChat(botToken, telegramChatId)
+  if (!chat?.linkedChatId) return
+  const { error } = await sb
+    .from('telegram_chats')
+    .update({ discussion_chat_id: chat.linkedChatId })
+    .eq('community_id', communityId)
+    .eq('telegram_chat_id', telegramChatId)
+  if (error) throw error
+}
+
+// The bot's own membership in a discussion group arrives as a separate
+// my_chat_member event for that group's chat id — match it back to whichever
+// channel row already recorded it as discussion_chat_id.
+export async function syncDiscussionBotStatus(
+  telegramChatId: string,
+  status: 'admin' | 'missing_permissions' | 'not_connected'
+): Promise<void> {
+  const { error } = await sb.from('telegram_chats').update({ discussion_bot_status: status }).eq('discussion_chat_id', Number(telegramChatId))
+  if (error) throw error
+}
+
+export async function getCommentAccessStatus(communityId: number): Promise<CommentAccessDto> {
+  const { data: chat } = await sb
+    .from('telegram_chats')
+    .select('discussion_chat_id, discussion_bot_status')
+    .eq('community_id', communityId)
+    .eq('bot_status', 'admin')
+    .not('discussion_chat_id', 'is', null)
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  const community = await getCommunity(communityId)
+  return {
+    linked: !!chat?.discussion_chat_id,
+    discussionBotStatus: chat?.discussion_bot_status ?? null,
+    enabled: (community?.settings as any)?.commentAccessEnabled !== false,
+  }
+}
+
+// Comment Access is inherently channel-wide: Telegram exposes one permission
+// set per discussion group, not per post, so this can never be scoped to a
+// single plan/product/event.
+export async function setCommentAccess(communityId: number, enabled: boolean): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  if (!botToken) return { ok: false, reason: 'Bot is not configured.' }
+
+  const { data: chat } = await sb
+    .from('telegram_chats')
+    .select('discussion_chat_id, discussion_bot_status')
+    .eq('community_id', communityId)
+    .eq('bot_status', 'admin')
+    .not('discussion_chat_id', 'is', null)
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (!chat?.discussion_chat_id) return { ok: false, reason: 'Link a discussion group to your channel first.' }
+  if (chat.discussion_bot_status !== 'admin') return { ok: false, reason: 'Promote the bot to admin in your discussion group first.' }
+
+  await setChatPermissions(botToken, chat.discussion_chat_id, {
+    can_send_messages: enabled,
+    can_send_other_messages: enabled,
+  })
+
+  const community = await getCommunity(communityId)
+  const { error } = await supabase
+    .from('communities')
+    .update({ settings: { ...(community?.settings ?? {}), commentAccessEnabled: enabled } } as any)
+    .eq('id', communityId)
+  if (error) throw error
+
+  return { ok: true }
 }
 
 export async function findCommunityForChat(telegramChatId: string): Promise<number | null> {

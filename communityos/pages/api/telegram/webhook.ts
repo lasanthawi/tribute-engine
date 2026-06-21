@@ -1,5 +1,15 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { approveJoinRequest, autoLinkChatToCommunity, findCommunityForChat, grantMemberAccess, recordJoinRequest, syncCommunityAvatar, upsertTelegramChat } from '@/lib/access-control'
+import {
+  approveJoinRequest,
+  autoLinkChatToCommunity,
+  findCommunityForChat,
+  grantMemberAccess,
+  recordJoinRequest,
+  syncCommunityAvatar,
+  syncDiscussionBotStatus,
+  syncDiscussionChat,
+  upsertTelegramChat,
+} from '@/lib/access-control'
 import { findInvoiceByPayload, recordSuccessfulPayment } from '@/lib/payments'
 import { recordClickByCode, registerReferredJoin } from '@/lib/referrals'
 import { parseOfferCode } from '@/lib/start-params'
@@ -150,6 +160,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               'Markdown'
             )
             await syncCommunityAvatar(communityId, mcm.chat.id).catch((error) => console.error('syncCommunityAvatar failed:', error))
+            await syncDiscussionChat(communityId, telegramChatId).catch((error) => console.error('syncDiscussionChat failed:', error))
           }
         }
 
@@ -163,6 +174,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             botStatus: 'not_connected',
           }).catch(() => undefined)
         }
+
+        // This event may instead describe the bot's membership in a linked discussion
+        // group, which has no direct community_id of its own — match it back to whichever
+        // channel row already recorded this chat as its discussion_chat_id.
+        await syncDiscussionBotStatus(telegramChatId, botIsAdmin ? 'admin' : botRemoved ? 'not_connected' : 'missing_permissions').catch(
+          (error) => console.error('syncDiscussionBotStatus failed:', error)
+        )
       }
 
       return res.status(200).json({ ok: true })
