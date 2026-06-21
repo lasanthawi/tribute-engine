@@ -52,6 +52,7 @@ type Screen =
   | 'communityProfile'
   | 'offerWizard'
   | 'aiManager'
+  | 'settings'
 
 const introSlides = [
   {
@@ -748,6 +749,16 @@ export default function Home() {
     }
   }
 
+  async function updateCommunitySetting(partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) {
+    if (!data || !communityId) return
+    try {
+      const { community } = await api.updateCommunityProfile(communityId, { settings: partial })
+      setData({ ...data, community: { ...data.community, settings: community.settings ?? data.community.settings } })
+    } catch (error: any) {
+      showToast(error.message || 'Settings update failed')
+    }
+  }
+
   async function createEventDraft() {
     if (!data || !communityId) return
     const body = {
@@ -1187,6 +1198,7 @@ export default function Home() {
               communityProfile: 'home',
               offerWizard: 'home',
               aiManager: 'more',
+              settings: 'more',
             }
             go(previous[screen])
           }}
@@ -1270,8 +1282,10 @@ export default function Home() {
               onCreateEvent={() => go('eventBuilder')}
               onCreateProduct={() => go('productBuilder')}
               onOpenAiManager={() => go('aiManager')}
+              onOpenSettings={() => go('settings')}
             />
           )}
+          {screen === 'settings' && <SettingsScreen data={data} onUpdateSetting={updateCommunitySetting} />}
           {screen === 'aiManager' && (
             <AiManagerScreen
               data={data}
@@ -1985,12 +1999,14 @@ function MoreScreen({
   onCreateEvent,
   onCreateProduct,
   onOpenAiManager,
+  onOpenSettings,
 }: {
   data: DashboardDto
   onToast: (message: string) => void
   onCreateEvent: () => void
   onCreateProduct: () => void
   onOpenAiManager: () => void
+  onOpenSettings: () => void
 }) {
   return (
     <section className="tg-screen">
@@ -1999,7 +2015,7 @@ function MoreScreen({
         <ListRow tone="amber" icon="AI" title="AI Community Manager" detail={`${data.ai.faqCount} FAQ answers, report ${data.ai.weeklyReportStatus}`} onClick={onOpenAiManager} />
         <ListRow tone="purple" icon="E" title="Events" detail={`${data.events.length} events`} onClick={onCreateEvent} />
         <ListRow tone="red" icon="P" title="Products and Services" detail={`${data.products.length} products`} onClick={onCreateProduct} />
-        <ListRow tone="blue" icon="S" title="Settings" detail="Bot permissions, Stars checkout, notifications" onClick={() => onToast('Settings opened')} />
+        <ListRow tone="blue" icon="S" title="Settings" detail="Bot permissions, Stars checkout, notifications" onClick={onOpenSettings} />
       </ListGroup>
       <SectionLabel>Events</SectionLabel>
       <ListGroup>
@@ -2014,6 +2030,41 @@ function MoreScreen({
           <ListRow key={product.id} title={product.title} detail={`${product.type.replace('_', ' ')}. ${product.purchases} purchases`} meta={`${product.priceStars} XTR`} />
         ))}
         {data.products.length === 0 && <EmptyBlock title="No products yet" detail="Sell courses, downloads, premium content, and consultations." />}
+      </ListGroup>
+    </section>
+  )
+}
+
+function SettingsScreen({
+  data,
+  onUpdateSetting,
+}: {
+  data: DashboardDto
+  onUpdateSetting: (partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) => void
+}) {
+  const settings = data.community.settings ?? { starsCheckoutEnabled: true, notificationsEnabled: true }
+  return (
+    <section className="tg-screen">
+      <h1 className="tg-left-title">Settings</h1>
+      <SectionLabel>Bot connection</SectionLabel>
+      <ListGroup>
+        {data.chats.map((chat) => <ChatRow key={chat.id} chat={chat} />)}
+        {data.chats.length === 0 && <EmptyBlock title="No group connected" detail="Add the bot as admin in a Telegram group or channel, then share a membership to confirm the connection." />}
+      </ListGroup>
+      <SectionLabel>Checkout and notifications</SectionLabel>
+      <ListGroup>
+        <ListRow
+          title="Stars checkout"
+          detail="Let members pay with Telegram Stars"
+          meta={settings.starsCheckoutEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSetting({ starsCheckoutEnabled: !settings.starsCheckoutEnabled })}
+        />
+        <ListRow
+          title="Notifications"
+          detail="Bot messages for renewals, access changes, and join requests"
+          meta={settings.notificationsEnabled ? 'on' : 'off'}
+          onClick={() => onUpdateSetting({ notificationsEnabled: !settings.notificationsEnabled })}
+        />
       </ListGroup>
     </section>
   )

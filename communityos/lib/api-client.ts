@@ -27,6 +27,7 @@ export interface CommunitySummaryDto {
   status: string
   telegramInviteUrl?: string | null
   avatarUrl?: string | null
+  settings?: { starsCheckoutEnabled: boolean; notificationsEnabled: boolean }
 }
 
 export interface SetupStepDto {
@@ -553,7 +554,13 @@ export const api = {
     }),
   updateCommunityProfile: (
     communityId: number | string,
-    body: { name?: string; handle?: string | null; description?: string | null; telegramInviteUrl?: string | null }
+    body: {
+      name?: string
+      handle?: string | null
+      description?: string | null
+      telegramInviteUrl?: string | null
+      settings?: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>
+    }
   ) =>
     request<{ community: CommunitySummaryDto }>(`/api/communities/${communityId}/profile`, {
       method: 'PATCH',

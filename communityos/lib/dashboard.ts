@@ -85,6 +85,10 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       description: community.description,
       status: community.status,
       avatarUrl,
+      settings: {
+        starsCheckoutEnabled: (community.settings as any)?.starsCheckoutEnabled !== false,
+        notificationsEnabled: (community.settings as any)?.notificationsEnabled !== false,
+      },
     },
     setup,
     metrics,
