@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { approveJoinRequest, autoLinkChatToCommunity, findCommunityForChat, grantMemberAccess, recordJoinRequest, upsertTelegramChat } from '@/lib/access-control'
+import { approveJoinRequest, autoLinkChatToCommunity, findCommunityForChat, grantMemberAccess, recordJoinRequest, syncCommunityAvatar, upsertTelegramChat } from '@/lib/access-control'
 import { findInvoiceByPayload, recordSuccessfulPayment } from '@/lib/payments'
 import { recordClickByCode, registerReferredJoin } from '@/lib/referrals'
 import { parseOfferCode } from '@/lib/start-params'
@@ -149,6 +149,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               '*CommunityOS connected* ✅\n\nAccess control is active. Paying members will receive invite links automatically.',
               'Markdown'
             )
+            await syncCommunityAvatar(communityId, mcm.chat.id).catch((error) => console.error('syncCommunityAvatar failed:', error))
           }
         }
 

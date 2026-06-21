@@ -26,6 +26,7 @@ export interface CommunitySummaryDto {
   description: string | null
   status: string
   telegramInviteUrl?: string | null
+  avatarUrl?: string | null
 }
 
 export interface SetupStepDto {
@@ -275,6 +276,7 @@ export interface MemberProfileDto {
   products: ProductDto[]
   purchases: PurchaseDto[]
   activity: ActivityDto[]
+  chats: TelegramChatDto[]
 }
 
 export interface MeDto {

@@ -1,6 +1,7 @@
 import { AccessLogRow, sb, supabase } from './supabase'
 import type { JoinRequestDto, TelegramChatDto } from './api-client'
-import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, unbanChatMember } from './telegram'
+import { ASSET_BUCKET } from './assets'
+import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, getChat, getFile, unbanChatMember } from './telegram'
 import { createCommunity, getCommunity } from './communities'
 import { activateCommunityReferral } from './referrals'
 import { sendWelcomeMessage } from './notifications'
@@ -80,6 +81,35 @@ export async function upsertTelegramChat(opts: {
     },
     { onConflict: 'community_id,telegram_chat_id' }
   )
+  if (error) throw error
+}
+
+// Pulls the chat's current profile photo straight from the Bot API and stores
+// it in Supabase Storage, so the Mini App can show the real channel/group
+// image instead of a generic placeholder. Best-effort: a missing photo or a
+// failed download/upload should never block the chat-connection flow.
+export async function syncCommunityAvatar(communityId: number, telegramChatId: number): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
+  if (!botToken) return
+
+  const chat = await getChat(botToken, telegramChatId)
+  if (!chat?.photoBigFileId) return
+
+  const filePath = await getFile(botToken, chat.photoBigFileId)
+  if (!filePath) return
+
+  const fileRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`)
+  if (!fileRes.ok) return
+  const buffer = Buffer.from(await fileRes.arrayBuffer())
+
+  const path = `${communityId}/avatar/${Date.now()}.jpg`
+  const { error: uploadError } = await sb.storage.from(ASSET_BUCKET).upload(path, buffer, {
+    contentType: 'image/jpeg',
+    upsert: false,
+  })
+  if (uploadError) throw uploadError
+
+  const { error } = await supabase.from('communities').update({ avatar_path: path } as any).eq('id', communityId)
   if (error) throw error
 }
 

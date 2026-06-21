@@ -2549,11 +2549,10 @@ function PublishScreen({
 
 function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; onDone: () => void; menuCommunityId: number }) {
   const [step, setStep] = useState(0)
-  const botUsername = configuredBotUsername() || 'CommunityOSBot'
   const slides = [
-    { title: 'How to share a membership', art: 'Share' },
-    { title: `Type @${botUsername} in any channel or chat`, art: '@bot' },
-    { title: 'Select a membership to share', art: 'Pick' },
+    { title: 'Tap Share on any membership, product, or event', art: 'Share' },
+    { title: 'We send a message with a button to your group or your DMs', art: 'Send' },
+    { title: 'Tapping it opens CommunityOS straight into the offer', art: 'Open' },
   ]
   return (
     <main className="tg-story">
@@ -2611,15 +2610,31 @@ function OfferWizard({
   const plan = intent.kind === 'plan' ? data.plans.find((p) => p.id === intent.id) : null
   const product = intent.kind === 'product' ? data.products.find((p) => p.id === intent.id) : null
   const event = intent.kind === 'event' ? data.events.find((e) => e.id === intent.id) : null
+  const chat = data.chats[0] ?? null
 
   const title = plan?.name || product?.title || event?.title || 'Offer'
   const description = plan?.description || product?.description || event?.description || ''
   const price = plan ? `${plan.stars || centsToStars(plan.priceCents)} XTR` : product ? `${product.priceStars} XTR` : event ? `${event.priceStars || 0} XTR` : 'Free'
+  const imageUrl = product?.coverUrl || event?.coverUrl || data.community.avatarUrl || null
+
+  const whatYoullGet = plan
+    ? `Instant access to ${chat?.title ?? data.community.name}. Renews every ${plan.interval}.`
+    : product
+    ? product.deliveryType === 'file'
+      ? 'Instant file download as soon as payment confirms.'
+      : product.deliveryType === 'url'
+      ? 'An access link unlocks immediately after payment.'
+      : product.deliveryType === 'text'
+      ? 'Delivery instructions unlock immediately after payment.'
+      : 'Download or access your digital product.'
+    : event
+    ? `Register for this ${event.type} on ${dateShort(event.startsAt)}${event.accessLink ? ' — access link included.' : '.'}`
+    : 'Register and get event details and access link.'
 
   const slides = [
     {
       title: `Get ${title}`,
-      detail: description || 'Access exclusive content from this community.',
+      detail: [description, chat ? `Join ${chat.activeMembers} members in ${chat.title}.` : null].filter(Boolean).join(' '),
       icon: plan ? 'M' : product ? 'D' : 'E',
     },
     {
@@ -2629,11 +2644,7 @@ function OfferWizard({
     },
     {
       title: 'You\'ll get',
-      detail: plan
-        ? 'Instant access to the community and all benefits.'
-        : product
-        ? 'Download or access your digital product.'
-        : 'Register and get event details and access link.',
+      detail: whatYoullGet,
       icon: 'C',
     },
   ]
@@ -2644,9 +2655,16 @@ function OfferWizard({
         <button type="button" onClick={onCancel}>
           Back
         </button>
-        <div>
-          <strong>{data.community.name}</strong>
-          <span>offer preview</span>
+        <div className="tg-story-topbar-identity">
+          {data.community.avatarUrl ? (
+            <img className="tg-story-topbar-avatar" src={data.community.avatarUrl} alt="" />
+          ) : (
+            <span className="tg-story-topbar-avatar fallback">{initials(data.community.name)}</span>
+          )}
+          <div>
+            <strong>{chat ? chat.title : data.community.name}</strong>
+            <span>{chat ? `${chat.type === 'channel' ? 'Telegram channel' : 'Telegram group'}` : 'offer preview'}</span>
+          </div>
         </div>
       </header>
       <div className="tg-progress-bars" aria-label={`Step ${step + 1} of ${slides.length}`}>
@@ -2655,7 +2673,7 @@ function OfferWizard({
         ))}
       </div>
       <section className="tg-story-content">
-        <StoryArt label={slides[step].icon} compact />
+        <StoryArt label={slides[step].icon} imageUrl={imageUrl} compact />
         <h1>{slides[step].title}</h1>
         <p>{slides[step].detail}</p>
       </section>
@@ -2808,6 +2826,8 @@ function MemberHome({
           eyebrow="Membership"
           title={checkoutPlan.name}
           detail={checkoutPlan.description ?? `${checkoutPlan.interval} access to ${data.community.name}`}
+          secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
+          imageUrl={data.community.avatarUrl}
           meta={checkoutSubscription ? 'Active' : `${checkoutPlan.stars || centsToStars(checkoutPlan.priceCents)} XTR`}
           cta={checkoutSubscription ? 'Manage Subscription' : 'Continue to Subscribe'}
           onClick={() => handlePlanAction(checkoutPlan)}
@@ -2819,6 +2839,8 @@ function MemberHome({
           eyebrow="Digital Product"
           title={checkoutProduct.title}
           detail={checkoutProduct.owned ? 'Already unlocked on your dashboard.' : checkoutProduct.description ?? checkoutProduct.type.replace('_', ' ')}
+          secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
+          imageUrl={checkoutProduct.coverUrl ?? data.community.avatarUrl}
           meta={checkoutProduct.owned ? 'Unlocked' : `${checkoutProduct.priceStars} XTR`}
           cta={checkoutProduct.owned ? 'Open Product' : `Continue to ${checkoutProduct.buttonText ?? 'Buy'}`}
           onClick={() => onBuyProduct(checkoutProduct)}
@@ -2830,6 +2852,8 @@ function MemberHome({
           eyebrow="Event"
           title={checkoutEvent.title}
           detail={`${checkoutEvent.type} on ${dateShort(checkoutEvent.startsAt)}`}
+          secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
+          imageUrl={checkoutEvent.coverUrl ?? data.community.avatarUrl}
           meta={checkoutEvent.registered ? 'Registered' : checkoutEvent.priceStars ? `${checkoutEvent.priceStars} XTR` : 'Free'}
           cta={checkoutEvent.registered ? 'Open Event' : checkoutEvent.priceStars ? 'Continue to Get Ticket' : 'Continue to Register'}
           onClick={() => onEvent(checkoutEvent)}
@@ -2984,6 +3008,8 @@ function CheckoutPrompt({
   eyebrow,
   title,
   detail,
+  secondary,
+  imageUrl,
   meta,
   cta,
   onClick,
@@ -2992,16 +3018,22 @@ function CheckoutPrompt({
   eyebrow: string
   title: string
   detail: string
+  secondary?: string | null
+  imageUrl?: string | null
   meta: string
   cta: string
   onClick: () => void
 }) {
   return (
     <section className={`tg-checkout-prompt ${tone}`}>
-      <div>
-        <small>{eyebrow}</small>
-        <h2>{title}</h2>
-        <p>{detail}</p>
+      <div className="tg-checkout-prompt-body">
+        {imageUrl && <span className="tg-checkout-prompt-thumb" style={{ backgroundImage: `url(${imageUrl})` }} />}
+        <div>
+          <small>{eyebrow}</small>
+          <h2>{title}</h2>
+          <p>{detail}</p>
+          {secondary && <span className="tg-checkout-prompt-secondary">{secondary}</span>}
+        </div>
       </div>
       <strong>{meta}</strong>
       <button type="button" onClick={onClick}>
@@ -3123,12 +3155,11 @@ function ChatRow({ chat }: { chat: TelegramChatDto }) {
   return <ListRow tone={chat.botStatus === 'admin' ? 'green' : 'amber'} icon="T" title={chat.title} detail={`${chat.type}. ${chat.activeMembers} active members`} meta={status} />
 }
 
-function StoryArt({ label, compact }: { label: string; compact?: boolean }) {
+function StoryArt({ label, compact, imageUrl }: { label: string; compact?: boolean; imageUrl?: string | null }) {
   return (
     <div className={`tg-story-art ${compact ? 'compact' : ''}`} aria-hidden="true">
-      <span className="tg-story-art-card">
-        <i />
-        <b>{label}</b>
+      <span className={`tg-story-art-card ${imageUrl ? 'has-image' : ''}`}>
+        {imageUrl ? <img src={imageUrl} alt="" /> : (<><i /><b>{label}</b></>)}
       </span>
     </div>
   )
@@ -3307,6 +3338,7 @@ function dashboardFromMemberProfile(profile: MemberProfileDto): DashboardDto {
       healthScore: profile.member.accessStatus === 'granted' ? 100 : 60,
     },
     members: [profile.member],
+    chats: profile.chats ?? [],
     plans: profile.plans ?? [],
     rewards: profile.rewards,
     referralCampaigns: profile.referralCampaigns ?? [],

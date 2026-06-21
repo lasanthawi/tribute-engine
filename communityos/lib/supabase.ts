@@ -47,6 +47,7 @@ export interface Database {
           description: string | null
           telegram_chat_id: number | null
           telegram_invite_url: string | null
+          avatar_path: string | null
           status: CommunityStatus
           settings: Record<string, unknown>
           created_at: string

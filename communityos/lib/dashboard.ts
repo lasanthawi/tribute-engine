@@ -1,6 +1,7 @@
 import { listChats, listAccessLogs, listJoinRequests } from './access-control'
 import { getAiManager } from './ai'
 import { getCommunityMetrics, listActivity } from './analytics'
+import { signedAssetUrl } from './assets'
 import { getCommunity, listMembers } from './communities'
 import { listEvents } from './events'
 import { createReferralCampaign, listReferralCampaigns } from './growth'
@@ -46,7 +47,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
   const community = await getCommunity(communityId)
   if (!community) return null
 
-  const [metrics, members, chats, plans, referrals, referralCampaigns, rewards, rewardRules, activity, accessLogs, joinRequests, ai, events, products, setup] =
+  const [metrics, members, chats, plans, referrals, referralCampaigns, rewards, rewardRules, activity, accessLogs, joinRequests, ai, events, products, setup, avatarUrl] =
     await Promise.all([
       optionalSection('metrics', emptyMetrics, () => getCommunityMetrics(communityId)),
       optionalSection('members', [], () => listMembers(communityId)),
@@ -73,6 +74,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       optionalSection('events', [], () => listEvents(communityId)),
       optionalSection('products', [], () => listProducts(communityId)),
       optionalSection('setup', [], () => computeSetup(communityId)),
+      optionalSection('avatarUrl', null, () => signedAssetUrl(community.avatar_path, 86400)),
     ])
 
   return {
@@ -82,6 +84,7 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       handle: community.handle,
       description: community.description,
       status: community.status,
+      avatarUrl,
     },
     setup,
     metrics,
