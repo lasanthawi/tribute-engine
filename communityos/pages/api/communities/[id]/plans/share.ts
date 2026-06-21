@@ -60,12 +60,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!baseUrl) return res.status(400).json({ error: 'MINI_APP_URL is not configured' })
 
     // web_app inline buttons are rejected by Telegram in group chats — they only
-    // work in private chats. So we always use a regular `url` button pointing at a
-    // t.me deep link, which the bot's /start handler turns into an in-DM Mini App
-    // button. This works in both group chats and the owner's private chat.
+    // work in private chats. A `startapp` deep link instead launches the Mini App
+    // directly from any chat type, with no bot-chat detour.
     const botUsername = (process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
     if (!botUsername) return res.status(400).json({ error: 'TELEGRAM_BOT_USERNAME is not configured' })
-    const deepLink = `https://t.me/${botUsername}?start=co_${communityId}_plan_${plan.id}`
+    const deepLink = `https://t.me/${botUsername}?startapp=co_${communityId}_plan_${plan.id}`
     const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : 'Subscribe'
     const stars = Math.round((plan.price_cents ?? 0) / 10)
     const text = [

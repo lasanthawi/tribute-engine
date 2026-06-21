@@ -49,11 +49,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const targetChatId = community.telegram_chat_id ?? owner?.telegram_id
     if (!targetChatId) return res.status(400).json({ error: 'No Telegram chat is available for sharing' })
 
-    // web_app inline buttons only work in private chats; use a t.me deep link so
-    // the button works in group chats too (handled by the bot's /start handler).
+    // web_app inline buttons only work in private chats; a `startapp` deep link
+    // launches the Mini App directly from any chat type, with no bot-chat detour.
     const botUsername = (process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
     if (!botUsername) return res.status(400).json({ error: 'TELEGRAM_BOT_USERNAME is not configured' })
-    const deepLink = `https://t.me/${botUsername}?start=co_${communityId}_event_${event.id}`
+    const deepLink = `https://t.me/${botUsername}?startapp=co_${communityId}_event_${event.id}`
     const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : event.priceStars ? 'Get Ticket' : 'Register'
     const text = [
       `<b>${escapeHtml(event.title)}</b>`,
