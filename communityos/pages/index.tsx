@@ -1132,8 +1132,6 @@ export default function Home() {
           />
         ) : (
           <AppFrame
-            title="CommunityOS"
-            subtitle="mini app"
             hideBack={screen === 'start' || screen === 'account'}
             menuCommunityId={communityId ?? 1}
             onBack={() => { if (screen === 'communities') go('account') }}
@@ -1177,40 +1175,38 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </Head>
 
-      {mode === 'member' ? (
-        <AppFrame title="CommunityOS" subtitle="member app" hideBack={screen === 'home'} onBack={() => go('home')} menuCommunityId={communityId ?? 1}>
-          {screen === 'offerWizard' && checkoutIntent && data ? (
-            <OfferWizard
-              intent={checkoutIntent}
-              data={data}
-              step={wizardStep}
-              onStep={setWizardStep}
-              onComplete={() => {
-                setWizardCompleted(true)
-                go('home')
-              }}
-              onCancel={() => {
-                setCheckoutIntent(null)
-                setWizardCompleted(false)
-                go('home')
-              }}
-            />
-          ) : (
-            <MemberHome
-              data={data}
-              member={member}
-              checkoutIntent={checkoutIntent}
-              subscriptions={memberProfile?.subscriptions ?? []}
-              purchases={memberProfile?.purchases ?? []}
-              onReferral={copyReferralLink}
-              onSupport={openSupport}
-              onBuyPlan={buyPlan}
-              onBuyProduct={buyProduct}
-              onEvent={registerOrBuyEvent}
-              onCancelSubscription={cancelSubscription}
-              onToast={showToast}
-            />
-          )}
+      {mode === 'member' && screen === 'offerWizard' && checkoutIntent && data ? (
+        <OfferWizard
+          intent={checkoutIntent}
+          data={data}
+          step={wizardStep}
+          onStep={setWizardStep}
+          onComplete={() => {
+            setWizardCompleted(true)
+            go('home')
+          }}
+          onCancel={() => {
+            setCheckoutIntent(null)
+            setWizardCompleted(false)
+            go('home')
+          }}
+        />
+      ) : mode === 'member' ? (
+        <AppFrame hideBack={screen === 'home'} onBack={() => go('home')} menuCommunityId={communityId ?? 1}>
+          <MemberHome
+            data={data}
+            member={member}
+            checkoutIntent={checkoutIntent}
+            subscriptions={memberProfile?.subscriptions ?? []}
+            purchases={memberProfile?.purchases ?? []}
+            onReferral={copyReferralLink}
+            onSupport={openSupport}
+            onBuyPlan={buyPlan}
+            onBuyProduct={buyProduct}
+            onEvent={registerOrBuyEvent}
+            onCancelSubscription={cancelSubscription}
+            onToast={showToast}
+          />
         </AppFrame>
       ) : screen === 'intro' ? (
         <IntroScreen
@@ -1229,8 +1225,6 @@ export default function Home() {
         <ShareGuide onBack={() => go('publish')} onDone={() => go('home')} menuCommunityId={communityId ?? 1} />
       ) : (
         <AppFrame
-          title="CommunityOS"
-          subtitle="mini app"
           hideBack={screen === 'start'}
           menuCommunityId={communityId ?? 1}
           onBack={() => {
@@ -1528,15 +1522,11 @@ export default function Home() {
 }
 
 function AppFrame({
-  title,
-  subtitle,
   children,
   hideBack,
   onBack,
   menuCommunityId,
 }: {
-  title: string
-  subtitle: string
   children: React.ReactNode
   hideBack?: boolean
   onBack?: () => void
@@ -1548,10 +1538,7 @@ function AppFrame({
         <button className="tg-nav-button" type="button" onClick={onBack} disabled={hideBack} aria-label="Back">
           {hideBack ? '' : 'Back'}
         </button>
-        <div className="tg-title">
-          <strong>{title}</strong>
-          <span>{subtitle}</span>
-        </div>
+        <div className="tg-title" />
         <MenuButton communityId={menuCommunityId} />
       </header>
       {children}
@@ -1567,10 +1554,7 @@ function IntroScreen({ index, onBack, onNext, menuCommunityId }: { index: number
         <button type="button" onClick={onBack} disabled={!onBack}>
           {onBack ? 'Back' : ''}
         </button>
-        <div>
-          <strong>CommunityOS</strong>
-          <span>mini app</span>
-        </div>
+        <div />
         <MenuButton communityId={menuCommunityId} />
       </header>
       <div className="tg-progress-bars" aria-label={`Slide ${index + 1} of ${introSlides.length}`}>
@@ -2769,10 +2753,7 @@ function ShareGuide({ onBack, onDone, menuCommunityId }: { onBack: () => void; o
         <button type="button" onClick={onBack}>
           Back
         </button>
-        <div>
-          <strong>CommunityOS</strong>
-          <span>mini app</span>
-        </div>
+        <div />
         <MenuButton communityId={menuCommunityId} />
       </header>
       <div className="tg-progress-bars" aria-label={`Slide ${step + 1} of ${slides.length}`}>

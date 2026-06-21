@@ -53,11 +53,12 @@ export async function getAccountOverview(userId: number): Promise<Omit<MeDto, 'i
     : { data: [] }
   const balanceStars = (balanceRows ?? []).reduce((sum: number, row: any) => sum + (row.stars_delta ?? 0), 0)
 
-  const { data: user } = await sb
+  const { data: user, error: userErr } = await sb
     .from('users')
     .select('telegram_id, avatar_path, communityos_onboarded_at, communityos_last_revenue_model')
     .eq('id', userId)
     .maybeSingle()
+  if (userErr) console.error('getAccountOverview user lookup failed (has migration 0014_user_avatar.sql been applied?):', userErr)
 
   const avatarPath = user ? await ensureUserAvatar({ id: userId, avatar_path: user.avatar_path, telegram_id: user.telegram_id }) : null
 
