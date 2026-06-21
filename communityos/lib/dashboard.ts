@@ -127,6 +127,8 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
       interval: plan.interval,
       status: plan.status,
       subscribers: plan.subscribers,
+      coverUrl: plan.coverUrl ?? null,
+      buttonText: plan.buttonText ?? null,
     })),
     referrals,
     referralCampaigns,

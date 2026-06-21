@@ -14,6 +14,8 @@ interface PlanRow {
   interval: string
   status: string
   subscribers?: number
+  coverUrl?: string | null
+  buttonText?: string | null
 }
 
 function toDto(plan: PlanRow) {
@@ -28,6 +30,8 @@ function toDto(plan: PlanRow) {
     interval: plan.interval,
     status: plan.status,
     subscribers: plan.subscribers ?? 0,
+    coverUrl: plan.coverUrl ?? null,
+    buttonText: plan.buttonText ?? null,
   }
 }
 
@@ -48,13 +52,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'POST') {
-      const { name, description, priceCents, interval } = req.body ?? {}
+      const { name, description, priceCents, interval, coverPath, buttonText } = req.body ?? {}
       if (!name || typeof name !== 'string') return res.status(400).json({ error: 'name is required' })
       const plan = await createPlan(communityId, {
         name,
         description: typeof description === 'string' ? description : null,
         priceCents: typeof priceCents === 'number' ? priceCents : 0,
         interval: typeof interval === 'string' ? interval : 'month',
+        coverPath: typeof coverPath === 'string' ? coverPath : null,
+        buttonText: typeof buttonText === 'string' ? buttonText : null,
       })
       return res.status(201).json({ plan: toDto({ ...plan, subscribers: 0 }) })
     }

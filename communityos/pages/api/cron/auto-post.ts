@@ -54,21 +54,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         let caption: string | null = null
         let buttonText = 'Open CommunityOS'
+        let photoUrl: string | null | undefined = null
         if (post.target_type === 'plan') {
           const plan = (await listPlans(post.community_id)).find((row) => row.id === post.target_id)
           if (!plan) continue
           caption = planShareCaption(community.name, plan, centsToStars(plan.price_cents ?? 0), chatInfo)
-          buttonText = 'Subscribe'
+          buttonText = plan.buttonText || 'Subscribe'
+          photoUrl = plan.coverUrl
         } else if (post.target_type === 'product') {
           const product = (await listProducts(post.community_id)).find((row) => row.id === post.target_id)
           if (!product) continue
           caption = productShareCaption(community.name, product, chatInfo)
           buttonText = product.buttonText || 'Buy'
+          photoUrl = product.coverUrl
         } else {
           const event = (await listEvents(post.community_id)).find((row) => row.id === post.target_id)
           if (!event) continue
           caption = eventShareCaption(community.name, event, chatInfo)
           buttonText = event.priceStars ? 'Get Ticket' : 'Register'
+          photoUrl = event.coverUrl
         }
 
         const { chatId: targetChatId } = await resolveShareTarget(post.community_id, community.owner_id)
@@ -81,6 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           caption,
           buttonText,
           deepLink,
+          photoUrl,
           photoFileId: chatInfo?.photoFileId,
         })
 

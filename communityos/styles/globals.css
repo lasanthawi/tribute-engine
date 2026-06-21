@@ -845,8 +845,9 @@ a {
 }
 
 .tg-description-cover {
-  min-height: 160px;
-  border-radius: 18px;
+  aspect-ratio: 16 / 10;
+  min-height: 210px;
+  border-radius: 20px;
 }
 
 .tg-description-card > div {

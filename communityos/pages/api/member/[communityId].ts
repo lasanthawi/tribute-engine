@@ -95,6 +95,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         interval: plan.interval,
         status: plan.status,
         subscribers: plan.subscribers,
+        coverUrl: plan.coverUrl ?? null,
+        buttonText: plan.buttonText ?? null,
       })),
       subscriptions,
       referralCampaigns: referralProgress.map((item) => ({

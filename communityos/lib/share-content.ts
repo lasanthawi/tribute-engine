@@ -68,14 +68,23 @@ export async function sendShareMessage(opts: {
   caption: string
   buttonText: string
   deepLink: string
+  photoUrl?: string | null
   photoFileId?: string | null
 }) {
   const replyMarkup = { inline_keyboard: [[{ text: opts.buttonText, url: opts.deepLink }]] }
-  if (opts.photoFileId) {
-    await sendTelegramPhoto(opts.botToken, opts.chatId, opts.photoFileId, opts.caption, 'HTML', replyMarkup)
+  const photo = opts.photoUrl || opts.photoFileId
+  if (photo) {
+    try {
+      await sendTelegramPhoto(opts.botToken, opts.chatId, photo, opts.caption, 'HTML', replyMarkup)
+      return
+    } catch (error) {
+      console.error('sendShareMessage photo failed, falling back to text:', error)
+    }
   } else {
     await sendTelegramMessage(opts.botToken, opts.chatId, opts.caption, 'HTML', replyMarkup)
+    return
   }
+  await sendTelegramMessage(opts.botToken, opts.chatId, opts.caption, 'HTML', replyMarkup)
 }
 
 // Shared by the manual Share button (pages/api/communities/[id]/{plans,products,events}/share.ts)

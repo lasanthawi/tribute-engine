@@ -58,6 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       caption: text,
       buttonText,
       deepLink,
+      photoUrl: product.coverUrl,
       photoFileId: chatInfo?.photoFileId,
     })
 

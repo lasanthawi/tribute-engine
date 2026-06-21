@@ -2,6 +2,7 @@ import { MembershipPlanRow, sb, supabase } from './supabase'
 import { creditCommunityXp } from './xp'
 import type { SubscriptionDto } from './api-client'
 import { revokeMemberAccess } from './access-control'
+import { signedAssetUrl } from './assets'
 
 export interface CreatePlanInput {
   name: string
@@ -10,6 +11,42 @@ export interface CreatePlanInput {
   currency?: string
   interval?: string
   benefits?: unknown[]
+  coverPath?: string | null
+  buttonText?: string | null
+}
+
+export interface PlanMetadata {
+  coverPath?: string | null
+  buttonText?: string | null
+}
+
+export type MembershipPlanWithExtras = MembershipPlanRow & {
+  subscribers: number
+  coverUrl: string | null
+  coverPath: string | null
+  buttonText: string | null
+}
+
+const METADATA_KIND = 'communityos_plan_metadata'
+
+function normalizeBenefits(benefits: unknown): unknown[] {
+  return Array.isArray(benefits) ? benefits : []
+}
+
+function planMetadataFromBenefits(benefits: unknown): PlanMetadata {
+  const metadata = normalizeBenefits(benefits).find((item: any) => item?.kind === METADATA_KIND) as PlanMetadata | undefined
+  return {
+    coverPath: typeof metadata?.coverPath === 'string' ? metadata.coverPath : null,
+    buttonText: typeof metadata?.buttonText === 'string' ? metadata.buttonText : null,
+  }
+}
+
+function benefitsWithMetadata(benefits: unknown[] | undefined, metadata: PlanMetadata): unknown[] {
+  const existing = normalizeBenefits(benefits).filter((item: any) => item?.kind !== METADATA_KIND)
+  const clean: Record<string, unknown> = { kind: METADATA_KIND }
+  if (metadata.coverPath) clean.coverPath = metadata.coverPath
+  if (metadata.buttonText) clean.buttonText = metadata.buttonText
+  return Object.keys(clean).length > 1 ? [...existing, clean] : existing
 }
 
 export async function listPlans(communityId: number) {
@@ -33,7 +70,18 @@ export async function listPlans(communityId: number) {
     if (sub.plan_id) subscriberCounts.set(sub.plan_id, (subscriberCounts.get(sub.plan_id) ?? 0) + 1)
   }
 
-  return ((plans ?? []) as MembershipPlanRow[]).map((plan) => ({ ...plan, subscribers: subscriberCounts.get(plan.id) ?? 0 }))
+  return Promise.all(
+    ((plans ?? []) as MembershipPlanRow[]).map(async (plan): Promise<MembershipPlanWithExtras> => {
+      const metadata = planMetadataFromBenefits(plan.benefits)
+      return {
+        ...plan,
+        subscribers: subscriberCounts.get(plan.id) ?? 0,
+        coverPath: metadata.coverPath ?? null,
+        coverUrl: await signedAssetUrl(metadata.coverPath, 86400),
+        buttonText: metadata.buttonText ?? null,
+      }
+    })
+  )
 }
 
 export async function createPlan(communityId: number, input: CreatePlanInput) {
@@ -46,13 +94,23 @@ export async function createPlan(communityId: number, input: CreatePlanInput) {
       price_cents: input.priceCents ?? 0,
       currency: input.currency ?? 'USD',
       interval: input.interval ?? 'month',
-      benefits: input.benefits ?? [],
+      benefits: benefitsWithMetadata(input.benefits, {
+        coverPath: input.coverPath ?? null,
+        buttonText: input.buttonText ?? null,
+      }),
       status: 'active',
     })
     .select('*')
     .single()
   if (error) throw error
-  return data as MembershipPlanRow
+  const metadata = planMetadataFromBenefits((data as MembershipPlanRow).benefits)
+  return {
+    ...(data as MembershipPlanRow),
+    subscribers: 0,
+    coverPath: metadata.coverPath ?? null,
+    coverUrl: await signedAssetUrl(metadata.coverPath, 86400),
+    buttonText: metadata.buttonText ?? null,
+  }
 }
 
 export async function archivePlan(communityId: number, planId: number) {

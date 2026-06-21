@@ -107,6 +107,7 @@ export default function Home() {
   const [buttonText, setButtonText] = useState('Subscribe')
   const [monthlyStars, setMonthlyStars] = useState('299')
   const [yearlyStars, setYearlyStars] = useState('2990')
+  const [coverPath, setCoverPath] = useState<string | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [coverName, setCoverName] = useState<string | null>(null)
   const [createdPlan, setCreatedPlan] = useState<PlanDto | null>(null)
@@ -376,6 +377,8 @@ export default function Home() {
       priceCents: starsToCents(stars),
       stars,
       interval: 'month',
+      coverPath,
+      buttonText: buttonText.trim() || 'Subscribe',
     }
 
     setSubmitting(true)
@@ -399,6 +402,8 @@ export default function Home() {
           priceCents: starsToCents(yStars),
           stars: yStars,
           interval: 'year',
+          coverPath,
+          buttonText: buttonText.trim() || 'Subscribe',
         }).catch(() => undefined)
       }
 
@@ -412,23 +417,23 @@ export default function Home() {
     }
   }
 
-  function handleCoverFile(file: File | null) {
+  async function handleCoverFile(file: File | null) {
     if (!file) return
     if (!file.type.startsWith('image/')) {
       showToast('Choose an image file')
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setCoverPreview(reader.result)
-        setCoverName(file.name)
-        showToast('Cover added')
-      }
+    try {
+      const result = await uploadAssetFile(file, 'cover')
+      if (!result) return
+      setCoverPath(result.asset.path)
+      setCoverPreview(result.asset.url ?? result.dataUrl)
+      setCoverName(result.asset.fileName)
+      showToast('Cover uploaded')
+    } catch (error: any) {
+      showToast(error.message || 'Cover upload failed')
     }
-    reader.onerror = () => showToast('Cover could not be loaded')
-    reader.readAsDataURL(file)
   }
 
   async function uploadAssetFile(file: File | null, assetType: 'cover' | 'delivery') {
@@ -863,7 +868,13 @@ export default function Home() {
       showToast('Create a membership before sharing a subscribe link')
       return
     }
-    await copyOrOpenTelegramUrl(membershipStartLink(communityId, activePlan.id), 'Membership link copied')
+    const link = membershipStartLink(communityId, activePlan.id)
+    if (!link) {
+      showToast('Set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME first')
+      return
+    }
+    await copyText(link).catch(() => false)
+    showToast('Membership package link copied')
   }
 
   async function syncAccessNow() {
@@ -1496,7 +1507,7 @@ export default function Home() {
               title={membershipTitle}
               description={membershipDescription}
               onEdit={() => go('createDetails')}
-              coverPreview={coverPreview}
+              coverPreview={activePlan?.coverUrl ?? coverPreview}
               onShare={shareMembershipCard}
               onGuide={() => go('shareGuide')}
               onCopyLink={copyMembershipLink}
@@ -2808,7 +2819,7 @@ function OfferWizard({
   const title = plan?.name || product?.title || event?.title || 'Offer'
   const description = plan?.description || product?.description || event?.description || ''
   const price = plan ? `${plan.stars || centsToStars(plan.priceCents)} XTR` : product ? `${product.priceStars} XTR` : event ? `${event.priceStars || 0} XTR` : 'Free'
-  const imageUrl = product?.coverUrl || event?.coverUrl || data.community.avatarUrl || null
+  const imageUrl = plan?.coverUrl || product?.coverUrl || event?.coverUrl || data.community.avatarUrl || null
 
   const whatYoullGet = plan
     ? `Instant access to ${chat?.title ?? data.community.name}. Renews every ${plan.interval}.`
@@ -3020,7 +3031,7 @@ function MemberHome({
           title={checkoutPlan.name}
           detail={checkoutPlan.description ?? `${checkoutPlan.interval} access to ${data.community.name}`}
           secondary={data.chats[0] ? `${data.chats[0].title} · ${data.chats[0].activeMembers} members` : null}
-          imageUrl={data.community.avatarUrl}
+          imageUrl={checkoutPlan.coverUrl ?? data.community.avatarUrl}
           meta={checkoutSubscription ? 'Active' : `${checkoutPlan.stars || centsToStars(checkoutPlan.priceCents)} XTR`}
           cta={checkoutSubscription ? 'Manage Subscription' : 'Continue to Subscribe'}
           onClick={() => handlePlanAction(checkoutPlan)}
@@ -3120,6 +3131,7 @@ function MemberHome({
             key={plan.id}
             tone={isPastDue ? 'amber' : isActive ? 'green' : 'blue'}
             icon="M"
+            image={plan.coverUrl}
             title={plan.name}
             detail={isActive ? 'Active subscription' : isPastDue ? 'Payment needs attention' : plan.description ?? `${plan.interval} membership`}
             meta={isActive ? 'Manage' : isPastDue ? 'Renew' : `${plan.stars || centsToStars(plan.priceCents)} XTR`}

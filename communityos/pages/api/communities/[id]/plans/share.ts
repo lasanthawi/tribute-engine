@@ -55,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const botUsername = botUsernameFromEnv()
     if (!botUsername) return res.status(400).json({ error: 'TELEGRAM_BOT_USERNAME is not configured' })
     const deepLink = deepLinkForTarget(botUsername, communityId, 'plan', plan.id)
-    const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : 'Subscribe'
+    const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : plan.buttonText || 'Subscribe'
     const stars = centsToStars(plan.price_cents ?? 0)
     const chatInfo = await getConnectedChatInfo(communityId, community.telegram_chat_id ?? null)
     const text = planShareCaption(community.name, plan, stars, chatInfo)
@@ -66,6 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       caption: text,
       buttonText,
       deepLink,
+      photoUrl: plan.coverUrl,
       photoFileId: chatInfo?.photoFileId,
     })
 

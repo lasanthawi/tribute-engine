@@ -104,6 +104,8 @@ export interface PlanDto {
   interval: string
   status: string
   subscribers: number
+  coverUrl?: string | null
+  buttonText?: string | null
 }
 
 export interface ReferralDto {
@@ -421,7 +423,7 @@ export const api = {
   getDashboard: (communityId: number | string) => request<DashboardDto>(`/api/communities/${communityId}/dashboard`),
   createPlan: (
     communityId: number | string,
-    body: { name: string; description?: string; priceCents?: number; stars?: number; interval?: string }
+    body: { name: string; description?: string; priceCents?: number; stars?: number; interval?: string; coverPath?: string | null; buttonText?: string }
   ) => request<{ plan: PlanDto }>(`/api/communities/${communityId}/plans`, { method: 'POST', body: JSON.stringify(body) }),
   deletePlan: (communityId: number | string, planId: number) =>
     request<{ ok: boolean; plan: PlanDto }>(`/api/communities/${communityId}/plans?planId=${planId}`, { method: 'DELETE' }),
