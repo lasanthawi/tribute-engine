@@ -49,19 +49,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const targetChatId = community.telegram_chat_id ?? owner?.telegram_id
     if (!targetChatId) return res.status(400).json({ error: 'No Telegram chat is available for sharing' })
 
-    const url = `${publicBaseUrl(req)}/member/${communityId}?product=${product.id}`
+    // web_app inline buttons only work in private chats; a `startapp` deep link
+    // launches the Mini App directly from any chat type, with no bot-chat detour.
+    const botUsername = (process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
+    if (!botUsername) return res.status(400).json({ error: 'TELEGRAM_BOT_USERNAME is not configured' })
+    const deepLink = `https://t.me/${botUsername}?startapp=co_${communityId}_product_${product.id}`
     const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : product.buttonText || 'Buy'
     const text = [
       `<b>${escapeHtml(product.title)}</b>`,
       product.description ? escapeHtml(product.description) : null,
       product.priceStars ? `${product.priceStars} XTR` : 'Free',
-      `Open the card to get it from ${escapeHtml(community.name)}.`,
+      `Tap below to get it from ${escapeHtml(community.name)}.`,
     ]
       .filter(Boolean)
       .join('\n\n')
 
     await sendTelegramMessage(botToken, targetChatId, text, 'HTML', {
-      inline_keyboard: [[{ text: buttonText, web_app: { url } }]],
+      inline_keyboard: [[{ text: buttonText, url: deepLink }]],
     })
 
     await supabase.from('community_activity_events').insert({
@@ -72,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metadata: { productId: product.id, targetChatId },
     })
 
-    res.status(200).json({ ok: true, target: community.telegram_chat_id ? 'community_chat' : 'owner_chat', url })
+    res.status(200).json({ ok: true, target: community.telegram_chat_id ? 'community_chat' : 'owner_chat', url: deepLink })
   } catch (error) {
     console.error('communities/[id]/products/share error:', error)
     res.status(500).json({ error: 'Internal error' })

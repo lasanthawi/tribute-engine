@@ -60,20 +60,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const baseUrl = publicBaseUrl(req)
     if (!baseUrl) return res.status(400).json({ error: 'MINI_APP_URL is not configured' })
 
-    const subscribeUrl = `${baseUrl}/member/${communityId}?plan=${plan.id}`
+    // web_app inline buttons are rejected by Telegram in group chats — they only
+    // work in private chats. A `startapp` deep link instead launches the Mini App
+    // directly from any chat type, with no bot-chat detour.
+    const botUsername = (process.env.TELEGRAM_BOT_USERNAME || process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || '').replace(/^@/, '').trim()
+    if (!botUsername) return res.status(400).json({ error: 'TELEGRAM_BOT_USERNAME is not configured' })
+    const deepLink = `https://t.me/${botUsername}?startapp=co_${communityId}_plan_${plan.id}`
     const buttonText = typeof req.body?.buttonText === 'string' && req.body.buttonText.trim() ? req.body.buttonText.trim() : 'Subscribe'
     const stars = centsToStars(plan.price_cents ?? 0)
     const text = [
       `<b>${escapeHtml(plan.name)}</b>`,
       plan.description ? escapeHtml(plan.description) : null,
       stars > 0 ? `${stars} XTR per ${escapeHtml(plan.interval)}` : null,
-      `Open the card to subscribe to ${escapeHtml(community.name)}.`,
+      `Tap below to subscribe to ${escapeHtml(community.name)}.`,
     ]
       .filter(Boolean)
       .join('\n\n')
 
     await sendTelegramMessage(botToken, targetChatId, text, 'HTML', {
-      inline_keyboard: [[{ text: buttonText, web_app: { url: subscribeUrl } }]],
+      inline_keyboard: [[{ text: buttonText, url: deepLink }]],
     })
 
     await supabase.from('community_activity_events').insert({
@@ -87,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json({
       ok: true,
       target: community.telegram_chat_id ? 'community_chat' : 'owner_chat',
-      url: subscribeUrl,
+      url: deepLink,
     })
   } catch (error) {
     console.error('communities/[id]/plans/share error:', error)
