@@ -1,6 +1,7 @@
 import { sb } from './supabase'
 
 export const ASSET_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'communityos-assets'
+let bucketReady: Promise<void> | null = null
 
 export interface UploadedAsset {
   path: string
@@ -28,6 +29,38 @@ function extensionFor(fileName: string) {
   return ext ? `.${ext}` : ''
 }
 
+function isMissingBucketError(error: any) {
+  const message = String(error?.message || error?.error || '').toLowerCase()
+  const statusCode = Number(error?.statusCode || error?.status || 0)
+  return statusCode === 404 || message.includes('bucket') && (message.includes('not found') || message.includes('not exist') || message.includes('not available'))
+}
+
+async function createAssetBucket() {
+  const { error } = await sb.storage.createBucket(ASSET_BUCKET, {
+    public: false,
+    fileSizeLimit: 10 * 1024 * 1024,
+    allowedMimeTypes: Array.from(allowedMimeTypes),
+  })
+  if (error && !String(error.message || '').toLowerCase().includes('already exists')) {
+    throw error
+  }
+}
+
+export async function ensureAssetBucket() {
+  if (!bucketReady) {
+    bucketReady = (async () => {
+      const { error } = await sb.storage.getBucket(ASSET_BUCKET)
+      if (!error) return
+      if (!isMissingBucketError(error)) throw error
+      await createAssetBucket()
+    })().catch((error) => {
+      bucketReady = null
+      throw error
+    })
+  }
+  return bucketReady
+}
+
 export function parseDataUrl(dataUrl: string) {
   const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl)
   if (!match) throw new Error('Invalid file payload')
@@ -45,10 +78,19 @@ export async function uploadCommunityAsset(
 
   const safeName = input.fileName.replace(/[^\w.\-]+/g, '-').slice(-80) || `asset${extensionFor(input.fileName)}`
   const path = `${communityId}/${input.assetType}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`
-  const { error } = await sb.storage.from(ASSET_BUCKET).upload(path, buffer, {
+  await ensureAssetBucket()
+  let { error } = await sb.storage.from(ASSET_BUCKET).upload(path, buffer, {
     contentType: mimeType,
     upsert: false,
   })
+  if (error && isMissingBucketError(error)) {
+    bucketReady = null
+    await ensureAssetBucket()
+    ;({ error } = await sb.storage.from(ASSET_BUCKET).upload(path, buffer, {
+      contentType: mimeType,
+      upsert: false,
+    }))
+  }
   if (error) throw error
 
   return {
@@ -63,6 +105,7 @@ export async function uploadCommunityAsset(
 export async function signedAssetUrl(path?: string | null, expiresIn = 900): Promise<string | null> {
   if (!path) return null
   const { data, error } = await sb.storage.from(ASSET_BUCKET).createSignedUrl(path, expiresIn)
+  if (error && isMissingBucketError(error)) return null
   if (error) return null
   return data?.signedUrl ?? null
 }

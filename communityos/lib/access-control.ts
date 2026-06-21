@@ -1,6 +1,6 @@
 import { AccessLogRow, sb, supabase } from './supabase'
 import type { CommentAccessDto, JoinRequestDto, TelegramChatDto } from './api-client'
-import { ASSET_BUCKET } from './assets'
+import { ASSET_BUCKET, ensureAssetBucket } from './assets'
 import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, getChat, getFile, setChatPermissions, unbanChatMember } from './telegram'
 import { createCommunity, getCommunity } from './communities'
 import { activateCommunityReferral } from './referrals'
@@ -103,6 +103,7 @@ export async function syncCommunityAvatar(communityId: number, telegramChatId: n
   const buffer = Buffer.from(await fileRes.arrayBuffer())
 
   const path = `${communityId}/avatar/${Date.now()}.jpg`
+  await ensureAssetBucket()
   const { error: uploadError } = await sb.storage.from(ASSET_BUCKET).upload(path, buffer, {
     contentType: 'image/jpeg',
     upsert: false,
