@@ -1447,6 +1447,13 @@ export default function Home() {
               else finishIntro()
             }}
           />
+        ) : screen === 'shareGuide' ? (
+          <ShareGuide
+            link={shareGuideLink}
+            onCopyLink={copyShareGuideLink}
+            onBack={() => go(shareGuideReturnTo)}
+            onDone={() => go(shareGuideReturnTo)}
+          />
         ) : (
           <AppFrame
             hideBack={screen === 'start' || screen === 'account'}

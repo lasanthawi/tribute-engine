@@ -227,6 +227,16 @@ a {
   text-align: right;
 }
 
+.tg-topbar .tg-nav-button {
+  background: rgba(20, 24, 38, 0.55);
+  backdrop-filter: blur(6px);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 14px;
+}
+
 .tg-story-topbar .tg-story-topbar-identity {
   display: flex;
   align-items: center;
