@@ -362,6 +362,12 @@ export default function Home() {
     go('start')
   }
 
+  function openGeneralGuide() {
+    setShareGuideLink('')
+    setShareGuideReturnTo(screen)
+    go('shareGuide')
+  }
+
   // Cover/file/text state lives at the page level and is reused across every
   // create/edit session, so it must be reset whenever a *new* item is started
   // or an *existing* item is opened for viewing — otherwise a cover uploaded
@@ -1445,8 +1451,9 @@ export default function Home() {
           <AppFrame
             hideBack={screen === 'start' || screen === 'account'}
             onBack={() => { if (screen === 'communities' || screen === 'more') go('account'); if (screen === 'monetization') go('more') }}
-            rightLabel={screen === 'account' ? 'More' : undefined}
-            onRightAction={screen === 'account' ? () => go('more') : undefined}
+            onProfile={screen !== 'account' && screen !== 'start' ? () => go('account') : undefined}
+            onGuide={screen !== 'start' ? openGeneralGuide : undefined}
+            onMore={screen === 'account' ? () => go('more') : undefined}
           >
             {screen === 'account' && me && (
               <AccountHome
@@ -1584,8 +1591,9 @@ export default function Home() {
             }
             go(previous[screen])
           }}
-          rightLabel={screen === 'home' || screen === 'account' ? 'More' : undefined}
-          onRightAction={screen === 'home' || screen === 'account' ? () => go('more') : undefined}
+          onProfile={screen === 'home' ? () => go('account') : undefined}
+          onGuide={screen === 'home' || screen === 'account' ? openGeneralGuide : undefined}
+          onMore={screen === 'home' || screen === 'account' ? () => go('more') : undefined}
         >
           {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
           {screen === 'account' && me && (
@@ -1945,12 +1953,18 @@ function AppFrame({
   onBack,
   rightLabel,
   onRightAction,
+  onProfile,
+  onGuide,
+  onMore,
 }: {
   children: React.ReactNode
   hideBack?: boolean
   onBack?: () => void
   rightLabel?: string
   onRightAction?: () => void
+  onProfile?: () => void
+  onGuide?: () => void
+  onMore?: () => void
 }) {
   return (
     <main className="tg-app">
@@ -1959,6 +1973,40 @@ function AppFrame({
           <button className="tg-nav-button" type="button" onClick={onBack} aria-label="Back">
             Back
           </button>
+        )}
+        {(onProfile || onGuide || onMore) && (
+          <div className="tg-topbar-actions">
+            {onGuide && (
+              <button
+                className="tg-topbar-icon-button"
+                type="button"
+                onClick={() => { haptic('light'); onGuide() }}
+                aria-label="Guide"
+              >
+                <RowIcon name="guide" />
+              </button>
+            )}
+            {onProfile && (
+              <button
+                className="tg-topbar-icon-button"
+                type="button"
+                onClick={() => { haptic('light'); onProfile() }}
+                aria-label="Profile"
+              >
+                <RowIcon name="member" />
+              </button>
+            )}
+            {onMore && (
+              <button
+                className="tg-topbar-icon-button"
+                type="button"
+                onClick={() => { haptic('light'); onMore() }}
+                aria-label="More"
+              >
+                <RowIcon name="more" />
+              </button>
+            )}
+          </div>
         )}
         {rightLabel && onRightAction && (
           <button className="tg-nav-button tg-nav-button-right" type="button" onClick={onRightAction}>
@@ -4110,6 +4158,7 @@ type IconName =
   | 'edit'
   | 'copy'
   | 'more'
+  | 'guide'
 
 const ICON_SVG_PROPS = {
   viewBox: '0 0 24 24',
@@ -4300,6 +4349,14 @@ function RowIcon({ name }: { name: IconName }) {
           <circle cx="5" cy="12" r="1.3" fill="currentColor" stroke="none" />
           <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
           <circle cx="19" cy="12" r="1.3" fill="currentColor" stroke="none" />
+        </svg>
+      )
+    case 'guide':
+      return (
+        <svg {...ICON_SVG_PROPS}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M9.6 9.4a2.4 2.4 0 114 1.8c-1 .9-1.6 1.5-1.6 2.7" />
+          <circle cx="12" cy="17.2" r="1" fill="currentColor" stroke="none" />
         </svg>
       )
     default:
