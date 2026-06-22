@@ -537,7 +537,7 @@ a {
   gap: 7px;
   padding: 10px 14px;
   border: 1px solid rgba(10, 132, 255, 0.14);
-  border-radius: 999px;
+  border-radius: 16px;
   background: white;
   color: var(--tg-blue-dark);
   font-size: 13px;
@@ -842,7 +842,7 @@ a {
 
 .tg-member-actions button {
   border: 0;
-  border-radius: 999px;
+  border-radius: 12px;
   background: #e2f2ff;
   color: var(--tg-blue);
   padding: 8px 10px;
@@ -923,6 +923,10 @@ a {
   border-bottom: 0;
 }
 
+.tg-input-group input:has(+ .tg-input-hint) {
+  border-bottom: 0;
+}
+
 .tg-input-group textarea {
   min-height: 136px;
   resize: vertical;
@@ -938,8 +942,14 @@ a {
   display: block;
   padding: 0 22px 14px;
   margin-top: -8px;
+  border-bottom: 1px solid var(--tg-separator);
   color: var(--tg-muted);
   font-size: 13px;
+  line-height: 1.35;
+}
+
+.tg-input-group .tg-input-hint:last-child {
+  border-bottom: 0;
 }
 
 .tg-input-hint.inline {
@@ -1434,6 +1444,19 @@ a {
   line-height: 1.25;
 }
 
+.tg-share-link-preview {
+  max-width: 100%;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(10, 132, 255, 0.08);
+  color: var(--tg-blue-dark);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
 .tg-story-art {
   display: grid;
   place-items: center;
@@ -1527,6 +1550,7 @@ a {
 .tg-story-footer {
   display: grid;
   align-content: end;
+  gap: 8px;
   min-height: calc(94px + var(--safe-bottom));
   padding: 14px 22px calc(18px + var(--safe-bottom));
 }
@@ -1536,6 +1560,15 @@ a {
   background: white;
   color: var(--tg-blue);
   box-shadow: var(--tg-shadow);
+}
+
+.tg-story-footer .tg-copy-link-button {
+  min-height: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 4px 0;
 }
 
 /* Desktop platform admin keeps its operational dark surface. */

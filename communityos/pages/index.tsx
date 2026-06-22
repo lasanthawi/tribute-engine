@@ -157,6 +157,8 @@ export default function Home() {
   const [profileInviteUrl, setProfileInviteUrl] = useState('')
   const [wizardStep, setWizardStep] = useState(0)
   const [wizardCompleted, setWizardCompleted] = useState(false)
+  const [shareGuideReturnTo, setShareGuideReturnTo] = useState<Screen>('home')
+  const [shareGuideLink, setShareGuideLink] = useState('')
   const routeIdQuery = router.query.id
   const routeCommunityIdQuery = router.query.communityId
   const routePlanQuery = router.query.plan
@@ -897,7 +899,22 @@ export default function Home() {
 
   async function shareCommunity() {
     if (!data || !communityId) return
-    await copyOrOpenTelegramUrl(communityStartLink(communityId), 'Community link copied')
+    const url = communityStartLink(communityId)
+    if (!url) {
+      showToast('Set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME first')
+      return
+    }
+    await copyText(url).catch(() => false)
+    setShareGuideLink(url)
+    setShareGuideReturnTo('home')
+    showToast('Link copied')
+    go('shareGuide')
+  }
+
+  async function copyShareGuideLink() {
+    if (!shareGuideLink) return
+    await copyText(shareGuideLink).catch(() => false)
+    showToast('Link copied')
   }
 
   async function copyMembershipLink() {
@@ -930,7 +947,12 @@ export default function Home() {
   async function copyReferralLink() {
     if (!communityId) return
     const link = memberProfile?.referralLink || referralStartLink(communityId, member?.id)
-    await copyOrOpenTelegramUrl(link, 'Referral link copied')
+    if (!link) {
+      showToast('Set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME first')
+      return
+    }
+    await copyText(link).catch(() => false)
+    showToast('Referral link copied')
   }
 
   async function openSupport() {
@@ -1269,7 +1291,12 @@ export default function Home() {
           }}
         />
       ) : screen === 'shareGuide' ? (
-        <ShareGuide onBack={() => go('publish')} onDone={() => go('home')} />
+        <ShareGuide
+          link={shareGuideLink}
+          onCopyLink={copyShareGuideLink}
+          onBack={() => go(shareGuideReturnTo)}
+          onDone={() => go(shareGuideReturnTo)}
+        />
       ) : (
         <AppFrame
           hideBack={screen === 'start'}
@@ -1433,6 +1460,11 @@ export default function Home() {
               primaryLabel="Share Product"
               onEdit={() => go('productBuilder')}
               onShare={shareProductCard}
+              onGuide={() => {
+                if (communityId) setShareGuideLink(offerStartLink(communityId, 'product', activeProduct.id))
+                setShareGuideReturnTo('productPublish')
+                go('shareGuide')
+              }}
               onDelete={deleteProductOffer}
               onToast={showToast}
             />
@@ -1468,6 +1500,11 @@ export default function Home() {
               primaryLabel="Share Event"
               onEdit={() => go('eventBuilder')}
               onShare={shareEventCard}
+              onGuide={() => {
+                if (communityId) setShareGuideLink(offerStartLink(communityId, 'event', activeEvent.id))
+                setShareGuideReturnTo('eventPublish')
+                go('shareGuide')
+              }}
               onDelete={deleteEventOffer}
               onToast={showToast}
             />
@@ -1534,7 +1571,11 @@ export default function Home() {
               onEdit={() => go('createDetails')}
               coverPreview={activePlan?.coverUrl ?? coverPreview}
               onShare={shareMembershipCard}
-              onGuide={() => go('shareGuide')}
+              onGuide={() => {
+                if (communityId && activePlan) setShareGuideLink(membershipStartLink(communityId, activePlan.id))
+                setShareGuideReturnTo('publish')
+                go('shareGuide')
+              }}
               onCopyLink={copyMembershipLink}
               onDelete={deleteMembershipPackage}
               onReferralReward={() => openReferralRewardForPlan(activePlan)}
@@ -2747,6 +2788,7 @@ function RevenuePublishScreen({
   primaryLabel,
   onEdit,
   onShare,
+  onGuide,
   onDelete,
   onToast,
 }: {
@@ -2758,6 +2800,7 @@ function RevenuePublishScreen({
   primaryLabel: string
   onEdit: () => void
   onShare: () => void
+  onGuide: () => void
   onDelete: () => void
   onToast: (message: string) => void
 }) {
@@ -2779,6 +2822,7 @@ function RevenuePublishScreen({
       </div>
       <ListGroup>
         <ListRow tone="green" icon="share" title="Telegram Card" detail="Share sends a bot message with a Web App button." onClick={onShare} />
+        <ListRow tone="blue" icon="business" title="How Sharing Works" detail="See what recipients see when they tap your link." onClick={onGuide} />
         <ListRow tone="red" icon="delete" title={`Delete ${kind === 'product' ? 'Product' : 'Event'}`} detail="Remove it from active offers." onClick={onDelete} />
       </ListGroup>
       <FixedButton label={primaryLabel} onClick={onShare} />
@@ -2987,13 +3031,24 @@ function PublishScreen({
   )
 }
 
-function ShareGuide({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+function ShareGuide({
+  link,
+  onCopyLink,
+  onBack,
+  onDone,
+}: {
+  link?: string
+  onCopyLink?: () => void
+  onBack: () => void
+  onDone: () => void
+}) {
   const [step, setStep] = useState(0)
   const slides = [
     { title: 'Tap Share on any membership, product, or event', icon: 'share' as IconName },
     { title: 'We send a message with a button to your group or your DMs', icon: 'comment' as IconName },
     { title: 'Tapping it opens CommunityOS straight into the offer', icon: 'business' as IconName },
   ]
+  const isLast = step === slides.length - 1
   return (
     <main className="tg-story">
       <header className="tg-story-topbar">
@@ -3009,16 +3064,22 @@ function ShareGuide({ onBack, onDone }: { onBack: () => void; onDone: () => void
       <section className="tg-story-content simple">
         <StoryArt label={slides[step].title} icon={slides[step].icon} compact />
         <h1>{slides[step].title}</h1>
+        {isLast && link && <p className="tg-share-link-preview">{link}</p>}
       </section>
       <footer className="tg-story-footer">
+        {isLast && link && onCopyLink && (
+          <button className="tg-copy-link-button" type="button" onClick={onCopyLink}>
+            Copy link again
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {
-            if (step < slides.length - 1) setStep(step + 1)
+            if (!isLast) setStep(step + 1)
             else onDone()
           }}
         >
-          {step === slides.length - 1 ? 'Done' : 'Next'}
+          {isLast ? 'Done' : 'Next'}
         </button>
       </footer>
     </main>
@@ -4073,6 +4134,10 @@ function botGroupLink() {
 
 function membershipStartLink(communityId: number, planId: number | string) {
   return botUrl(`?startapp=co_${communityId}_plan_${planId}`)
+}
+
+function offerStartLink(communityId: number, kind: 'product' | 'event', itemId: number | string) {
+  return botUrl(`?startapp=co_${communityId}_${kind}_${itemId}`)
 }
 
 function referralStartLink(communityId: number, userId?: number) {
