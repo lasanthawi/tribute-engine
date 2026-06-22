@@ -1,5 +1,6 @@
 import { getCommunityMetrics } from './analytics'
 import { ensureCommunityAvatar } from './access-control'
+import { isPlatformAdmin } from './admin'
 import { signedAssetUrl } from './assets'
 import { sb, supabase } from './supabase'
 import { ensureUserAvatar } from './telegram-auth'
@@ -64,6 +65,7 @@ export async function getAccountOverview(userId: number): Promise<Omit<MeDto, 'i
 
   return {
     isFirstCommunityOSLogin: !user?.communityos_onboarded_at && owned.length === 0 && memberCommunities.length === 0,
+    isPlatformAdmin: await isPlatformAdmin(userId),
     onboardedAt: user?.communityos_onboarded_at ?? null,
     lastRevenueModel: user?.communityos_last_revenue_model ?? null,
     avatarUrl: await signedAssetUrl(avatarPath, 86400),

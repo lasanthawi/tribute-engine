@@ -10,3 +10,8 @@ export function starsToCents(stars: number): number {
 export function centsToStars(cents: number): number {
   return Math.round(cents / STAR_TO_CENTS)
 }
+
+export function formatUsdApprox(stars: number): string {
+  const dollars = starsToCents(stars) / 100
+  return `~$${dollars.toFixed(dollars < 10 ? 2 : 0)}`
+}

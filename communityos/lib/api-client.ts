@@ -27,6 +27,7 @@ export interface CommunitySummaryDto {
   status: string
   telegramInviteUrl?: string | null
   avatarUrl?: string | null
+  ownerUsername?: string | null
   settings?: { starsCheckoutEnabled: boolean; notificationsEnabled: boolean }
 }
 
@@ -307,6 +308,7 @@ export interface MeDto {
   username: string | null
   avatarUrl?: string | null
   isFirstCommunityOSLogin: boolean
+  isPlatformAdmin: boolean
   onboardedAt: string | null
   lastRevenueModel: string | null
   accountStats: {
