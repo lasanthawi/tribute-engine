@@ -76,7 +76,7 @@ export async function getAccountOverview(userId: number): Promise<Omit<MeDto, 'i
     onboardedAt: user?.communityos_onboarded_at ?? null,
     lastRevenueModel: user?.communityos_last_revenue_model ?? null,
     avatarUrl: await signedAssetUrl(avatarPath, 86400),
-    commissionRateBps: await getCommissionRateBps(),
+    commissionRateBps: await getCommissionRateBps().catch(() => 500),
     accountStats: {
       communities: owned.length,
       memberCommunities: memberCommunities.length,
