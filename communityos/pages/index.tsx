@@ -362,11 +362,52 @@ export default function Home() {
     go('start')
   }
 
+  // Cover/file/text state lives at the page level and is reused across every
+  // create/edit session, so it must be reset whenever a *new* item is started
+  // or an *existing* item is opened for viewing — otherwise a cover uploaded
+  // for one plan/product/event silently leaks into the next one's submission.
+  function resetMembershipForm() {
+    setMembershipTitle('Premium Circle')
+    setMembershipDescription('Get private Telegram access, weekly sessions, and member-only resources.')
+    setButtonText('Subscribe')
+    setMonthlyStars('299')
+    setYearlyStars('2990')
+    setCoverPath(null)
+    setCoverPreview(null)
+    setCoverName(null)
+  }
+
+  function resetProductForm() {
+    setProductTitle('Premium Download')
+    setProductDescription('A paid resource for your Telegram community.')
+    setProductType('download')
+    setProductPriceStars('199')
+    setProductButtonText('Buy')
+    setProductDeliveryType('url')
+    setProductDeliveryText('Access instructions will appear after purchase.')
+    setProductDeliveryUrl('')
+    setProductCover({ path: null, preview: null, name: null })
+    setProductFile({ path: null, name: null })
+  }
+
+  function resetEventForm() {
+    setEventTitle('Live Community Session')
+    setEventDescription('Join us live inside Telegram.')
+    setEventType('webinar')
+    setEventStartsAt(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16))
+    setEventPriceStars('0')
+    setEventAccessLink('')
+    setEventCover({ path: null, preview: null, name: null })
+  }
+
   function chooseRevenueModel(model: RevenueModel) {
     setPendingModel(model)
     setEditingPlanId(null)
     setEditingProductId(null)
     setEditingEventId(null)
+    if (model === 'membership') resetMembershipForm()
+    if (model === 'product') resetProductForm()
+    if (model === 'event') resetEventForm()
     api.completeOnboarding({ revenueModel: model }).catch(() => undefined)
     if (model === 'referral') {
       setReferralPresetTarget(null)
@@ -1547,6 +1588,7 @@ export default function Home() {
               onNavigate={go}
               onCreateMembership={() => {
                 setEditingPlanId(null)
+                resetMembershipForm()
                 go('createDetails')
               }}
               onShareCommunity={shareCommunity}
@@ -1558,18 +1600,23 @@ export default function Home() {
                 setEditingPlanId(null)
                 setMembershipTitle(plan.name)
                 setMembershipDescription(plan.description ?? '')
+                setCoverPath(null)
+                setCoverPreview(null)
+                setCoverName(null)
                 go('publish')
               }}
               onOpenProduct={(product) => {
                 setSelectedProduct(product)
                 setCreatedProduct(null)
                 setEditingProductId(null)
+                setProductCover({ path: null, preview: null, name: null })
                 go('productPublish')
               }}
               onOpenEvent={(event) => {
                 setSelectedEvent(event)
                 setCreatedEvent(null)
                 setEditingEventId(null)
+                setEventCover({ path: null, preview: null, name: null })
                 go('eventPublish')
               }}
             />
@@ -1614,10 +1661,12 @@ export default function Home() {
               onNavigate={go}
               onCreateEvent={() => {
                 setEditingEventId(null)
+                resetEventForm()
                 go('eventBuilder')
               }}
               onCreateProduct={() => {
                 setEditingProductId(null)
+                resetProductForm()
                 go('productBuilder')
               }}
               onOpenAiManager={() => go('aiManager')}
@@ -1652,6 +1701,7 @@ export default function Home() {
               deliveryUrl={productDeliveryUrl}
               cover={productCover}
               file={productFile}
+              isEditing={editingProductId != null}
               onTitle={setProductTitle}
               onDescription={setProductDescription}
               onType={setProductType}
@@ -1708,6 +1758,7 @@ export default function Home() {
               priceStars={eventPriceStars}
               accessLink={eventAccessLink}
               cover={eventCover}
+              isEditing={editingEventId != null}
               onTitle={setEventTitle}
               onDescription={setEventDescription}
               onType={setEventType}
@@ -1791,6 +1842,7 @@ export default function Home() {
               coverName={coverName}
               monthlyStars={monthlyStars}
               yearlyStars={yearlyStars}
+              isEditing={editingPlanId != null}
               onTitle={setMembershipTitle}
               onDescription={setMembershipDescription}
               onButtonText={setButtonText}
@@ -2814,6 +2866,7 @@ function ProductBuilderScreen({
   deliveryUrl,
   cover,
   file,
+  isEditing,
   onTitle,
   onDescription,
   onType,
@@ -2838,6 +2891,7 @@ function ProductBuilderScreen({
   deliveryUrl: string
   cover: { path: string | null; preview: string | null; name: string | null }
   file: { path: string | null; name: string | null }
+  isEditing?: boolean
   onTitle: (value: string) => void
   onDescription: (value: string) => void
   onType: (value: ProductDto['type']) => void
@@ -2855,7 +2909,7 @@ function ProductBuilderScreen({
   return (
     <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
       <div className="tg-form-title">
-        <h1>Create Product</h1>
+        <h1>{isEditing ? 'Edit Product' : 'Create Product'}</h1>
         <p>Sell a download, course, premium post, or consultation through Telegram Stars.</p>
         <button className="tg-text-button" type="button" onClick={onCancel}>Cancel</button>
       </div>
@@ -2897,7 +2951,7 @@ function ProductBuilderScreen({
         <input value={buttonText} onChange={(event) => onButtonText(event.target.value)} aria-label="Button text" />
       </div>
       <PreviewCard title={title} description={description} buttonText={buttonText || 'Buy'} coverUrl={cover.preview} />
-      <FixedButton label="Create Product" submit disabled={submitting} />
+      <FixedButton label={isEditing ? 'Save Changes' : 'Create Product'} submit disabled={submitting} />
     </form>
   )
 }
@@ -2910,6 +2964,7 @@ function EventBuilderScreen({
   priceStars,
   accessLink,
   cover,
+  isEditing,
   onTitle,
   onDescription,
   onType,
@@ -2928,6 +2983,7 @@ function EventBuilderScreen({
   priceStars: string
   accessLink: string
   cover: { path: string | null; preview: string | null; name: string | null }
+  isEditing?: boolean
   onTitle: (value: string) => void
   onDescription: (value: string) => void
   onType: (value: EventDto['type']) => void
@@ -2942,7 +2998,7 @@ function EventBuilderScreen({
   return (
     <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
       <div className="tg-form-title">
-        <h1>Create Event</h1>
+        <h1>{isEditing ? 'Edit Event' : 'Create Event'}</h1>
         <p>Sell tickets or collect registrations for webinars, AMAs, challenges, and meetups.</p>
         <button className="tg-text-button" type="button" onClick={onCancel}>Cancel</button>
       </div>
@@ -2976,7 +3032,7 @@ function EventBuilderScreen({
         {Number(priceStars) > 0 && <small className="tg-input-hint">≈ {formatUsdApprox(Number(priceStars))} for buyers</small>}
       </div>
       <PreviewCard title={title} description={description} buttonText={Number(priceStars) > 0 ? 'Get Ticket' : 'Register'} coverUrl={cover.preview} />
-      <FixedButton label="Create Event" submit disabled={submitting} />
+      <FixedButton label={isEditing ? 'Save Changes' : 'Create Event'} submit disabled={submitting} />
     </form>
   )
 }
@@ -3214,6 +3270,7 @@ function MembershipBuilderScreen({
   coverName,
   monthlyStars,
   yearlyStars,
+  isEditing,
   onTitle,
   onDescription,
   onButtonText,
@@ -3231,6 +3288,7 @@ function MembershipBuilderScreen({
   coverName: string | null
   monthlyStars: string
   yearlyStars: string
+  isEditing?: boolean
   onTitle: (value: string) => void
   onDescription: (value: string) => void
   onButtonText: (value: string) => void
@@ -3244,7 +3302,7 @@ function MembershipBuilderScreen({
   return (
     <form className="tg-screen with-fixed-button" onSubmit={onSubmit}>
       <div className="tg-form-title">
-        <h1>Create Membership</h1>
+        <h1>{isEditing ? 'Edit Membership' : 'Create Membership'}</h1>
         <p>Add clear details. New members will see this in Telegram before they subscribe.</p>
         <button className="tg-text-button" type="button" onClick={onCancel}>
           Cancel
@@ -3281,7 +3339,7 @@ function MembershipBuilderScreen({
         {Number(yearlyStars) > 0 && <small className="tg-input-hint">≈ {formatUsdApprox(Number(yearlyStars))}/year for subscribers</small>}
       </div>
       <PreviewCard title={title} description={description} buttonText={buttonText || 'Subscribe'} coverUrl={coverPreview} />
-      <FixedButton label="Create Membership" submit disabled={submitting} />
+      <FixedButton label={isEditing ? 'Save Changes' : 'Create Membership'} submit disabled={submitting} />
     </form>
   )
 }
