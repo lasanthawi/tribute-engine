@@ -1744,6 +1744,24 @@ function RevenueSnapshotRow({
   )
 }
 
+function QuickAccessRow({
+  items,
+}: {
+  items: { key: string; icon: IconName; label: string; badge?: number; onClick: () => void }[]
+}) {
+  return (
+    <div className="tg-quick-access-row">
+      {items.map((item) => (
+        <button key={item.key} className="tg-quick-access-chip" type="button" onClick={item.onClick}>
+          <RowIcon name={item.icon} />
+          <span>{item.label}</span>
+          {typeof item.badge === 'number' && item.badge > 0 && <strong>{item.badge}</strong>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function AccountHome({
   me,
   onSelectModel,
@@ -1765,6 +1783,8 @@ function AccountHome({
         <div className="tg-mini-stats">
           <span>{me.accountStats.balanceStars.toLocaleString()} XTR balance</span>
           <span>{me.accountStats.totalMembers} members</span>
+          <span>{me.accountStats.monthlyStars.toLocaleString()} XTR this month</span>
+          <span>{me.accountStats.accessIssues > 0 ? `${me.accountStats.accessIssues} access issue(s)` : 'Access all clear'}</span>
         </div>
       </div>
 
@@ -1789,6 +1809,24 @@ function AccountHome({
           { key: 'referral', icon: 'referral', label: 'Referrals', onClick: () => onSelectModel('referral') },
         ]}
       />
+
+      {me.communities.length > 1 && (
+        <>
+          <SectionLabel>Your Communities</SectionLabel>
+          <ListGroup>
+            {me.communities.map((community) => (
+              <ListRow
+                key={community.id}
+                avatar={initials(community.name)}
+                image={community.avatarUrl}
+                title={community.name}
+                detail={`${community.status === 'active' ? 'Active' : 'Setup'} community`}
+                onClick={() => onOpenCommunity(community.id)}
+              />
+            ))}
+          </ListGroup>
+        </>
+      )}
 
       <FixedButton label={me.communities.length ? 'Add Community' : 'Connect Telegram'} onClick={onAddCommunity} />
     </section>
@@ -1842,6 +1880,14 @@ function CommunityHome({
         ]}
       />
 
+      <QuickAccessRow
+        items={[
+          { key: 'access', icon: 'access', label: 'Access', badge: data.metrics.accessIssues, onClick: () => onNavigate('access') },
+          { key: 'growth', icon: 'growth', label: 'Growth', onClick: () => onNavigate('growth') },
+          { key: 'rewards', icon: 'rewards', label: 'Rewards', onClick: () => onNavigate('rewards') },
+        ]}
+      />
+
       <SectionLabel>Memberships</SectionLabel>
       <ListGroup>
         {data.plans.map((plan) => (
@@ -1892,6 +1938,19 @@ function CommunityHome({
         ))}
         {data.events.length === 0 && <ListRow tone="purple" icon="event" title="Create Event or AMA" detail="Sell tickets or collect registrations." onClick={() => onSelectModel('event')} />}
       </ListGroup>
+
+      <SectionLabel>Recent Activity</SectionLabel>
+      <ListGroup>
+        {data.activity.slice(0, 3).map((item) => (
+          <ListRow key={item.id} title={item.title} detail={dateShort(item.createdAt)} />
+        ))}
+        {data.activity.length === 0 && <EmptyBlock title="No activity yet" detail="Payments, joins, access changes, and reward grants will show here." />}
+      </ListGroup>
+      {data.activity.length > 0 && (
+        <button className="tg-text-button" type="button" onClick={() => onNavigate('more')}>
+          View all activity
+        </button>
+      )}
 
       <FixedButton label={data.plans.length ? 'Share' : 'Create Membership'} onClick={data.plans.length ? onShareCommunity : onCreateMembership} />
     </section>

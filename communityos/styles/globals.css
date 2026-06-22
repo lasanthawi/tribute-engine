@@ -55,10 +55,37 @@ a {
 }
 
 .tg-app {
+  position: relative;
+  isolation: isolate;
   width: min(100%, 620px);
   min-height: 100vh;
   margin: 0 auto;
   background: var(--tg-bg);
+}
+
+.tg-app::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: -1;
+  height: 72vh;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0.7px, transparent 1.4px) 8% 6% / 36px 36px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.8) 0.6px, transparent 1.3px) 55% 14% / 52px 52px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.9) 0.6px, transparent 1.3px) 80% 4% / 44px 44px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.7) 0.6px, transparent 1.3px) 30% 26% / 60px 60px,
+    linear-gradient(
+      180deg,
+      rgba(94, 92, 230, 0.32) 0%,
+      rgba(10, 132, 255, 0.24) 22%,
+      rgba(10, 132, 255, 0.12) 45%,
+      rgba(10, 132, 255, 0) 78%
+    );
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 28%, transparent 80%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 28%, transparent 80%);
 }
 
 .tg-topbar,
@@ -240,6 +267,8 @@ a {
   overflow: hidden;
   border-radius: 24px;
   background: var(--tg-card);
+  border: 1px solid rgba(10, 132, 255, 0.14);
+  box-shadow: 0 0 14px rgba(10, 132, 255, 0.14);
 }
 
 .tg-list-row {
@@ -475,6 +504,47 @@ a {
   gap: 10px;
 }
 
+.tg-quick-access-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.tg-quick-access-chip {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 7px;
+  padding: 10px 14px;
+  border: 1px solid rgba(10, 132, 255, 0.14);
+  border-radius: 999px;
+  background: white;
+  color: var(--tg-blue-dark);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(10, 132, 255, 0.12);
+}
+
+.tg-quick-access-chip svg {
+  width: 18px;
+  height: 18px;
+  color: var(--tg-blue);
+}
+
+.tg-quick-access-chip strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--tg-red);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .tg-revenue-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -489,11 +559,11 @@ a {
   gap: 10px;
   min-height: 104px;
   padding: 16px 6px;
-  border: 0;
+  border: 1px solid rgba(10, 132, 255, 0.14);
   border-radius: 18px;
   background: white;
   color: inherit;
-  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.06);
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.06), 0 0 14px rgba(10, 132, 255, 0.14);
 }
 
 .tg-revenue-icon {
@@ -533,11 +603,11 @@ a {
   gap: 8px;
   min-height: 78px;
   padding: 10px 4px;
-  border: 0;
+  border: 1px solid rgba(10, 132, 255, 0.14);
   border-radius: 16px;
   background: white;
   color: var(--tg-blue);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+  box-shadow: 0 0 14px rgba(10, 132, 255, 0.14);
 }
 
 .tg-action-tile strong {
@@ -666,6 +736,8 @@ a {
   background: white;
   padding: 22px;
   text-align: center;
+  border: 1px solid rgba(10, 132, 255, 0.14);
+  box-shadow: 0 0 16px rgba(10, 132, 255, 0.14);
 }
 
 .tg-callout {
