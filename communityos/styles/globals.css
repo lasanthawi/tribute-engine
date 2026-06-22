@@ -39,10 +39,54 @@ textarea {
 button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  transition: transform 140ms cubic-bezier(0.2, 0, 0, 1), opacity 140ms ease, background-color 140ms ease;
 }
 
 button:disabled {
   cursor: default;
+}
+
+/* Tap feedback across the Mini App: dim plain rows/links, scale-bounce
+   discrete tappable shapes (tiles/cards/chips/avatars/pills). Scoped to
+   .tg-app so the desktop admin shell is unaffected. */
+.tg-app button:not(:disabled):active {
+  opacity: 0.72;
+}
+
+.tg-app .tg-action-tile:not(:disabled):active,
+.tg-app .tg-revenue-card:not(:disabled):active,
+.tg-app .tg-quick-access-chip:not(:disabled):active,
+.tg-app .tg-header-edit-button:active,
+.tg-app .tg-member-actions button:not(:disabled):active,
+.tg-app .tg-nav-button:active {
+  transform: scale(0.93);
+  opacity: 1;
+}
+
+.tg-app .tg-list-row:not(:disabled):active,
+.tg-app .tg-member-row:active {
+  background: rgba(10, 132, 255, 0.07);
+  opacity: 1;
+}
+
+.tg-app .tg-fixed-button button:not(:disabled):active,
+.tg-app .tg-story-footer button:not(:disabled):active,
+.tg-app .tg-callout button:not(:disabled):active,
+.tg-app .tg-form-card button:not(:disabled):active,
+.tg-app .tg-soft-button:not(:disabled):active,
+.tg-app .tg-checkout-prompt button:not(:disabled):active {
+  transform: scale(0.97);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tg-app button,
+  .tg-screen,
+  .tg-loader,
+  .tg-button-spinner {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 a {
@@ -171,6 +215,18 @@ a {
   display: grid;
   gap: 14px;
   padding: 18px 22px 28px;
+  animation: tg-screen-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes tg-screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .tg-screen.with-fixed-button {
@@ -1270,6 +1326,18 @@ a {
   to {
     transform: rotate(360deg);
   }
+}
+
+.tg-button-spinner {
+  display: inline-block;
+  width: 17px;
+  height: 17px;
+  margin-right: 8px;
+  vertical-align: -3px;
+  border: 2.5px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: tg-spin 700ms linear infinite;
 }
 
 .tg-story {

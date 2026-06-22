@@ -485,6 +485,28 @@ export default function Home() {
           buttonText: body.buttonText,
           ...(coverPath ? { coverPath } : {}),
         })
+
+        // A single "Create Membership" submission with both a monthly and a
+        // yearly price creates two independent plan rows (see the yStars
+        // branch below), linked only by the "(Annual)" name suffix. Without
+        // this, editing one row's cover/description/buttonText silently
+        // leaves its sibling permanently out of sync.
+        const editedPlan = data.plans.find((p) => p.id === editingPlanId)
+        if (editedPlan) {
+          const baseName = editedPlan.name.replace(/ \(Annual\)$/, '')
+          const siblingName = editedPlan.name.endsWith(' (Annual)') ? baseName : `${baseName} (Annual)`
+          const sibling = data.plans.find((p) => p.id !== editingPlanId && p.name === siblingName)
+          if (sibling) {
+            await api
+              .updatePlan(communityId, sibling.id, {
+                description: body.description,
+                buttonText: body.buttonText,
+                ...(coverPath ? { coverPath } : {}),
+              })
+              .catch(() => undefined)
+          }
+        }
+
         const plan = { ...response.plan, name: body.name, description: body.description }
         setSelectedPlan(plan)
         setCreatedPlan(null)
@@ -2092,7 +2114,13 @@ function NextActionCard({
       </div>
       <h2>{title}</h2>
       <p>{detail}</p>
-      <button type="button" onClick={onClick}>
+      <button
+        type="button"
+        onClick={() => {
+          haptic('medium')
+          onClick()
+        }}
+      >
         {cta}
       </button>
     </section>
@@ -2107,7 +2135,15 @@ function RevenueSnapshotRow({
   return (
     <div className="tg-revenue-grid">
       {items.map((item) => (
-        <button key={item.key} className="tg-revenue-card" type="button" onClick={item.onClick}>
+        <button
+          key={item.key}
+          className="tg-revenue-card"
+          type="button"
+          onClick={() => {
+            haptic('light')
+            item.onClick()
+          }}
+        >
           <span className="tg-revenue-icon">
             <RowIcon name={item.icon} />
           </span>
@@ -2127,7 +2163,15 @@ function QuickAccessRow({
   return (
     <div className="tg-quick-access-row">
       {items.map((item) => (
-        <button key={item.key} className="tg-quick-access-chip" type="button" onClick={item.onClick}>
+        <button
+          key={item.key}
+          className="tg-quick-access-chip"
+          type="button"
+          onClick={() => {
+            haptic('light')
+            item.onClick()
+          }}
+        >
           <RowIcon name={item.icon} />
           <span>{item.label}</span>
           {typeof item.badge === 'number' && item.badge > 0 && <strong>{item.badge}</strong>}
@@ -2330,7 +2374,15 @@ function CommunityHeader({ data, onEdit }: { data: DashboardDto; onEdit?: () => 
     <section className="tg-community-header">
       <div className="tg-avatar-wrap">
         <AvatarMark className="tg-large-avatar" image={data.community.avatarUrl} label={data.community.name} />
-        <button className="tg-header-edit-button" type="button" onClick={onEdit} title="Edit profile">
+        <button
+          className="tg-header-edit-button"
+          type="button"
+          onClick={() => {
+            haptic('light')
+            onEdit?.()
+          }}
+          title="Edit profile"
+        >
           ✎
         </button>
       </div>
@@ -4296,7 +4348,14 @@ function ListRow({
 
   if (onClick) {
     return (
-      <button className="tg-list-row" type="button" onClick={onClick}>
+      <button
+        className="tg-list-row"
+        type="button"
+        onClick={() => {
+          haptic('light')
+          onClick()
+        }}
+      >
         {content}
       </button>
     )
@@ -4448,7 +4507,14 @@ function StoryArt({
 
 function ActionTile({ label, icon, onClick }: { label: string; icon: 'edit' | 'copy' | 'share' | 'more'; onClick: () => void }) {
   return (
-    <button className="tg-action-tile" type="button" onClick={onClick}>
+    <button
+      className="tg-action-tile"
+      type="button"
+      onClick={() => {
+        haptic('light')
+        onClick()
+      }}
+    >
       <span className="tg-action-icon" aria-hidden="true">
         <RowIcon name={icon} />
       </span>
@@ -4505,7 +4571,15 @@ function FixedButton({
 }) {
   return (
     <div className="tg-fixed-button">
-      <button type={submit ? 'submit' : 'button'} onClick={onClick} disabled={disabled}>
+      <button
+        type={submit ? 'submit' : 'button'}
+        onClick={() => {
+          haptic('medium')
+          onClick?.()
+        }}
+        disabled={disabled}
+      >
+        {disabled && <span className="tg-button-spinner" aria-hidden="true" />}
         {disabled ? 'Working…' : label}
       </button>
     </div>
