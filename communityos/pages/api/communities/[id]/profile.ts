@@ -15,13 +15,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!allowed) return res.status(403).json({ error: 'Forbidden' })
 
     if (req.method === 'PATCH' || req.method === 'PUT') {
-      const { name, handle, description, telegramInviteUrl, settings } = req.body ?? {}
+      const { name, handle, description, telegramInviteUrl, settings, status } = req.body ?? {}
       const updates: Record<string, any> = {}
 
       if (typeof name === 'string' && name.trim()) updates.name = name.trim()
       if (typeof handle === 'string') updates.handle = handle.trim() || null
       if (typeof description === 'string') updates.description = description.trim() || null
       if (typeof telegramInviteUrl === 'string') updates.telegram_invite_url = telegramInviteUrl.trim() || null
+      if (status === 'active' || status === 'paused' || status === 'archived') updates.status = status
       if (settings && typeof settings === 'object') {
         const current = await getCommunity(communityId)
         updates.settings = { ...(current?.settings ?? {}), ...settings }

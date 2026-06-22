@@ -1,5 +1,5 @@
 import { sb, supabase } from './supabase'
-import type { AiManagerDto, HealthSignalDto } from './api-client'
+import type { AiManagerDto, FaqEntryDto, HealthSignalDto, KnowledgeSourceDto, WeeklyReportDto } from './api-client'
 import { generateAiText } from './ai-providers'
 
 export async function getAiManager(communityId: number): Promise<AiManagerDto> {
@@ -98,4 +98,105 @@ export async function answerFaqQuestion(communityId: number, question: string): 
     : `You are a helpful assistant for a Telegram community. Answer the member's question as best you can, and say you are not sure if you do not know.\n\nQuestion: ${question}`
 
   return generateAiText(prompt, { communityId })
+}
+
+export async function listFaqEntries(communityId: number): Promise<FaqEntryDto[]> {
+  const { data, error } = await sb
+    .from('ai_faq_entries')
+    .select('*')
+    .eq('community_id', communityId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return ((data ?? []) as any[]).map((row) => ({
+    id: row.id,
+    question: row.question,
+    answer: row.answer,
+    status: row.status,
+  }))
+}
+
+export async function createFaqEntry(communityId: number, input: { question: string; answer: string }): Promise<FaqEntryDto> {
+  const { data, error } = await sb
+    .from('ai_faq_entries')
+    .insert({ community_id: communityId, question: input.question, answer: input.answer, status: 'active' })
+    .select('*')
+    .single()
+  if (error) throw error
+  return { id: data.id, question: data.question, answer: data.answer, status: data.status }
+}
+
+export async function deleteFaqEntry(communityId: number, faqId: number): Promise<void> {
+  const { error } = await sb.from('ai_faq_entries').delete().eq('community_id', communityId).eq('id', faqId)
+  if (error) throw error
+}
+
+export async function listKnowledgeSources(communityId: number): Promise<KnowledgeSourceDto[]> {
+  const { data, error } = await sb
+    .from('ai_knowledge_sources')
+    .select('*')
+    .eq('community_id', communityId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return ((data ?? []) as any[]).map((row) => ({
+    id: row.id,
+    title: row.title,
+    sourceType: row.source_type,
+    content: row.content,
+    status: row.status,
+  }))
+}
+
+export async function createKnowledgeSource(
+  communityId: number,
+  input: { title: string; sourceType?: string; content?: string }
+): Promise<KnowledgeSourceDto> {
+  const { data, error } = await sb
+    .from('ai_knowledge_sources')
+    .insert({
+      community_id: communityId,
+      title: input.title,
+      source_type: input.sourceType ?? 'note',
+      content: input.content ?? null,
+      status: 'active',
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return { id: data.id, title: data.title, sourceType: data.source_type, content: data.content, status: data.status }
+}
+
+export async function deleteKnowledgeSource(communityId: number, sourceId: number): Promise<void> {
+  const { error } = await sb.from('ai_knowledge_sources').delete().eq('community_id', communityId).eq('id', sourceId)
+  if (error) throw error
+}
+
+export async function listWeeklyReports(communityId: number, limit = 3): Promise<WeeklyReportDto[]> {
+  const { data, error } = await sb
+    .from('weekly_reports')
+    .select('*')
+    .eq('community_id', communityId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return ((data ?? []) as any[]).map((row) => ({
+    id: row.id,
+    status: row.status,
+    summary: row.summary,
+    createdAt: row.created_at,
+  }))
+}
+
+export async function countAiRequestsThisMonth(communityId: number): Promise<number> {
+  const startOfMonth = new Date()
+  startOfMonth.setUTCDate(1)
+  startOfMonth.setUTCHours(0, 0, 0, 0)
+  const { count, error } = await sb
+    .from('ai_request_logs')
+    .select('id', { count: 'exact', head: true })
+    .eq('community_id', communityId)
+    .gte('created_at', startOfMonth.toISOString())
+  if (error) throw error
+  return count ?? 0
 }

@@ -7,6 +7,9 @@ import {
   CommentAccessDto,
   DashboardDto,
   EventDto,
+  FaqEntryDto,
+  HealthSignalDto,
+  KnowledgeSourceDto,
   MeDto,
   MemberProfileDto,
   MemberRowDto,
@@ -19,6 +22,7 @@ import {
   ScheduledPostDto,
   SubscriptionDto,
   TelegramChatDto,
+  WeeklyReportDto,
   api,
   emptyDashboardForCommunity,
   money,
@@ -131,9 +135,22 @@ export default function Home() {
   const [rewardTitle, setRewardTitle] = useState('Founding Member Badge')
   const [rewardTriggerType, setRewardTriggerType] = useState<RewardTriggerType>('member_joined')
   const [rewardTriggerCount, setRewardTriggerCount] = useState('1')
+  const [catalogTitle, setCatalogTitle] = useState('Top Supporter Badge')
+  const [catalogType, setCatalogType] = useState<'badge' | 'certificate' | 'digital_product' | 'premium_access' | 'sponsor' | 'manual'>('badge')
+  const [catalogMinXp, setCatalogMinXp] = useState('')
   const [aiQuestion, setAiQuestion] = useState('')
   const [aiAnswer, setAiAnswer] = useState<string | null>(null)
   const [aiBusy, setAiBusy] = useState(false)
+  const [aiHistory, setAiHistory] = useState<{ question: string; answer: string }[]>([])
+  const [faqEntries, setFaqEntries] = useState<FaqEntryDto[] | null>(null)
+  const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSourceDto[] | null>(null)
+  const [weeklyReports, setWeeklyReports] = useState<WeeklyReportDto[] | null>(null)
+  const [aiUsageCount, setAiUsageCount] = useState<number | null>(null)
+  const [faqQuestion, setFaqQuestion] = useState('')
+  const [faqAnswer, setFaqAnswer] = useState('')
+  const [knowledgeTitle, setKnowledgeTitle] = useState('')
+  const [knowledgeContent, setKnowledgeContent] = useState('')
+  const [reportsOpen, setReportsOpen] = useState(false)
   const [productTitle, setProductTitle] = useState('Premium Download')
   const [productDescription, setProductDescription] = useState('A paid resource for your Telegram community.')
   const [productType, setProductType] = useState<ProductDto['type']>('download')
@@ -988,6 +1005,24 @@ export default function Home() {
     }
   }
 
+  async function toggleReferralCampaignStatus(campaign: ReferralCampaignDto) {
+    if (!data || !communityId) return
+    const nextStatus = campaign.status === 'paused' ? 'active' : 'paused'
+    const verb = nextStatus === 'paused' ? 'Pause' : 'Resume'
+    if (!window.confirm(`${verb} "${campaign.title}"?`)) return
+    try {
+      const { campaign: updated } = await api.updateReferralCampaign(communityId, campaign.id, nextStatus)
+      setData({
+        ...data,
+        referralCampaigns: data.referralCampaigns.map((row) => (row.id === updated.id ? updated : row)),
+      })
+      haptic('medium')
+      showToast(nextStatus === 'paused' ? 'Campaign paused' : 'Campaign resumed')
+    } catch (error: any) {
+      showToast(error.message || 'Campaign update failed')
+    }
+  }
+
   function openReferralRewardForPlan(plan: PlanDto | null) {
     if (!plan) {
       showToast('Save the membership first')
@@ -995,6 +1030,27 @@ export default function Home() {
     }
     setReferralPresetTarget({ type: 'plan', id: plan.id, label: plan.name })
     setCampaignTitle(`Invite 3 friends to ${plan.name}`)
+    setReferralMetric('joins')
+    go('referralBuilder')
+  }
+
+  function openReferralRewardForItem(targetType: 'product' | 'event', item: { id: number; name?: string; title?: string } | null) {
+    if (!item) {
+      showToast('Save it first')
+      return
+    }
+    const label = item.name ?? item.title ?? 'this item'
+    setReferralPresetTarget({ type: targetType, id: item.id, label })
+    setCampaignTitle(`Invite 3 friends to ${label}`)
+    setReferralMetric('joins')
+    go('referralBuilder')
+  }
+
+  function startReferralCampaign() {
+    setReferralPresetTarget(null)
+    setCampaignTitle('Invite 3 members')
+    setReferralThreshold('3')
+    setReferralReward('Unlock bonus content')
     setReferralMetric('joins')
     go('referralBuilder')
   }
@@ -1021,6 +1077,40 @@ export default function Home() {
     }
   }
 
+  async function toggleRewardRuleStatus(rule: RewardRuleDto) {
+    if (!data || !communityId) return
+    const nextStatus = rule.status === 'draft' ? 'active' : 'draft'
+    const verb = nextStatus === 'draft' ? 'Pause' : 'Resume'
+    if (!window.confirm(`${verb} "${rule.title}"?`)) return
+    try {
+      const { rule: updated } = await api.updateRewardRule(communityId, rule.id, nextStatus)
+      setData({ ...data, rewardRules: data.rewardRules.map((row) => (row.id === updated.id ? updated : row)) })
+      haptic('medium')
+      showToast(nextStatus === 'draft' ? 'Reward rule paused' : 'Reward rule resumed')
+    } catch (error: any) {
+      showToast(error.message || 'Reward rule update failed')
+    }
+  }
+
+  async function createCatalogReward(event: FormEvent) {
+    event.preventDefault()
+    if (!data || !communityId || !catalogTitle.trim()) return
+    const minXp = Number(catalogMinXp)
+    try {
+      const { reward } = await api.createReward(communityId, {
+        title: catalogTitle.trim(),
+        type: catalogType,
+        criteria: Number.isFinite(minXp) && minXp > 0 ? { min_xp: minXp } : {},
+      })
+      setData({ ...data, rewards: [reward, ...data.rewards] })
+      setCatalogTitle('')
+      setCatalogMinXp('')
+      showToast('Reward added to catalog')
+    } catch (error: any) {
+      showToast(error.message || 'Reward creation failed')
+    }
+  }
+
   async function generateAiReport() {
     if (!data || !communityId) return
     setAiBusy(true)
@@ -1038,10 +1128,13 @@ export default function Home() {
   async function askAiQuestion(event: FormEvent) {
     event.preventDefault()
     if (!communityId || !aiQuestion.trim()) return
+    const askedQuestion = aiQuestion.trim()
     setAiBusy(true)
     try {
-      const { answer } = await api.askAi(communityId, aiQuestion.trim())
+      const { answer } = await api.askAi(communityId, askedQuestion)
       setAiAnswer(answer)
+      setAiHistory((history) => [{ question: askedQuestion, answer }, ...history].slice(0, 5))
+      setAiUsageCount((count) => (count === null ? count : count + 1))
     } catch (error: any) {
       showToast(error.message || 'AI request failed')
     } finally {
@@ -1059,6 +1152,83 @@ export default function Home() {
     }
   }
 
+  async function loadAiManagerExtras() {
+    if (!communityId) return
+    try {
+      const [{ faqs }, { sources }, { reports }, { count }] = await Promise.all([
+        api.listFaqEntries(communityId),
+        api.listKnowledgeSources(communityId),
+        api.listWeeklyReports(communityId),
+        api.getAiUsage(communityId),
+      ])
+      setFaqEntries(faqs)
+      setKnowledgeSources(sources)
+      setWeeklyReports(reports)
+      setAiUsageCount(count)
+    } catch (error: any) {
+      showToast(error.message || 'Failed to load AI Manager details')
+    }
+  }
+
+  async function createFaqEntry(event: FormEvent) {
+    event.preventDefault()
+    if (!communityId || !faqQuestion.trim() || !faqAnswer.trim()) return
+    try {
+      const { faq } = await api.createFaqEntry(communityId, { question: faqQuestion.trim(), answer: faqAnswer.trim() })
+      setFaqEntries((entries) => [faq, ...(entries ?? [])])
+      setData((current) => (current ? { ...current, ai: { ...current.ai, faqCount: current.ai.faqCount + 1 } } : current))
+      setFaqQuestion('')
+      setFaqAnswer('')
+      showToast('FAQ entry added')
+    } catch (error: any) {
+      showToast(error.message || 'FAQ creation failed')
+    }
+  }
+
+  async function deleteFaqEntry(faq: FaqEntryDto) {
+    if (!communityId) return
+    if (!window.confirm(`Delete the FAQ entry "${faq.question}"?`)) return
+    try {
+      await api.deleteFaqEntry(communityId, faq.id)
+      setFaqEntries((entries) => (entries ?? []).filter((row) => row.id !== faq.id))
+      setData((current) => (current ? { ...current, ai: { ...current.ai, faqCount: Math.max(0, current.ai.faqCount - 1) } } : current))
+      haptic('medium')
+      showToast('FAQ entry deleted')
+    } catch (error: any) {
+      showToast(error.message || 'FAQ deletion failed')
+    }
+  }
+
+  async function createKnowledgeSource(event: FormEvent) {
+    event.preventDefault()
+    if (!communityId || !knowledgeTitle.trim()) return
+    try {
+      const { source } = await api.createKnowledgeSource(communityId, {
+        title: knowledgeTitle.trim(),
+        content: knowledgeContent.trim() || undefined,
+      })
+      setKnowledgeSources((sources) => [source, ...(sources ?? [])])
+      setKnowledgeTitle('')
+      setKnowledgeContent('')
+      showToast('Knowledge source added')
+    } catch (error: any) {
+      showToast(error.message || 'Knowledge source creation failed')
+    }
+  }
+
+  async function deleteKnowledgeSource(source: KnowledgeSourceDto) {
+    if (!communityId) return
+    if (!window.confirm(`Delete the knowledge source "${source.title}"?`)) return
+    try {
+      await api.deleteKnowledgeSource(communityId, source.id)
+      setKnowledgeSources((sources) => (sources ?? []).filter((row) => row.id !== source.id))
+      haptic('medium')
+      showToast('Knowledge source deleted')
+    } catch (error: any) {
+      showToast(error.message || 'Knowledge source deletion failed')
+    }
+  }
+
   async function updateCommunitySetting(partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) {
     if (!data || !communityId) return
     try {
@@ -1066,6 +1236,20 @@ export default function Home() {
       setData({ ...data, community: { ...data.community, settings: community.settings ?? data.community.settings } })
     } catch (error: any) {
       showToast(error.message || 'Settings update failed')
+    }
+  }
+
+  async function updateCommunityStatus(status: 'active' | 'paused' | 'archived') {
+    if (!data || !communityId) return
+    try {
+      const { community } = await api.updateCommunityProfile(communityId, { status })
+      setData({ ...data, community: { ...data.community, status: community.status ?? status } })
+      haptic('medium')
+      showToast(
+        status === 'active' ? 'Community reactivated' : status === 'paused' ? 'Community paused' : 'Community archived'
+      )
+    } catch (error: any) {
+      showToast(error.message || 'Status update failed')
     }
   }
 
@@ -1673,9 +1857,8 @@ export default function Home() {
           {screen === 'growth' && (
             <GrowthScreen
               data={data}
-              campaignTitle={campaignTitle}
-              onCampaignTitle={setCampaignTitle}
-              onCreateCampaign={createCampaign}
+              onStartCampaign={startReferralCampaign}
+              onToggleCampaignStatus={toggleReferralCampaignStatus}
             />
           )}
           {screen === 'rewards' && (
@@ -1688,6 +1871,14 @@ export default function Home() {
               triggerCount={rewardTriggerCount}
               onTriggerCount={setRewardTriggerCount}
               onCreateReward={createRewardRule}
+              onToggleRuleStatus={toggleRewardRuleStatus}
+              catalogTitle={catalogTitle}
+              onCatalogTitle={setCatalogTitle}
+              catalogType={catalogType}
+              onCatalogType={setCatalogType}
+              catalogMinXp={catalogMinXp}
+              onCatalogMinXp={setCatalogMinXp}
+              onCreateCatalogReward={createCatalogReward}
             />
           )}
           {screen === 'more' && (
@@ -1706,24 +1897,48 @@ export default function Home() {
                 resetProductForm()
                 go('productBuilder')
               }}
-              onOpenAiManager={() => go('aiManager')}
+              onOpenAiManager={() => {
+                go('aiManager')
+                loadAiManagerExtras()
+              }}
               onOpenSettings={() => go('settings')}
               onOpenCommunity={(id) => selectCommunity(id, 'home')}
               onOpenMemberCommunity={openMemberCommunity}
             />
           )}
-          {screen === 'settings' && <SettingsScreen data={data} onUpdateSetting={updateCommunitySetting} />}
+          {screen === 'settings' && (
+            <SettingsScreen data={data} onUpdateSetting={updateCommunitySetting} onUpdateStatus={updateCommunityStatus} />
+          )}
           {screen === 'monetization' && me && <MonetizationScreen me={me} />}
           {screen === 'aiManager' && (
             <AiManagerScreen
               data={data}
               question={aiQuestion}
               answer={aiAnswer}
+              history={aiHistory}
               busy={aiBusy}
               onQuestion={setAiQuestion}
               onAsk={askAiQuestion}
               onGenerateReport={generateAiReport}
               onUpdateSettings={updateAiSetting}
+              faqEntries={faqEntries}
+              knowledgeSources={knowledgeSources}
+              weeklyReports={weeklyReports}
+              usageCount={aiUsageCount}
+              reportsOpen={reportsOpen}
+              onToggleReportsOpen={() => setReportsOpen((open) => !open)}
+              faqQuestion={faqQuestion}
+              onFaqQuestion={setFaqQuestion}
+              faqAnswer={faqAnswer}
+              onFaqAnswer={setFaqAnswer}
+              onCreateFaq={createFaqEntry}
+              onDeleteFaq={deleteFaqEntry}
+              knowledgeTitle={knowledgeTitle}
+              onKnowledgeTitle={setKnowledgeTitle}
+              knowledgeContent={knowledgeContent}
+              onKnowledgeContent={setKnowledgeContent}
+              onCreateKnowledge={createKnowledgeSource}
+              onDeleteKnowledge={deleteKnowledgeSource}
             />
           )}
           {screen === 'productBuilder' && (
@@ -1784,6 +1999,7 @@ export default function Home() {
               }}
               onDelete={deleteProductOffer}
               onMore={() => setActionSheet('product')}
+              onReferralReward={() => openReferralRewardForItem('product', activeProduct)}
             />
           )}
           {screen === 'eventBuilder' && (
@@ -1835,6 +2051,7 @@ export default function Home() {
               }}
               onDelete={deleteEventOffer}
               onMore={() => setActionSheet('event')}
+              onReferralReward={() => openReferralRewardForItem('event', activeEvent)}
             />
           )}
           {screen === 'referralBuilder' && (
@@ -2530,14 +2747,12 @@ function AccessScreen({
 
 function GrowthScreen({
   data,
-  campaignTitle,
-  onCampaignTitle,
-  onCreateCampaign,
+  onStartCampaign,
+  onToggleCampaignStatus,
 }: {
   data: DashboardDto
-  campaignTitle: string
-  onCampaignTitle: (value: string) => void
-  onCreateCampaign: (event: FormEvent) => void
+  onStartCampaign: () => void
+  onToggleCampaignStatus: (campaign: ReferralCampaignDto) => void
 }) {
   function targetLabel(campaign: ReferralCampaignDto) {
     if (!campaign.targetType || !campaign.targetId) return null
@@ -2545,17 +2760,26 @@ function GrowthScreen({
     const item = (source as ({ id: number } & Record<string, any>)[]).find((row) => row.id === campaign.targetId)
     return item ? item.name ?? item.title ?? null : null
   }
+  function campaignDetail(campaign: ReferralCampaignDto, prefix?: string | null) {
+    const status = campaign.status === 'paused' ? ' · Paused' : ''
+    const lead = prefix ? `${prefix} · ` : ''
+    return `${lead}${campaign.clicks} clicks, ${campaign.joins} joins, ${campaign.purchases} purchases${status}`
+  }
   const itemCampaigns = data.referralCampaigns.filter((campaign) => campaign.targetType && campaign.targetId)
   const communityCampaigns = data.referralCampaigns.filter((campaign) => !campaign.targetType || !campaign.targetId)
+  const topReferrers = [...data.referrals].sort((a, b) => b.revenueCents - a.revenueCents).slice(0, 10)
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">Growth</h1>
-      <form className="tg-form-card" onSubmit={onCreateCampaign}>
-        <SectionLabel>Create Referral Campaign</SectionLabel>
-        <input value={campaignTitle} onChange={(event) => onCampaignTitle(event.target.value)} />
-        <p>Invite 3 friends, unlock bonus content.</p>
-        <button type="submit">Create Campaign</button>
-      </form>
+      <ListGroup>
+        <ListRow
+          tone="green"
+          icon="referral"
+          title="Create Referral Campaign"
+          detail="Launch a reward loop for invites, joins, or purchases"
+          onClick={onStartCampaign}
+        />
+      </ListGroup>
       {itemCampaigns.length > 0 && (
         <>
           <SectionLabel>For specific items</SectionLabel>
@@ -2566,8 +2790,9 @@ function GrowthScreen({
                 tone="green"
                 icon="referral"
                 title={campaign.title}
-                detail={`${targetLabel(campaign) ?? 'Item'} · ${campaign.clicks} clicks, ${campaign.joins} joins, ${campaign.purchases} purchases`}
+                detail={campaignDetail(campaign, targetLabel(campaign) ?? 'Item')}
                 meta={money(campaign.revenueCents)}
+                onClick={() => onToggleCampaignStatus(campaign)}
               />
             ))}
           </ListGroup>
@@ -2581,11 +2806,26 @@ function GrowthScreen({
             tone="green"
             icon="referral"
             title={campaign.title}
-            detail={`${campaign.clicks} clicks, ${campaign.joins} joins, ${campaign.purchases} purchases`}
+            detail={campaignDetail(campaign)}
             meta={money(campaign.revenueCents)}
+            onClick={() => onToggleCampaignStatus(campaign)}
           />
         ))}
         {communityCampaigns.length === 0 && <EmptyBlock title="No campaigns yet" detail="Create a reward loop for invites, joins, and purchases." />}
+      </ListGroup>
+      <SectionLabel>Top Referrers</SectionLabel>
+      <ListGroup>
+        {topReferrers.map((referral) => (
+          <ListRow
+            key={referral.id}
+            tone="green"
+            icon="referral"
+            title={referral.referrer}
+            detail={`${referral.joins} joins · ${referral.purchases} purchases`}
+            meta={money(referral.revenueCents)}
+          />
+        ))}
+        {topReferrers.length === 0 && <EmptyBlock title="No referrals yet" detail="Once members start inviting others, the leaderboard shows up here." />}
       </ListGroup>
     </section>
   )
@@ -2609,6 +2849,14 @@ function RewardsScreen({
   triggerCount,
   onTriggerCount,
   onCreateReward,
+  onToggleRuleStatus,
+  catalogTitle,
+  onCatalogTitle,
+  catalogType,
+  onCatalogType,
+  catalogMinXp,
+  onCatalogMinXp,
+  onCreateCatalogReward,
 }: {
   data: DashboardDto
   rewardTitle: string
@@ -2618,42 +2866,123 @@ function RewardsScreen({
   triggerCount: string
   onTriggerCount: (value: string) => void
   onCreateReward: (event: FormEvent) => void
+  onToggleRuleStatus: (rule: RewardRuleDto) => void
+  catalogTitle: string
+  onCatalogTitle: (value: string) => void
+  catalogType: 'badge' | 'certificate' | 'digital_product' | 'premium_access' | 'sponsor' | 'manual'
+  onCatalogType: (value: 'badge' | 'certificate' | 'digital_product' | 'premium_access' | 'sponsor' | 'manual') => void
+  catalogMinXp: string
+  onCatalogMinXp: (value: string) => void
+  onCreateCatalogReward: (event: FormEvent) => void
 }) {
+  const leaderboard = [...data.members].sort((a, b) => b.xp - a.xp).slice(0, 10)
+  const topMember = leaderboard[0]
+  const topProgress = topMember ? Math.min(100, Math.round((topMember.xp % 1200) / 12)) : 0
+  const triggerLabel = REWARD_TRIGGER_OPTIONS.find((option) => option.value === triggerType)?.label ?? 'this action'
+  const safeTriggerCount = Math.max(1, Math.round(Number(triggerCount) || 1))
+
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">Rewards</h1>
-      <form className="tg-form-card" onSubmit={onCreateReward}>
-        <SectionLabel>Create Reward Rule</SectionLabel>
-        <input value={rewardTitle} onChange={(event) => onRewardTitle(event.target.value)} aria-label="Reward rule title" />
-        <label>
-          <span>Trigger</span>
-          <select value={triggerType} onChange={(event) => onTriggerType(event.target.value as RewardTriggerType)}>
-            {REWARD_TRIGGER_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {triggerType !== 'manual' && (
+
+      <SectionLabel>Leaderboard</SectionLabel>
+      {topMember && (
+        <section className="tg-progress-card">
+          <div>
+            <strong>@{topMember.username} · {topMember.xp} XP</strong>
+            <span>{topProgress}% to next level</span>
+          </div>
+          <div className="tg-progress"><span style={{ width: `${topProgress}%` }} /></div>
+        </section>
+      )}
+      <ListGroup>
+        {leaderboard.map((member) => (
+          <ListRow
+            key={member.id}
+            tone="amber"
+            icon="rewards"
+            title={`@${member.username}`}
+            detail={`Level ${member.level} · ${member.referralCount} referrals`}
+            meta={`${member.xp} XP`}
+          />
+        ))}
+        {leaderboard.length === 0 && <EmptyBlock title="No members yet" detail="XP and levels show up here once members start engaging." />}
+      </ListGroup>
+
+      <SectionLabel>Reward Catalog</SectionLabel>
+      <form className="tg-form-card" onSubmit={onCreateCatalogReward}>
+        <div className="tg-input-group">
+          <input value={catalogTitle} onChange={(event) => onCatalogTitle(event.target.value)} aria-label="Reward title" placeholder="Reward title" />
           <label>
-            <span>After how many times</span>
-            <input
-              type="number"
-              min={1}
-              value={triggerCount}
-              onChange={(event) => onTriggerCount(event.target.value)}
-              aria-label="Trigger count"
-            />
+            <span>Type</span>
+            <select value={catalogType} onChange={(event) => onCatalogType(event.target.value as typeof catalogType)}>
+              <option value="badge">Badge</option>
+              <option value="certificate">Certificate</option>
+              <option value="digital_product">Digital product</option>
+              <option value="premium_access">Premium access</option>
+              <option value="sponsor">Sponsor perk</option>
+              <option value="manual">Manual unlock</option>
+            </select>
           </label>
-        )}
-        <p>Grant XP, points, levels, badges, or perks when members complete an action.</p>
-        <button type="submit">Create Reward</button>
+          <label>
+            <span>Minimum XP to unlock (optional)</span>
+            <input type="number" min={0} value={catalogMinXp} onChange={(event) => onCatalogMinXp(event.target.value)} inputMode="numeric" />
+          </label>
+        </div>
+        <button type="submit" onClick={() => haptic('medium')}>Add to Catalog</button>
       </form>
-      <SectionLabel>Rules</SectionLabel>
+      <ListGroup>
+        {data.rewards.map((reward) => (
+          <ListRow key={reward.id} tone="purple" icon="rewards" title={reward.title} detail={reward.type.replace(/_/g, ' ')} />
+        ))}
+        {data.rewards.length === 0 && <EmptyBlock title="No catalog rewards yet" detail="Add badges, certificates, or perks members can unlock." />}
+      </ListGroup>
+
+      <SectionLabel>Create Reward Rule</SectionLabel>
+      <form className="tg-form-card" onSubmit={onCreateReward}>
+        <div className="tg-input-group">
+          <input value={rewardTitle} onChange={(event) => onRewardTitle(event.target.value)} aria-label="Reward rule title" placeholder="Reward rule title" />
+          <label>
+            <span>Trigger</span>
+            <select value={triggerType} onChange={(event) => onTriggerType(event.target.value as RewardTriggerType)}>
+              {REWARD_TRIGGER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {triggerType !== 'manual' && (
+            <label>
+              <span>After how many times</span>
+              <input
+                type="number"
+                min={1}
+                value={triggerCount}
+                onChange={(event) => onTriggerCount(event.target.value)}
+                aria-label="Trigger count"
+              />
+            </label>
+          )}
+        </div>
+        <section className="tg-callout">
+          <span>MEMBER JOURNEY</span>
+          <h2>{triggerType === 'manual' ? 'Manual unlock' : `${triggerLabel} (every ${safeTriggerCount}x)`}</h2>
+          <p>Members who do this will earn +150 XP.</p>
+        </section>
+        <button type="submit" onClick={() => haptic('medium')}>Create Rule</button>
+      </form>
       <ListGroup>
         {data.rewardRules.map((rule) => (
-          <ListRow key={rule.id} tone="amber" icon="rewards" title={rule.title} detail={`${rule.trigger}. ${rule.reward}`} meta={rule.status} />
+          <ListRow
+            key={rule.id}
+            tone="amber"
+            icon="rewards"
+            title={rule.title}
+            detail={`${rule.trigger}. ${rule.reward}`}
+            meta={rule.status === 'draft' ? 'Paused' : 'Active'}
+            onClick={() => onToggleRuleStatus(rule)}
+          />
         ))}
         {data.rewardRules.length === 0 && <EmptyBlock title="No reward rules yet" detail="Create an XP or badge rule to keep members engaged." />}
       </ListGroup>
@@ -2840,14 +3169,33 @@ function MonetizationScreen({ me }: { me: MeDto }) {
 function SettingsScreen({
   data,
   onUpdateSetting,
+  onUpdateStatus,
 }: {
   data: DashboardDto
   onUpdateSetting: (partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) => void
+  onUpdateStatus: (status: 'active' | 'paused' | 'archived') => void
 }) {
   const settings = data.community.settings ?? { starsCheckoutEnabled: true, notificationsEnabled: true }
+  const status = data.community.status
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">Settings</h1>
+      {status !== 'active' && (
+        <section className="tg-callout">
+          <span>{status === 'archived' ? 'ARCHIVED' : 'PAUSED'}</span>
+          <h2>{status === 'archived' ? 'This community is archived' : 'This community is paused'}</h2>
+          <p>Members can&apos;t access new content until you reactivate it.</p>
+          <button
+            type="button"
+            onClick={() => {
+              haptic('medium')
+              if (window.confirm('Reactivate this community? Members will regain access immediately.')) onUpdateStatus('active')
+            }}
+          >
+            Reactivate community
+          </button>
+        </section>
+      )}
       <SectionLabel>Bot connection</SectionLabel>
       <ListGroup>
         {data.chats.map((chat) => <ChatRow key={chat.id} chat={chat} image={data.community.avatarUrl} />)}
@@ -2872,41 +3220,154 @@ function SettingsScreen({
           onClick={() => onUpdateSetting({ notificationsEnabled: !settings.notificationsEnabled })}
         />
       </ListGroup>
+      {status === 'active' && (
+        <>
+          <SectionLabel>Danger zone</SectionLabel>
+          <ListGroup>
+            <ListRow
+              tone="amber"
+              icon="settings"
+              title="Pause community"
+              detail="Temporarily block new member access. You can reactivate anytime."
+              onClick={() => {
+                if (window.confirm('Pause this community? Members will lose access to new content until you reactivate it.')) {
+                  onUpdateStatus('paused')
+                }
+              }}
+            />
+            <ListRow
+              tone="red"
+              icon="delete"
+              title="Archive community"
+              detail="Hide this community and stop all member access."
+              onClick={() => {
+                if (
+                  window.confirm(
+                    'Archive this community? This stops all member access and hides it from your account. This is hard to undo — only continue if you are sure.'
+                  )
+                ) {
+                  onUpdateStatus('archived')
+                }
+              }}
+            />
+          </ListGroup>
+        </>
+      )}
     </section>
   )
+}
+
+function signalTone(tone: HealthSignalDto['tone']): 'blue' | 'red' | 'purple' | 'green' | 'amber' {
+  if (tone === 'ok') return 'green'
+  if (tone === 'warn') return 'amber'
+  if (tone === 'danger') return 'red'
+  return 'blue'
 }
 
 function AiManagerScreen({
   data,
   question,
   answer,
+  history,
   busy,
   onQuestion,
   onAsk,
   onGenerateReport,
   onUpdateSettings,
+  faqEntries,
+  knowledgeSources,
+  weeklyReports,
+  usageCount,
+  reportsOpen,
+  onToggleReportsOpen,
+  faqQuestion,
+  onFaqQuestion,
+  faqAnswer,
+  onFaqAnswer,
+  onCreateFaq,
+  onDeleteFaq,
+  knowledgeTitle,
+  onKnowledgeTitle,
+  knowledgeContent,
+  onKnowledgeContent,
+  onCreateKnowledge,
+  onDeleteKnowledge,
 }: {
   data: DashboardDto
   question: string
   answer: string | null
+  history: { question: string; answer: string }[]
   busy: boolean
   onQuestion: (value: string) => void
   onAsk: (event: FormEvent) => void
   onGenerateReport: () => void
   onUpdateSettings: (partial: Partial<DashboardDto['ai']['settings']>) => void
+  faqEntries: FaqEntryDto[] | null
+  knowledgeSources: KnowledgeSourceDto[] | null
+  weeklyReports: WeeklyReportDto[] | null
+  usageCount: number | null
+  reportsOpen: boolean
+  onToggleReportsOpen: () => void
+  faqQuestion: string
+  onFaqQuestion: (value: string) => void
+  faqAnswer: string
+  onFaqAnswer: (value: string) => void
+  onCreateFaq: (event: FormEvent) => void
+  onDeleteFaq: (faq: FaqEntryDto) => void
+  knowledgeTitle: string
+  onKnowledgeTitle: (value: string) => void
+  knowledgeContent: string
+  onKnowledgeContent: (value: string) => void
+  onCreateKnowledge: (event: FormEvent) => void
+  onDeleteKnowledge: (source: KnowledgeSourceDto) => void
 }) {
   const { settings } = data.ai
   return (
     <section className="tg-screen">
       <h1 className="tg-left-title">AI Community Manager</h1>
 
+      {data.ai.suggestions.length > 0 && (
+        <>
+          <SectionLabel>Suggestions</SectionLabel>
+          <ListGroup>
+            {data.ai.suggestions.map((signal) => (
+              <ListRow key={signal.id} tone={signalTone(signal.tone)} icon="ai" title={signal.title} detail={signal.detail} />
+            ))}
+          </ListGroup>
+        </>
+      )}
+
       <SectionLabel>Weekly Report</SectionLabel>
       <div className="tg-form-card">
         <p>Status: {data.ai.weeklyReportStatus}</p>
-        <button type="button" onClick={onGenerateReport} disabled={busy}>
+        <button type="button" onClick={() => { haptic('medium'); onGenerateReport() }} disabled={busy}>
           {busy ? 'Working…' : 'Generate Report'}
         </button>
       </div>
+      <ListGroup>
+        <ListRow
+          tone="blue"
+          icon="growth"
+          title="AI usage this month"
+          detail="Calls made through the AI gateway"
+          meta={usageCount === null ? '…' : String(usageCount)}
+        />
+        <ListRow
+          tone="purple"
+          icon="ai"
+          title="Report history"
+          detail={`${weeklyReports?.length ?? 0} past reports`}
+          meta={weeklyReports && weeklyReports.length > 0 ? (reportsOpen ? 'Hide' : 'View') : undefined}
+          onClick={weeklyReports && weeklyReports.length > 0 ? onToggleReportsOpen : undefined}
+        />
+      </ListGroup>
+      {reportsOpen && weeklyReports && weeklyReports.length > 0 && (
+        <ListGroup>
+          {weeklyReports.map((report) => (
+            <ListRow key={report.id} tone="blue" icon="ai" title={dateShort(report.createdAt)} detail={report.summary ?? 'No summary'} meta={report.status} />
+          ))}
+        </ListGroup>
+      )}
 
       <SectionLabel>Ask AI</SectionLabel>
       <form className="tg-form-card" onSubmit={onAsk}>
@@ -2920,6 +3381,76 @@ function AiManagerScreen({
         </button>
         {answer && <p>{answer}</p>}
       </form>
+      {history.length > 0 && (
+        <ListGroup>
+          {history.map((entry, index) => (
+            <ListRow key={index} tone="blue" icon="ai" title={entry.question} detail={entry.answer} />
+          ))}
+        </ListGroup>
+      )}
+
+      <SectionLabel>FAQ</SectionLabel>
+      <form className="tg-form-card" onSubmit={onCreateFaq}>
+        <div className="tg-input-group">
+          <input
+            value={faqQuestion}
+            onChange={(event) => onFaqQuestion(event.target.value)}
+            placeholder="Question members ask"
+            aria-label="FAQ question"
+          />
+          <textarea
+            value={faqAnswer}
+            onChange={(event) => onFaqAnswer(event.target.value)}
+            placeholder="Answer"
+            aria-label="FAQ answer"
+          />
+        </div>
+        <button type="submit" onClick={() => haptic('medium')}>Add FAQ</button>
+      </form>
+      <ListGroup>
+        {(faqEntries ?? []).map((faq) => (
+          <ListRow key={faq.id} tone="red" icon="delete" title={faq.question} detail={faq.answer} onClick={() => onDeleteFaq(faq)} />
+        ))}
+        {faqEntries !== null && faqEntries.length === 0 && (
+          <EmptyBlock title="No FAQ entries yet" detail="Add answers to the questions members ask most." />
+        )}
+        {faqEntries === null && <EmptyBlock title="Loading…" detail="Fetching your FAQ entries." />}
+      </ListGroup>
+
+      <SectionLabel>Knowledge Sources</SectionLabel>
+      <form className="tg-form-card" onSubmit={onCreateKnowledge}>
+        <div className="tg-input-group">
+          <input
+            value={knowledgeTitle}
+            onChange={(event) => onKnowledgeTitle(event.target.value)}
+            placeholder="Source title"
+            aria-label="Knowledge source title"
+          />
+          <textarea
+            value={knowledgeContent}
+            onChange={(event) => onKnowledgeContent(event.target.value)}
+            placeholder="Notes or context the AI can reference"
+            aria-label="Knowledge source content"
+          />
+        </div>
+        <button type="submit" onClick={() => haptic('medium')}>Add Source</button>
+      </form>
+      <ListGroup>
+        {(knowledgeSources ?? []).map((source) => (
+          <ListRow
+            key={source.id}
+            tone="red"
+            icon="delete"
+            title={source.title}
+            detail={source.content ?? source.sourceType}
+            onClick={() => onDeleteKnowledge(source)}
+          />
+        ))}
+        {knowledgeSources !== null && knowledgeSources.length === 0 && (
+          <EmptyBlock title="No knowledge sources yet" detail="Add context the AI can use when answering questions." />
+        )}
+        {knowledgeSources === null && <EmptyBlock title="Loading…" detail="Fetching your knowledge sources." />}
+      </ListGroup>
 
       <SectionLabel>Settings</SectionLabel>
       <ListGroup>
@@ -3304,6 +3835,7 @@ function RevenuePublishScreen({
   onGuide,
   onDelete,
   onMore,
+  onReferralReward,
 }: {
   kind: 'product' | 'event'
   title: string
@@ -3316,6 +3848,7 @@ function RevenuePublishScreen({
   onGuide: () => void
   onDelete: () => void
   onMore: () => void
+  onReferralReward?: () => void
 }) {
   return (
     <section className="tg-screen with-fixed-button">
@@ -3336,6 +3869,9 @@ function RevenuePublishScreen({
       <ListGroup>
         <ListRow tone="green" icon="share" title="Telegram Card" detail="Share sends a bot message with a Web App button." onClick={onShare} />
         <ListRow tone="blue" icon="business" title="How Sharing Works" detail="See what recipients see when they tap your link." onClick={onGuide} />
+        {onReferralReward && (
+          <ListRow tone="green" icon="referral" title="Referral Reward" detail="Reward members who invite friends to this offer." onClick={onReferralReward} />
+        )}
         <ListRow tone="red" icon="delete" title={`Delete ${kind === 'product' ? 'Product' : 'Event'}`} detail="Remove it from active offers." onClick={onDelete} />
       </ListGroup>
       <FixedButton label={primaryLabel} onClick={onShare} />

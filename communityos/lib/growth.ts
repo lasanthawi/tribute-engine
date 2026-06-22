@@ -89,6 +89,36 @@ export async function createReferralCampaign(communityId: number, input: CreateC
   }
 }
 
+export async function updateReferralCampaign(
+  communityId: number,
+  campaignId: number,
+  updates: { status: 'draft' | 'active' | 'paused' }
+): Promise<ReferralCampaignDto> {
+  const { data, error } = await sb
+    .from('referral_campaigns')
+    .update({ status: updates.status })
+    .eq('community_id', communityId)
+    .eq('id', campaignId)
+    .select('*')
+    .single()
+  if (error) throw error
+  const reward = decodeReward(data.reward)
+  return {
+    id: data.id,
+    title: data.title,
+    reward: reward.label,
+    metric: reward.metric as ReferralCampaignDto['metric'],
+    threshold: reward.threshold,
+    status: data.status,
+    clicks: data.clicks,
+    joins: data.joins,
+    purchases: data.purchases,
+    revenueCents: data.revenue_cents,
+    targetType: data.target_type ?? null,
+    targetId: data.target_id ?? null,
+  }
+}
+
 export async function getReferralCampaignProgress(communityId: number, userId: number) {
   const campaigns = await listReferralCampaigns(communityId)
   const { data: referrals } = await sb

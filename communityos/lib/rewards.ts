@@ -124,6 +124,30 @@ export async function listRewardRules(communityId: number): Promise<RewardRuleDt
   }))
 }
 
+export async function updateRewardRule(
+  communityId: number,
+  ruleId: number,
+  updates: { status: 'active' | 'draft' }
+): Promise<RewardRuleDto> {
+  const { data, error } = await sb
+    .from('xp_rules')
+    .update({ status: updates.status })
+    .eq('community_id', communityId)
+    .eq('id', ruleId)
+    .select('*')
+    .single()
+  if (error) throw error
+  return {
+    id: data.id,
+    title: data.title,
+    trigger: triggerLabel(data.trigger_type, data.trigger_count),
+    triggerType: data.trigger_type,
+    triggerCount: data.trigger_count,
+    reward: `+${data.xp_reward} XP`,
+    status: data.status === 'draft' ? 'draft' : 'active',
+  }
+}
+
 export async function createRewardRule(communityId: number, input: CreateRewardRuleInput): Promise<RewardRuleDto> {
   const triggerType = input.triggerType ?? 'manual'
   const triggerCount = Math.max(1, Math.round(input.triggerCount ?? 1))

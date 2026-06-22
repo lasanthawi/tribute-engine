@@ -205,6 +205,28 @@ export interface AiManagerDto {
   }
 }
 
+export interface FaqEntryDto {
+  id: number
+  question: string
+  answer: string
+  status: 'active' | 'archived'
+}
+
+export interface KnowledgeSourceDto {
+  id: number
+  title: string
+  sourceType: string
+  content: string | null
+  status: 'active' | 'archived'
+}
+
+export interface WeeklyReportDto {
+  id: number
+  status: string
+  summary: string | null
+  createdAt: string
+}
+
 export interface EventDto {
   id: number
   title: string
@@ -559,6 +581,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  updateReferralCampaign: (communityId: number | string, campaignId: number, status: 'draft' | 'active' | 'paused') =>
+    request<{ campaign: ReferralCampaignDto }>(`/api/communities/${communityId}/referral-campaigns`, {
+      method: 'PATCH',
+      body: JSON.stringify({ campaignId, status }),
+    }),
   createRewardRule: (
     communityId: number | string,
     body: { title: string; triggerType: RewardTriggerType; triggerCount?: number; xpReward?: number; status?: 'draft' | 'active' }
@@ -566,6 +593,24 @@ export const api = {
     request<{ rule: RewardRuleDto }>(`/api/communities/${communityId}/rewards`, {
       method: 'POST',
       body: JSON.stringify({ action: 'create_rule', ...body }),
+    }),
+  updateRewardRule: (communityId: number | string, ruleId: number, status: 'active' | 'draft') =>
+    request<{ rule: RewardRuleDto }>(`/api/communities/${communityId}/rewards`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'update_rule', ruleId, status }),
+    }),
+  createReward: (
+    communityId: number | string,
+    body: {
+      title: string
+      type?: 'badge' | 'certificate' | 'digital_product' | 'premium_access' | 'sponsor' | 'manual'
+      description?: string
+      criteria?: Record<string, unknown>
+    }
+  ) =>
+    request<{ reward: RewardDto }>(`/api/communities/${communityId}/rewards`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'create_reward', ...body }),
     }),
   generateAiReport: (communityId: number | string) =>
     request<{ ok: boolean; report: { status: 'ready'; summary: string } }>(`/api/communities/${communityId}/ai`, {
@@ -584,6 +629,46 @@ export const api = {
     request<{ ok: boolean; settings: AiManagerDto['settings'] }>(`/api/communities/${communityId}/ai`, {
       method: 'POST',
       body: JSON.stringify({ action: 'update_settings', ...body }),
+    }),
+  listFaqEntries: (communityId: number | string) =>
+    request<{ faqs: FaqEntryDto[] }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'list_faq' }),
+    }),
+  createFaqEntry: (communityId: number | string, body: { question: string; answer: string }) =>
+    request<{ faq: FaqEntryDto }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'create_faq', ...body }),
+    }),
+  deleteFaqEntry: (communityId: number | string, faqId: number) =>
+    request<{ ok: boolean }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete_faq', faqId }),
+    }),
+  listKnowledgeSources: (communityId: number | string) =>
+    request<{ sources: KnowledgeSourceDto[] }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'list_knowledge' }),
+    }),
+  createKnowledgeSource: (communityId: number | string, body: { title: string; sourceType?: string; content?: string }) =>
+    request<{ source: KnowledgeSourceDto }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'create_knowledge', ...body }),
+    }),
+  deleteKnowledgeSource: (communityId: number | string, sourceId: number) =>
+    request<{ ok: boolean }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete_knowledge', sourceId }),
+    }),
+  listWeeklyReports: (communityId: number | string) =>
+    request<{ reports: WeeklyReportDto[] }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'list_reports' }),
+    }),
+  getAiUsage: (communityId: number | string) =>
+    request<{ count: number }>(`/api/communities/${communityId}/ai`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'usage' }),
     }),
   uploadAsset: (
     communityId: number | string,
@@ -677,6 +762,7 @@ export const api = {
       description?: string | null
       telegramInviteUrl?: string | null
       settings?: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>
+      status?: 'active' | 'paused' | 'archived'
     }
   ) =>
     request<{ community: CommunitySummaryDto }>(`/api/communities/${communityId}/profile`, {

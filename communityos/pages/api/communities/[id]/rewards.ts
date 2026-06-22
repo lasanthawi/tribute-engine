@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
-import { claimReward, createReward, createRewardRule, listRewards } from '@/lib/rewards'
+import { claimReward, createReward, createRewardRule, listRewards, updateRewardRule } from '@/lib/rewards'
 import type { RewardTriggerType } from '@/lib/api-client'
 
 const TRIGGER_TYPES: RewardTriggerType[] = [
@@ -69,6 +69,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           status: status === 'draft' ? 'draft' : 'active',
         })
         return res.status(201).json({ rule })
+      }
+
+      if (action === 'update_rule') {
+        const { ruleId, status } = req.body ?? {}
+        if (!Number.isFinite(Number(ruleId))) return res.status(400).json({ error: 'ruleId is required' })
+        if (status !== 'active' && status !== 'draft') return res.status(400).json({ error: 'Invalid status' })
+        const rule = await updateRewardRule(communityId, Number(ruleId), { status })
+        return res.status(200).json({ rule })
       }
 
       const { title, description, type, criteria } = req.body ?? {}

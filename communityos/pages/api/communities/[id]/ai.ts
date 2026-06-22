@@ -1,6 +1,19 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
-import { answerFaqQuestion, generateWeeklyReport, getAiManager, updateAiSettings } from '@/lib/ai'
+import {
+  answerFaqQuestion,
+  countAiRequestsThisMonth,
+  createFaqEntry,
+  createKnowledgeSource,
+  deleteFaqEntry,
+  deleteKnowledgeSource,
+  generateWeeklyReport,
+  getAiManager,
+  listFaqEntries,
+  listKnowledgeSources,
+  listWeeklyReports,
+  updateAiSettings,
+} from '@/lib/ai'
 import { requireCommunityOwner } from '@/lib/communities'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -37,6 +50,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
         const ai = await getAiManager(communityId)
         return res.status(200).json({ ok: true, settings: ai.settings })
+      }
+
+      if (action === 'list_faq') {
+        return res.status(200).json({ faqs: await listFaqEntries(communityId) })
+      }
+
+      if (action === 'create_faq') {
+        const question = typeof body.question === 'string' ? body.question.trim() : ''
+        const answer = typeof body.answer === 'string' ? body.answer.trim() : ''
+        if (!question || !answer) return res.status(400).json({ error: 'question and answer are required' })
+        const faq = await createFaqEntry(communityId, { question, answer })
+        return res.status(201).json({ faq })
+      }
+
+      if (action === 'delete_faq') {
+        const faqId = Number(body.faqId)
+        if (!Number.isFinite(faqId)) return res.status(400).json({ error: 'faqId is required' })
+        await deleteFaqEntry(communityId, faqId)
+        return res.status(200).json({ ok: true })
+      }
+
+      if (action === 'list_knowledge') {
+        return res.status(200).json({ sources: await listKnowledgeSources(communityId) })
+      }
+
+      if (action === 'create_knowledge') {
+        const title = typeof body.title === 'string' ? body.title.trim() : ''
+        if (!title) return res.status(400).json({ error: 'title is required' })
+        const source = await createKnowledgeSource(communityId, {
+          title,
+          sourceType: typeof body.sourceType === 'string' ? body.sourceType : undefined,
+          content: typeof body.content === 'string' ? body.content : undefined,
+        })
+        return res.status(201).json({ source })
+      }
+
+      if (action === 'delete_knowledge') {
+        const sourceId = Number(body.sourceId)
+        if (!Number.isFinite(sourceId)) return res.status(400).json({ error: 'sourceId is required' })
+        await deleteKnowledgeSource(communityId, sourceId)
+        return res.status(200).json({ ok: true })
+      }
+
+      if (action === 'list_reports') {
+        return res.status(200).json({ reports: await listWeeklyReports(communityId, 3) })
+      }
+
+      if (action === 'usage') {
+        return res.status(200).json({ count: await countAiRequestsThisMonth(communityId) })
       }
 
       const report = await generateWeeklyReport(communityId)
