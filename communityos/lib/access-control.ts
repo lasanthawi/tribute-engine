@@ -251,7 +251,11 @@ export async function findCommunityForChat(telegramChatId: string): Promise<numb
 }
 
 // When the bot is added as admin to a group, find or create a community to link it to.
-// If the user has exactly one unlinked community, use that. If none, create one.
+// If the user has exactly one community, attach this chat to it (regardless of how many
+// other chats it already has — telegram_chats is the multi-chat source of truth, the
+// caller upserts the new chat row there). If the user has none, create one. If the user
+// has more than one, it's ambiguous which one this chat belongs to, so the owner must
+// connect it manually from the app.
 export async function autoLinkChatToCommunity(
   telegramUserId: number,
   telegramChatId: string,
@@ -264,13 +268,12 @@ export async function autoLinkChatToCommunity(
     .maybeSingle()
   if (!user) return null
 
-  const { data: unlinked } = await supabase
+  const { data: owned } = await supabase
     .from('communities')
-    .select('id')
+    .select('id, telegram_chat_id')
     .eq('owner_id', user.id)
-    .is('telegram_chat_id', null)
 
-  if (!unlinked || unlinked.length === 0) {
+  if (!owned || owned.length === 0) {
     // No existing community — auto-create a fully initialised one (includes community_members owner row)
     const community = await createCommunity(user.id, {
       name: chatTitle || 'My Community',
@@ -279,19 +282,20 @@ export async function autoLinkChatToCommunity(
     return community.id
   }
 
-  if (unlinked.length > 1) {
-    // Multiple unlinked communities — can't auto-pick, admin must connect manually
+  if (owned.length > 1) {
+    // Multiple communities — can't auto-pick which one this chat belongs to, admin must connect manually
     return null
   }
 
-  // Exactly one unlinked community — link it
-  const communityId = unlinked[0].id
-  await supabase
-    .from('communities')
-    .update({ telegram_chat_id: Number(telegramChatId) })
-    .eq('id', communityId)
+  // Exactly one community — attach this chat to it. Only backfill the legacy single-chat
+  // column if it's still empty; once a second chat is linked, telegram_chats is the only
+  // accurate record, so we must not keep overwriting the legacy column with the latest chat id.
+  const community = owned[0]
+  if (community.telegram_chat_id === null) {
+    await supabase.from('communities').update({ telegram_chat_id: Number(telegramChatId) }).eq('id', community.id)
+  }
 
-  return communityId
+  return community.id
 }
 
 export async function listAccessLogs(communityId: number): Promise<AccessLogRow[]> {

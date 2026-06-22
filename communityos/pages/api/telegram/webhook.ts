@@ -158,7 +158,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               mcm.chat.id,
               '*CommunityOS connected* ✅\n\nAccess control is active. Paying members will receive invite links automatically.',
               'Markdown'
-            )
+            ).catch((error) => console.error('sendTelegramMessage (connected confirmation) failed:', error))
             await syncCommunityAvatar(communityId, mcm.chat.id).catch((error) => console.error('syncCommunityAvatar failed:', error))
             await syncDiscussionChat(communityId, telegramChatId).catch((error) => console.error('syncDiscussionChat failed:', error))
           }
