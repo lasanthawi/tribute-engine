@@ -315,6 +315,7 @@ export interface MeDto {
   isPlatformAdmin: boolean
   onboardedAt: string | null
   lastRevenueModel: string | null
+  commissionRateBps: number
   accountStats: {
     communities: number
     memberCommunities: number
@@ -712,6 +713,13 @@ export const api = {
       request<{ ok: boolean; logId?: number; error?: string }>('/api/admin/issues', {
         method: 'POST',
         body: JSON.stringify({ action: 'resolve', logId }),
+      }),
+    getSettings: () =>
+      request<{ commissionRateBps: number; totalCommissionStars: number; totalCommissionCents: number }>('/api/admin/settings'),
+    updateCommissionRate: (commissionRateBps: number) =>
+      request<{ commissionRateBps: number }>('/api/admin/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ commissionRateBps }),
       }),
   },
 }

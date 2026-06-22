@@ -2,6 +2,7 @@ import { getCommunityMetrics, type CommunityMetrics } from './analytics'
 import { ensureCommunityAvatar } from './access-control'
 import { isPlatformAdmin } from './admin'
 import { signedAssetUrl } from './assets'
+import { getCommissionRateBps } from './platform-settings'
 import { sb, supabase } from './supabase'
 import { ensureUserAvatar } from './telegram-auth'
 import type { CommunitySummaryDto, MeDto } from './api-client'
@@ -75,6 +76,7 @@ export async function getAccountOverview(userId: number): Promise<Omit<MeDto, 'i
     onboardedAt: user?.communityos_onboarded_at ?? null,
     lastRevenueModel: user?.communityos_last_revenue_model ?? null,
     avatarUrl: await signedAssetUrl(avatarPath, 86400),
+    commissionRateBps: await getCommissionRateBps(),
     accountStats: {
       communities: owned.length,
       memberCommunities: memberCommunities.length,

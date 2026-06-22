@@ -5,6 +5,7 @@ import { signedAssetUrl } from './assets'
 import { ensureMember } from './communities'
 import { createOrUpdateSubscription, createSubscriptionPeriod } from './memberships'
 import { STAR_TO_CENTS, starsToCents } from './star-rate'
+import { getCommissionRateBps, splitCommission } from './platform-settings'
 import type { PurchaseDto } from './api-client'
 
 export { STAR_TO_CENTS, starsToCents }
@@ -378,15 +379,33 @@ export async function recordSuccessfulPayment(input: SuccessfulPaymentInput) {
     })
   }
 
+  const commissionRateBps = await getCommissionRateBps()
+  const { commissionStars, netStars } = splitCommission(input.stars, commissionRateBps)
+  const commissionCents = starsToCents(commissionStars)
+  const netCents = amountCents - commissionCents
+
   await sb.from('community_balance_ledger').insert({
     community_id: communityId,
     user_id: input.buyerUserId,
     purchase_id: purchase?.id ?? null,
     entry_type: planId ? 'membership_payment' : eventId ? 'event_payment' : productId ? 'product_payment' : 'stars_payment',
-    stars_delta: input.stars,
-    cents_delta: amountCents,
+    stars_delta: netStars,
+    cents_delta: netCents,
     status: 'available',
+    metadata: { grossStars: input.stars, grossCents: amountCents, commissionStars, commissionRateBps },
   })
+
+  if (commissionStars > 0) {
+    await sb.from('platform_commission_ledger').insert({
+      community_id: communityId,
+      purchase_id: purchase?.id ?? null,
+      user_id: input.buyerUserId,
+      gross_stars: input.stars,
+      commission_stars: commissionStars,
+      commission_rate_bps: commissionRateBps,
+      commission_cents: commissionCents,
+    })
+  }
 
   if (eventId) {
     const member = (await ensureMember(communityId, input.buyerUserId, { accessStatus: 'pending', source: 'event_payment' })) as any
