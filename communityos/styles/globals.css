@@ -151,6 +151,7 @@ a {
   min-height: 30px;
   padding: calc(6px + var(--safe-top)) 14px 4px;
   background: transparent;
+  border-bottom: 1px solid var(--tg-separator);
 }
 
 .tg-topbar.centered {
@@ -177,8 +178,9 @@ a {
   height: 30px;
   border: 0;
   border-radius: 50%;
-  background: rgba(120, 120, 128, 0.12);
-  color: var(--tg-blue);
+  background: rgba(20, 24, 38, 0.55);
+  backdrop-filter: blur(6px);
+  color: #ffffff;
 }
 
 .tg-topbar-icon-button svg {
