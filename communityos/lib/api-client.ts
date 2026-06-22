@@ -29,6 +29,10 @@ export interface CommunitySummaryDto {
   avatarUrl?: string | null
   ownerUsername?: string | null
   settings?: { starsCheckoutEnabled: boolean; notificationsEnabled: boolean }
+  members?: number
+  monthlyStars?: number
+  accessIssues?: number
+  healthScore?: number
 }
 
 export interface SetupStepDto {

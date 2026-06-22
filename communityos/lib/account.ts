@@ -1,4 +1,4 @@
-import { getCommunityMetrics } from './analytics'
+import { getCommunityMetrics, type CommunityMetrics } from './analytics'
 import { ensureCommunityAvatar } from './access-control'
 import { isPlatformAdmin } from './admin'
 import { signedAssetUrl } from './assets'
@@ -7,7 +7,7 @@ import { ensureUserAvatar } from './telegram-auth'
 import type { CommunitySummaryDto, MeDto } from './api-client'
 import type { CommunityRow } from './supabase'
 
-async function toSummary(row: CommunityRow): Promise<CommunitySummaryDto> {
+async function toSummary(row: CommunityRow, metrics?: CommunityMetrics | null): Promise<CommunitySummaryDto> {
   const avatarPath = await ensureCommunityAvatar(row)
   return {
     id: row.id,
@@ -16,6 +16,12 @@ async function toSummary(row: CommunityRow): Promise<CommunitySummaryDto> {
     description: row.description,
     status: row.status,
     avatarUrl: await signedAssetUrl(avatarPath, 86400),
+    ...(metrics && {
+      members: metrics.members,
+      monthlyStars: metrics.monthlyStars,
+      accessIssues: metrics.accessIssues,
+      healthScore: metrics.healthScore,
+    }),
   }
 }
 
@@ -78,8 +84,8 @@ export async function getAccountOverview(userId: number): Promise<Omit<MeDto, 'i
       balanceStars,
       accessIssues,
     },
-    communities: await Promise.all(owned.map(toSummary)),
-    memberCommunities: await Promise.all(memberCommunities.map(toSummary)),
+    communities: await Promise.all(owned.map((community, i) => toSummary(community, ownedMetrics[i]))),
+    memberCommunities: await Promise.all(memberCommunities.map((community) => toSummary(community))),
   }
 }
 

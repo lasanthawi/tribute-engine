@@ -1176,7 +1176,6 @@ export default function Home() {
             {screen === 'account' && me && (
               <AccountHome
                 me={me}
-                onSelectModel={chooseRevenueModel}
                 onOpenCommunity={(id) => selectCommunity(id, 'home')}
                 onAddCommunity={handleAddCommunity}
               />
@@ -1308,7 +1307,6 @@ export default function Home() {
           {screen === 'account' && me && (
             <AccountHome
               me={me}
-              onSelectModel={chooseRevenueModel}
               onOpenCommunity={(id) => selectCommunity(id, 'home')}
               onAddCommunity={handleAddCommunity}
             />
@@ -1764,12 +1762,10 @@ function QuickAccessRow({
 
 function AccountHome({
   me,
-  onSelectModel,
   onOpenCommunity,
   onAddCommunity,
 }: {
   me: MeDto
-  onSelectModel: (model: RevenueModel) => void
   onOpenCommunity: (id: number) => void
   onAddCommunity: () => void
 }) {
@@ -1801,16 +1797,7 @@ function AccountHome({
         />
       )}
 
-      <RevenueSnapshotRow
-        items={[
-          { key: 'membership', icon: 'membership', label: 'Memberships', onClick: () => onSelectModel('membership') },
-          { key: 'product', icon: 'product', label: 'Products', onClick: () => onSelectModel('product') },
-          { key: 'event', icon: 'event', label: 'Events', onClick: () => onSelectModel('event') },
-          { key: 'referral', icon: 'referral', label: 'Referrals', onClick: () => onSelectModel('referral') },
-        ]}
-      />
-
-      {me.communities.length > 1 && (
+      {me.communities.length > 0 && (
         <>
           <SectionLabel>Your Communities</SectionLabel>
           <ListGroup>
@@ -1820,7 +1807,8 @@ function AccountHome({
                 avatar={initials(community.name)}
                 image={community.avatarUrl}
                 title={community.name}
-                detail={`${community.status === 'active' ? 'Active' : 'Setup'} community`}
+                detail={`${(community.members ?? 0).toLocaleString()} members · ${(community.monthlyStars ?? 0).toLocaleString()} XTR this month`}
+                meta={community.accessIssues ? `${community.accessIssues} issue${community.accessIssues > 1 ? 's' : ''}` : `${community.healthScore ?? 0}% health`}
                 onClick={() => onOpenCommunity(community.id)}
               />
             ))}
@@ -1960,10 +1948,12 @@ function CommunityHome({
 function CommunityHeader({ data, onEdit }: { data: DashboardDto; onEdit?: () => void }) {
   return (
     <section className="tg-community-header">
-      <button className="tg-header-edit-button" type="button" onClick={onEdit} title="Edit profile">
-        ✎
-      </button>
-      <AvatarMark className="tg-large-avatar" image={data.community.avatarUrl} label={data.community.name} />
+      <div className="tg-avatar-wrap">
+        <AvatarMark className="tg-large-avatar" image={data.community.avatarUrl} label={data.community.name} />
+        <button className="tg-header-edit-button" type="button" onClick={onEdit} title="Edit profile">
+          ✎
+        </button>
+      </div>
       <h1>{data.community.name}</h1>
       <p>{data.metrics.members} members</p>
       <div className="tg-mini-stats">
