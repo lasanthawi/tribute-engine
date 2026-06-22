@@ -54,6 +54,7 @@ type Screen =
   | 'offerWizard'
   | 'aiManager'
   | 'settings'
+  | 'monetization'
 
 const introSlides = [
   {
@@ -79,6 +80,11 @@ function xtrLabel(stars: number): string {
 
 function xtrLabelOrFree(stars: number): string {
   return stars > 0 ? xtrLabel(stars) : 'Free'
+}
+
+function formatCommissionRate(bps: number): string {
+  const percent = bps / 100
+  return `${percent % 1 === 0 ? percent.toFixed(0) : percent.toFixed(1)}%`
 }
 
 function paymentStatusMessage(status: string, itemTitle: string): string {
@@ -1128,6 +1134,21 @@ export default function Home() {
     }
   }
 
+  async function claimReward(rewardId: number) {
+    if (!communityId) return
+    try {
+      const result = await api.claimReward(communityId, rewardId)
+      if (!result.ok) {
+        showToast((result as any).reason || 'Reward not available yet')
+        return
+      }
+      await refreshMemberDashboard()
+      showToast('Reward claimed')
+    } catch (error: any) {
+      showToast(error.message || 'Could not claim reward')
+    }
+  }
+
   // Error — show appropriate message based on error type
   if (authError) {
     const isNotInTelegram = authError === 'not_in_telegram'
@@ -1191,7 +1212,7 @@ export default function Home() {
         ) : (
           <AppFrame
             hideBack={screen === 'start' || screen === 'account'}
-            onBack={() => { if (screen === 'communities' || screen === 'more') go('account') }}
+            onBack={() => { if (screen === 'communities' || screen === 'more') go('account'); if (screen === 'monetization') go('more') }}
             rightLabel={screen === 'account' ? 'More' : undefined}
             onRightAction={screen === 'account' ? () => go('more') : undefined}
           >
@@ -1216,11 +1237,13 @@ export default function Home() {
               <MoreScreen
                 me={me}
                 onToast={showToast}
+                onNavigate={go}
                 onOpenCommunity={(id) => selectCommunity(id, 'home')}
                 onOpenMemberCommunity={openMemberCommunity}
               />
             )}
-            {screen !== 'account' && screen !== 'start' && screen !== 'communities' && screen !== 'more' && (
+            {screen === 'monetization' && me && <MonetizationScreen me={me} />}
+            {screen !== 'account' && screen !== 'start' && screen !== 'communities' && screen !== 'more' && screen !== 'monetization' && (
               <div className="tg-loading">
                 <div className="tg-loader" />
                 <p>Loading CommunityOS</p>
@@ -1275,6 +1298,7 @@ export default function Home() {
             onBuyProduct={buyProduct}
             onEvent={registerOrBuyEvent}
             onCancelSubscription={cancelSubscription}
+            onClaimReward={claimReward}
             onToast={showToast}
           />
         </AppFrame>
@@ -1324,6 +1348,7 @@ export default function Home() {
               offerWizard: 'home',
               aiManager: 'more',
               settings: 'more',
+              monetization: 'more',
             }
             go(previous[screen])
           }}
@@ -1402,15 +1427,19 @@ export default function Home() {
           {screen === 'more' && (
             <MoreScreen
               data={data}
+              me={me ?? undefined}
               onToast={showToast}
               onNavigate={go}
               onCreateEvent={() => go('eventBuilder')}
               onCreateProduct={() => go('productBuilder')}
               onOpenAiManager={() => go('aiManager')}
               onOpenSettings={() => go('settings')}
+              onOpenCommunity={(id) => selectCommunity(id, 'home')}
+              onOpenMemberCommunity={openMemberCommunity}
             />
           )}
           {screen === 'settings' && <SettingsScreen data={data} onUpdateSetting={updateCommunitySetting} />}
+          {screen === 'monetization' && me && <MonetizationScreen me={me} />}
           {screen === 'aiManager' && (
             <AiManagerScreen
               data={data}
@@ -1713,6 +1742,18 @@ function CommunityPicker({
   )
 }
 
+function activityIcon(eventType: string): { icon: IconName; tone: 'blue' | 'red' | 'purple' | 'green' | 'amber' } {
+  if (eventType.includes('product')) return { icon: 'product', tone: 'red' }
+  if (eventType.includes('plan') || eventType.includes('subscription')) return { icon: 'membership', tone: 'blue' }
+  if (eventType.includes('event')) return { icon: 'event', tone: 'purple' }
+  if (eventType.includes('reward')) return { icon: 'rewards', tone: 'amber' }
+  if (eventType.includes('access')) return { icon: 'access', tone: 'green' }
+  if (eventType.includes('member') || eventType.includes('join')) return { icon: 'member', tone: 'green' }
+  if (eventType.includes('shared')) return { icon: 'share', tone: 'blue' }
+  if (eventType.includes('purchase') || eventType.includes('unlocked')) return { icon: 'stars', tone: 'amber' }
+  return { icon: 'growth', tone: 'blue' }
+}
+
 function nextActionIcon(target: NextAction['target']): IconName {
   switch (target) {
     case 'access':
@@ -1970,9 +2011,10 @@ function CommunityHome({
 
       <SectionLabel>Recent Activity</SectionLabel>
       <ListGroup>
-        {data.activity.slice(0, 3).map((item) => (
-          <ListRow key={item.id} title={item.title} detail={dateShort(item.createdAt)} />
-        ))}
+        {data.activity.slice(0, 3).map((item) => {
+          const { icon, tone } = activityIcon(item.eventType)
+          return <ListRow key={item.id} tone={tone} icon={icon} title={item.title} detail={dateShort(item.createdAt)} />
+        })}
         {data.activity.length === 0 && <EmptyBlock title="No activity yet" detail="Payments, joins, access changes, and reward grants will show here." />}
       </ListGroup>
       {data.activity.length > 0 && (
@@ -2261,16 +2303,17 @@ function MoreScreen({
 
           <SectionLabel>Recent Activity</SectionLabel>
           <ListGroup>
-            {data.activity.slice(0, 4).map((item) => (
-              <ListRow key={item.id} title={item.title} detail={dateShort(item.createdAt)} />
-            ))}
+            {data.activity.slice(0, 4).map((item) => {
+              const { icon, tone } = activityIcon(item.eventType)
+              return <ListRow key={item.id} tone={tone} icon={icon} title={item.title} detail={dateShort(item.createdAt)} />
+            })}
             {data.activity.length === 0 && <EmptyBlock title="No activity yet" detail="Payments, joins, access changes, and reward grants will show here." />}
           </ListGroup>
 
           <SectionLabel>Events</SectionLabel>
           <ListGroup>
             {data.events.map((event) => (
-              <ListRow key={event.id} title={event.title} detail={`${event.type} on ${dateShort(event.startsAt)}`} meta={xtrLabelOrFree(event.priceStars ?? 0)} />
+              <ListRow key={event.id} tone="purple" icon="event" title={event.title} detail={`${event.type} on ${dateShort(event.startsAt)}`} meta={xtrLabelOrFree(event.priceStars ?? 0)} />
             ))}
             {data.events.length === 0 && <EmptyBlock title="No events yet" detail="Create webinars, AMAs, meetups, or challenges." />}
           </ListGroup>
@@ -2278,7 +2321,7 @@ function MoreScreen({
           <SectionLabel>Products</SectionLabel>
           <ListGroup>
             {data.products.map((product) => (
-              <ListRow key={product.id} title={product.title} detail={`${product.type.replace('_', ' ')}. ${product.purchases} purchases`} meta={xtrLabel(product.priceStars)} />
+              <ListRow key={product.id} tone="red" icon="product" title={product.title} detail={`${product.type.replace('_', ' ')}. ${product.purchases} purchases`} meta={xtrLabel(product.priceStars)} />
             ))}
             {data.products.length === 0 && <EmptyBlock title="No products yet" detail="Sell courses, downloads, premium content, and consultations." />}
           </ListGroup>
@@ -2291,6 +2334,14 @@ function MoreScreen({
           <ListGroup>
             <ListRow tone="blue" icon="stars" title="Stars Revenue" detail={`${me.accountStats.monthlyStars.toLocaleString()} XTR collected`} meta={`${me.accountStats.activeSubscriptions} subs`} />
             <ListRow tone={me.accountStats.accessIssues > 0 ? 'amber' : 'green'} icon="access" title="Access Health" detail={`${me.accountStats.accessIssues} access issue(s)`} />
+            <ListRow
+              tone="amber"
+              icon="stars"
+              title="Monetization & Payouts"
+              detail="How revenue, commission, and payouts work"
+              meta={`${formatCommissionRate(me.commissionRateBps)} fee`}
+              onClick={() => onNavigate?.('monetization')}
+            />
           </ListGroup>
 
           <SectionLabel>Your Communities</SectionLabel>
@@ -2330,10 +2381,54 @@ function MoreScreen({
 
       <SectionLabel>Developer tools</SectionLabel>
       <ListGroup>
-        <ListRow title="Restart intro" detail="Replay the onboarding walkthrough" onClick={() => router.push('/')} />
-        {data && <ListRow title="Member preview" detail="See this community the way a member does" onClick={() => router.push(`/member/${data.community.id}`)} />}
-        {me?.isPlatformAdmin && <ListRow title="Platform admin" detail="Open the CommunityOS admin dashboard" onClick={() => router.push('/admin')} />}
+        <ListRow tone="blue" icon="bot" title="Restart intro" detail="Replay the onboarding walkthrough" onClick={() => router.push('/')} />
+        {data && (
+          <ListRow tone="green" icon="member" title="Member preview" detail="See this community the way a member does" onClick={() => router.push(`/member/${data.community.id}`)} />
+        )}
+        {me?.isPlatformAdmin && (
+          <ListRow tone="purple" icon="settings" title="Platform admin" detail="Open the CommunityOS admin dashboard" onClick={() => router.push('/admin')} />
+        )}
       </ListGroup>
+    </section>
+  )
+}
+
+function MonetizationScreen({ me }: { me: MeDto }) {
+  const rateLabel = formatCommissionRate(me.commissionRateBps)
+  const exampleGross = 1000
+  const exampleCommission = Math.round((exampleGross * me.commissionRateBps) / 10000)
+  const exampleNet = exampleGross - exampleCommission
+
+  return (
+    <section className="tg-screen">
+      <h1 className="tg-left-title">Monetization & Payouts</h1>
+
+      <SectionLabel>How you earn</SectionLabel>
+      <ListGroup>
+        <ListRow tone="blue" icon="membership" title="Memberships" detail="Recurring Stars subscriptions, billed automatically by Telegram" />
+        <ListRow tone="red" icon="product" title="Products" detail="One-time digital products, downloads, and consultations" />
+        <ListRow tone="purple" icon="event" title="Events" detail="Paid webinars, AMAs, and meetups" />
+        <ListRow tone="green" icon="referral" title="Referrals" detail="Reward members who bring in new joins, purchases, or revenue" />
+      </ListGroup>
+
+      <SectionLabel>Platform commission</SectionLabel>
+      <div className="tg-form-card">
+        <p>
+          CommunityOS keeps <strong>{rateLabel}</strong> of every Telegram Stars payment to cover payment processing, hosting, and support.
+          The rest is credited straight to your balance — automatically, on every payment.
+        </p>
+      </div>
+
+      <SectionLabel>Example calculation</SectionLabel>
+      <ListGroup>
+        <ListRow tone="blue" icon="stars" title="Member pays" detail="Gross Stars payment" meta={`${exampleGross.toLocaleString()} XTR`} />
+        <ListRow tone="amber" icon="stars" title={`Platform commission (${rateLabel})`} detail="Deducted automatically" meta={`-${exampleCommission.toLocaleString()} XTR`} />
+        <ListRow tone="green" icon="stars" title="You receive" detail="Credited to your balance" meta={`${exampleNet.toLocaleString()} XTR`} />
+      </ListGroup>
+
+      <p style={{ opacity: 0.6, fontSize: 13, padding: '0 16px 16px' }}>
+        Commission is deducted the moment a payment is confirmed, so your balance always reflects exactly what&apos;s yours to withdraw.
+      </p>
     </section>
   )
 }
@@ -2357,12 +2452,16 @@ function SettingsScreen({
       <SectionLabel>Checkout and notifications</SectionLabel>
       <ListGroup>
         <ListRow
+          tone={settings.starsCheckoutEnabled ? 'green' : 'amber'}
+          icon="stars"
           title="Stars checkout"
           detail="Let members pay with Telegram Stars"
           meta={settings.starsCheckoutEnabled ? 'on' : 'off'}
           onClick={() => onUpdateSetting({ starsCheckoutEnabled: !settings.starsCheckoutEnabled })}
         />
         <ListRow
+          tone={settings.notificationsEnabled ? 'green' : 'amber'}
+          icon="comment"
           title="Notifications"
           detail="Bot messages for renewals, access changes, and join requests"
           meta={settings.notificationsEnabled ? 'on' : 'off'}
@@ -2421,18 +2520,24 @@ function AiManagerScreen({
       <SectionLabel>Settings</SectionLabel>
       <ListGroup>
         <ListRow
+          tone={settings.faqEnabled ? 'green' : 'amber'}
+          icon="ai"
           title="FAQ answers"
           detail={`${data.ai.faqCount} curated entries`}
           meta={settings.faqEnabled ? 'on' : 'off'}
           onClick={() => onUpdateSettings({ faqEnabled: !settings.faqEnabled })}
         />
         <ListRow
+          tone={settings.welcomeEnabled ? 'green' : 'amber'}
+          icon="comment"
           title="Welcome messages"
           detail="Greet members on their first access grant"
           meta={settings.welcomeEnabled ? 'on' : 'off'}
           onClick={() => onUpdateSettings({ welcomeEnabled: !settings.welcomeEnabled })}
         />
         <ListRow
+          tone={settings.reportsEnabled ? 'green' : 'amber'}
+          icon="growth"
           title="Weekly reports"
           detail="Summarize activity for the owner each week"
           meta={settings.reportsEnabled ? 'on' : 'off'}
@@ -3258,6 +3363,7 @@ function MemberHome({
   onBuyProduct,
   onEvent,
   onCancelSubscription,
+  onClaimReward,
   onToast,
 }: {
   data: DashboardDto
@@ -3271,8 +3377,10 @@ function MemberHome({
   onBuyProduct: (product: ProductDto) => void
   onEvent: (event: EventDto) => void
   onCancelSubscription: (subscription: SubscriptionDto) => void
+  onClaimReward: (rewardId: number) => void
   onToast: (message: string) => void
 }) {
+  const [rewardsOpen, setRewardsOpen] = useState(false)
   const progress = member ? Math.min(100, Math.round((member.xp % 1200) / 12)) : 0
   const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === 'active' || subscription.status === 'trialing' || subscription.status === 'past_due' || subscription.status === 'expired')
   const unlockedProducts = data.products.filter((product) => product.owned)
@@ -3380,8 +3488,30 @@ function MemberHome({
       <ListGroup>
         <ListRow tone="blue" icon="access" title="Telegram Access" detail={member?.accessStatus ?? 'Pending'} />
         <ListRow tone="green" icon="referral" title="Referral Link" detail="Invite friends and unlock rewards" onClick={onReferral} />
-        <ListRow tone="amber" icon="rewards" title="Rewards" detail={`${data.rewards.length} available`} />
+        <ListRow
+          tone="amber"
+          icon="rewards"
+          title="Rewards"
+          detail={`${data.rewards.length} available`}
+          meta={data.rewards.length > 0 ? (rewardsOpen ? 'Hide' : 'View') : undefined}
+          onClick={data.rewards.length > 0 ? () => setRewardsOpen((open) => !open) : undefined}
+        />
       </ListGroup>
+      {rewardsOpen && data.rewards.length > 0 && (
+        <ListGroup>
+          {data.rewards.map((reward) => (
+            <ListRow
+              key={reward.id}
+              tone={reward.claimed ? 'green' : 'amber'}
+              icon="rewards"
+              title={reward.title}
+              detail={reward.description ?? reward.type.replace('_', ' ')}
+              meta={reward.claimed ? 'Claimed' : 'Claim'}
+              onClick={reward.claimed ? undefined : () => onClaimReward(reward.id)}
+            />
+          ))}
+        </ListGroup>
+      )}
       <SectionLabel>Your Access</SectionLabel>
       <ListGroup>
         {activeSubscriptions.map((subscription) => (

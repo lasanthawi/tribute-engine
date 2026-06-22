@@ -26,7 +26,7 @@ const DEFAULT_MODEL: Record<AiProviderConfigDto['provider'], string> = {
   custom: '',
 }
 
-type TabKey = 'overview' | 'communities' | 'payments' | 'issues' | 'admins' | 'audit' | 'ai'
+type TabKey = 'overview' | 'communities' | 'payments' | 'issues' | 'admins' | 'audit' | 'ai' | 'settings'
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: 'overview', label: 'Overview' },
@@ -36,6 +36,7 @@ const TABS: Array<{ key: TabKey; label: string }> = [
   { key: 'admins', label: 'Admins' },
   { key: 'audit', label: 'Audit log' },
   { key: 'ai', label: 'AI gateway' },
+  { key: 'settings', label: 'Settings' },
 ]
 
 type LoadState = 'loading' | 'ready' | 'error' | 'denied'
@@ -66,6 +67,11 @@ export default function AdminDashboard() {
   const [issueBusyId, setIssueBusyId] = useState<number | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  const [commissionRateBps, setCommissionRateBps] = useState(500)
+  const [commissionTotals, setCommissionTotals] = useState({ totalCommissionStars: 0, totalCommissionCents: 0 })
+  const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+
   function loadDashboard() {
     setLoadState('loading')
     setLoadErrorMessage(null)
@@ -82,6 +88,7 @@ export default function AdminDashboard() {
         reloadAdmins()
         reloadAudit('')
         reloadPayments('', '')
+        reloadSettings()
       })
       .catch((err) => {
         if (err?.status === 401 || err?.status === 403) {
@@ -124,6 +131,26 @@ export default function AdminDashboard() {
       .listPayments({ status: status || undefined, days: days ? Number(days) : undefined })
       .then((rows) => setPayments(rows))
       .catch((err) => setPaymentsError(err.message || 'Failed to load payments'))
+  }
+
+  function reloadSettings() {
+    api.admin
+      .getSettings()
+      .then((result) => {
+        setCommissionRateBps(result.commissionRateBps)
+        setCommissionTotals({ totalCommissionStars: result.totalCommissionStars, totalCommissionCents: result.totalCommissionCents })
+      })
+      .catch((err) => setSettingsError(err.message || 'Failed to load settings'))
+  }
+
+  function handleUpdateCommissionRate(bps: number) {
+    setSettingsSaving(true)
+    setSettingsError(null)
+    api.admin
+      .updateCommissionRate(bps)
+      .then((result) => setCommissionRateBps(result.commissionRateBps))
+      .catch((err) => setSettingsError(err.message || 'Failed to update commission rate'))
+      .finally(() => setSettingsSaving(false))
   }
 
   function handleResolveIssue(issueId: number) {
@@ -344,6 +371,16 @@ export default function AdminDashboard() {
             onToggleEnabled={handleToggleProviderEnabled}
             onPriorityChange={handleProviderPriorityChange}
             onDelete={handleDeleteProvider}
+          />
+        )}
+
+        {tab === 'settings' && (
+          <SettingsTab
+            commissionRateBps={commissionRateBps}
+            totals={commissionTotals}
+            error={settingsError}
+            saving={settingsSaving}
+            onSave={handleUpdateCommissionRate}
           />
         )}
       </main>
@@ -1060,6 +1097,79 @@ function AiGatewayTab({
           )}
         </tbody>
       </table>
+    </section>
+  )
+}
+
+function SettingsTab({
+  commissionRateBps,
+  totals,
+  error,
+  saving,
+  onSave,
+}: {
+  commissionRateBps: number
+  totals: { totalCommissionStars: number; totalCommissionCents: number }
+  error: string | null
+  saving: boolean
+  onSave: (bps: number) => void
+}) {
+  const [rateInput, setRateInput] = useState(String(commissionRateBps / 100))
+
+  useEffect(() => {
+    setRateInput(String(commissionRateBps / 100))
+  }, [commissionRateBps])
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    const percent = Number(rateInput)
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) return
+    onSave(Math.round(percent * 100))
+  }
+
+  const exampleStars = 1000
+  const exampleCommission = Math.round((exampleStars * commissionRateBps) / 10000)
+
+  return (
+    <section className="co-admin-panel">
+      <div className="co-admin-panel-header">
+        <h2>Platform commission</h2>
+        <span className="co-pill">{(commissionRateBps / 100).toFixed(2)}%</span>
+      </div>
+
+      {error && <p style={{ color: 'var(--tg-red)', padding: '1rem' }}>{error}</p>}
+
+      <form className="co-admin-form" onSubmit={handleSubmit}>
+        <label>
+          Commission rate (%)
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={0.1}
+            value={rateInput}
+            onChange={(event) => setRateInput(event.target.value)}
+          />
+        </label>
+        <div className="co-admin-form-actions">
+          <button type="submit" className="co-chip-button" disabled={saving}>
+            {saving ? 'Saving…' : 'Save rate'}
+          </button>
+        </div>
+      </form>
+      <p style={{ padding: '0 14px 14px', color: '#8f9db1', fontSize: 12 }}>
+        Applied to every Stars payment (memberships, products, events) the moment it&apos;s credited to a publisher&apos;s balance.
+        Example: on a {exampleStars} XTR purchase, the platform keeps {exampleCommission} XTR and the publisher receives{' '}
+        {exampleStars - exampleCommission} XTR.
+      </p>
+
+      <div className="co-admin-panel-header">
+        <h2>Commission collected</h2>
+      </div>
+      <div style={{ display: 'flex', gap: 24, padding: '0 14px 18px' }}>
+        <AdminMetric label="Total commission (XTR)" value={String(totals.totalCommissionStars)} />
+        <AdminMetric label="Total commission (USD approx.)" value={money(totals.totalCommissionCents)} />
+      </div>
     </section>
   )
 }
