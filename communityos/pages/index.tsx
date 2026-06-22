@@ -2190,9 +2190,17 @@ function AppFrame({
   onGuide?: () => void
   onMore?: () => void
 }) {
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 2)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
     <main className="tg-app">
-      <header className="tg-topbar">
+      <header className={`tg-topbar${scrolled ? ' is-scrolled' : ''}`}>
         {!hideBack && (
           <button className="tg-nav-button" type="button" onClick={onBack} aria-label="Back">
             Back
