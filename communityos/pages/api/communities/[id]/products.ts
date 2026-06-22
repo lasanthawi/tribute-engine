@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
-import { archiveProduct, createProduct, listProducts } from '@/lib/payments'
+import { archiveProduct, createProduct, listProducts, updateProduct } from '@/lib/payments'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userId = await requireUser(req, res)
@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!allowed) return res.status(403).json({ error: 'Forbidden' })
 
     if (req.method === 'GET') {
-      return res.status(200).json({ products: await listProducts(communityId) })
+      return res.status(200).json({ products: await listProducts(communityId, undefined, { ownerView: true }) })
     }
     if (req.method === 'POST') {
       const { title, type, priceStars, description, buttonText, coverPath, deliveryType, deliveryText, deliveryUrl, filePath, fileName } = req.body ?? {}
@@ -36,13 +36,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
       return res.status(201).json({ product })
     }
+    if (req.method === 'PATCH') {
+      const { productId, title, type, priceStars, status, description, buttonText, coverPath, deliveryType, deliveryText, deliveryUrl, filePath, fileName } = req.body ?? {}
+      const id = Number(productId ?? req.query.productId)
+      if (!Number.isFinite(id)) return res.status(400).json({ error: 'productId is required' })
+      const product = await updateProduct(communityId, id, {
+        ...(title !== undefined && { title }),
+        ...(type !== undefined && { type }),
+        ...(priceStars !== undefined && { priceStars: Number(priceStars) }),
+        ...(status !== undefined && { status }),
+        ...(description !== undefined && { description }),
+        ...(buttonText !== undefined && { buttonText }),
+        ...(coverPath !== undefined && { coverPath }),
+        ...(deliveryType !== undefined && { deliveryType }),
+        ...(deliveryText !== undefined && { deliveryText }),
+        ...(deliveryUrl !== undefined && { deliveryUrl }),
+        ...(filePath !== undefined && { filePath }),
+        ...(fileName !== undefined && { fileName }),
+      })
+      return res.status(200).json({ product })
+    }
+
     if (req.method === 'DELETE') {
       const productId = Number(req.query.productId ?? req.body?.productId)
       if (!Number.isFinite(productId)) return res.status(400).json({ error: 'productId is required' })
       return res.status(200).json({ ok: true, product: await archiveProduct(communityId, productId) })
     }
 
-    res.setHeader('Allow', ['GET', 'POST', 'DELETE'])
+    res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE'])
     return res.status(405).json({ error: 'Method not allowed' })
   } catch (error) {
     console.error('communities/[id]/products error:', error)

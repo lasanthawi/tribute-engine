@@ -637,112 +637,17 @@ a {
 }
 
 .tg-action-icon {
-  position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
   color: var(--tg-blue);
 }
 
-.tg-action-icon.plus::before,
-.tg-action-icon.plus::after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 18px;
-  height: 2.5px;
-  border-radius: 999px;
-  background: currentColor;
-  content: "";
-  transform: translate(-50%, -50%);
-}
-
-.tg-action-icon.plus::after {
-  transform: translate(-50%, -50%) rotate(90deg);
-}
-
-.tg-action-icon.stats {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 4px;
-}
-
-.tg-action-icon.stats i {
-  display: block;
-  width: 4px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.tg-action-icon.stats i:nth-child(1) {
-  height: 13px;
-}
-
-.tg-action-icon.stats i:nth-child(2) {
-  height: 22px;
-}
-
-.tg-action-icon.stats i:nth-child(3) {
-  height: 17px;
-}
-
-.tg-action-icon.more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.tg-action-icon.more i {
-  width: 4.5px;
-  height: 4.5px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.tg-action-icon.edit::before {
-  position: absolute;
-  top: 5px;
-  left: 12px;
-  width: 4px;
-  height: 20px;
-  border-radius: 999px;
-  background: currentColor;
-  content: "";
-  transform: rotate(42deg);
-}
-
-.tg-action-icon.edit::after {
-  position: absolute;
-  right: 6px;
-  bottom: 5px;
-  width: 8px;
-  height: 2.5px;
-  border-radius: 999px;
-  background: currentColor;
-  content: "";
-  transform: rotate(42deg);
-}
-
-.tg-action-icon.link::before,
-.tg-action-icon.link::after {
-  position: absolute;
-  top: 8px;
-  width: 14px;
-  height: 9px;
-  border: 2.4px solid currentColor;
-  border-radius: 999px;
-  content: "";
-  transform: rotate(-35deg);
-}
-
-.tg-action-icon.link::before {
-  left: 1px;
-}
-
-.tg-action-icon.link::after {
-  right: 1px;
+.tg-action-icon svg {
+  width: 24px;
+  height: 24px;
 }
 
 .tg-callout,

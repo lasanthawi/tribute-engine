@@ -45,19 +45,29 @@ export interface ShareTarget {
 // chat when the bot is admin there, falling back to the owner's own DM with
 // the bot otherwise (instead of accidentally trying — and failing — a send
 // to a chat the bot no longer has rights in).
+//
+// Mirrors connectedChatIds() in lib/communities.ts: telegram_chats (by
+// community_id + bot_status='admin') is the source of truth for "which chat
+// is this community connected to" — communities.telegram_chat_id is only
+// populated for a community's first-ever chat link and can go stale.
 export async function resolveShareTarget(communityId: number, ownerUserId: number): Promise<ShareTarget> {
+  const { data: chat } = await sb
+    .from('telegram_chats')
+    .select('telegram_chat_id')
+    .eq('community_id', communityId)
+    .eq('bot_status', 'admin')
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (chat?.telegram_chat_id) {
+    return { chatId: chat.telegram_chat_id, target: 'community_chat' }
+  }
+
   const community = await getCommunity(communityId)
   if (community?.telegram_chat_id) {
-    const { data } = await sb
-      .from('telegram_chats')
-      .select('bot_status')
-      .eq('community_id', communityId)
-      .eq('telegram_chat_id', String(community.telegram_chat_id))
-      .maybeSingle()
-    if (data?.bot_status === 'admin') {
-      return { chatId: community.telegram_chat_id, target: 'community_chat' }
-    }
+    return { chatId: community.telegram_chat_id, target: 'community_chat' }
   }
+
   const { data: owner } = await supabase.from('users').select('telegram_id').eq('id', ownerUserId).maybeSingle()
   return { chatId: owner?.telegram_id ?? null, target: 'owner_chat' }
 }

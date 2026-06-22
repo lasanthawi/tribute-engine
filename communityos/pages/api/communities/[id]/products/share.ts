@@ -37,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const community = await getCommunity(communityId)
     if (!community) return res.status(404).json({ error: 'Community not found' })
 
-    const product = (await listProducts(communityId)).find((item) => item.id === productId)
+    const product = (await listProducts(communityId, undefined, { ownerView: true })).find((item) => item.id === productId)
     if (!product) return res.status(404).json({ error: 'Product not found' })
 
     const { target, chatId: targetChatId } = await resolveShareTarget(communityId, userId)

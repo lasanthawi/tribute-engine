@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
-import { archivePlan, createPlan, listPlans } from '@/lib/memberships'
+import { archivePlan, createPlan, listPlans, updatePlan } from '@/lib/memberships'
 import { centsToStars } from '@/lib/star-rate'
 
 interface PlanRow {
@@ -63,6 +63,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         buttonText: typeof buttonText === 'string' ? buttonText : null,
       })
       return res.status(201).json({ plan: toDto({ ...plan, subscribers: 0 }) })
+    }
+
+    if (req.method === 'PATCH') {
+      const { planId, name, description, priceCents, interval, coverPath, buttonText } = req.body ?? {}
+      const id = Number(planId ?? req.query.planId)
+      if (!Number.isFinite(id)) return res.status(400).json({ error: 'planId is required' })
+      const plan = await updatePlan(communityId, id, {
+        ...(name !== undefined && { name }),
+        ...(description !== undefined && { description }),
+        ...(priceCents !== undefined && { priceCents }),
+        ...(interval !== undefined && { interval }),
+        ...(coverPath !== undefined && { coverPath }),
+        ...(buttonText !== undefined && { buttonText }),
+      })
+      return res.status(200).json({ plan: toDto(plan) })
     }
 
     if (req.method === 'DELETE') {

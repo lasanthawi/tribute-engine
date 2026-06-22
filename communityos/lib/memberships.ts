@@ -113,6 +113,69 @@ export async function createPlan(communityId: number, input: CreatePlanInput) {
   }
 }
 
+export interface UpdatePlanInput {
+  name?: string
+  description?: string | null
+  priceCents?: number
+  currency?: string
+  interval?: string
+  benefits?: unknown[]
+  coverPath?: string | null
+  buttonText?: string | null
+}
+
+export async function updatePlan(communityId: number, planId: number, input: UpdatePlanInput) {
+  const { data: existingRow, error: fetchErr } = await supabase
+    .from('membership_plans')
+    .select('*')
+    .eq('community_id', communityId)
+    .eq('id', planId)
+    .single()
+  if (fetchErr) throw fetchErr
+  const existing = existingRow as MembershipPlanRow
+
+  const patch: Record<string, unknown> = {}
+  if (input.name !== undefined) patch.name = input.name
+  if (input.description !== undefined) patch.description = input.description
+  if (input.priceCents !== undefined) patch.price_cents = input.priceCents
+  if (input.currency !== undefined) patch.currency = input.currency
+  if (input.interval !== undefined) patch.interval = input.interval
+
+  const hasMetadataChange = input.coverPath !== undefined || input.buttonText !== undefined || input.benefits !== undefined
+  if (hasMetadataChange) {
+    const existingMetadata = planMetadataFromBenefits(existing.benefits)
+    patch.benefits = benefitsWithMetadata(input.benefits ?? normalizeBenefits(existing.benefits).filter((item: any) => item?.kind !== METADATA_KIND), {
+      coverPath: input.coverPath !== undefined ? input.coverPath : existingMetadata.coverPath,
+      buttonText: input.buttonText !== undefined ? input.buttonText : existingMetadata.buttonText,
+    })
+  }
+
+  const { data, error } = await sb
+    .from('membership_plans')
+    .update(patch)
+    .eq('community_id', communityId)
+    .eq('id', planId)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  const { count } = await supabase
+    .from('member_subscriptions')
+    .select('id', { count: 'exact', head: true })
+    .eq('community_id', communityId)
+    .eq('plan_id', planId)
+    .eq('status', 'active')
+
+  const metadata = planMetadataFromBenefits((data as MembershipPlanRow).benefits)
+  return {
+    ...(data as MembershipPlanRow),
+    subscribers: count ?? 0,
+    coverPath: metadata.coverPath ?? null,
+    coverUrl: await signedAssetUrl(metadata.coverPath, 86400),
+    buttonText: metadata.buttonText ?? null,
+  }
+}
+
 export async function archivePlan(communityId: number, planId: number) {
   const { data, error } = await supabase
     .from('membership_plans')

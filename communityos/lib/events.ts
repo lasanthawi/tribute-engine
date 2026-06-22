@@ -15,7 +15,7 @@ export interface CreateEventInput {
   accessLink?: string
 }
 
-export async function listEvents(communityId: number, userId?: number) {
+export async function listEvents(communityId: number, userId?: number, opts: { ownerView?: boolean } = {}) {
   const { data: events, error } = await sb
     .from('community_events')
     .select('*')
@@ -44,7 +44,10 @@ export async function listEvents(communityId: number, userId?: number) {
   return Promise.all(
     (events ?? []).map(async (event: any) => {
       const metadata = event.metadata ?? {}
-      const isRegistered = registered.has(event.id)
+      // ownerView (the community owner's own dashboard) always sees the access
+      // link for their own event — the registration gate below only matters
+      // for a member browsing/registering for it.
+      const isRegistered = opts.ownerView || registered.has(event.id)
       return {
         id: event.id,
         title: event.title,
@@ -89,7 +92,67 @@ export async function createEvent(communityId: number, input: CreateEventInput) 
     registrations: 0,
     priceStars: data.price_stars,
     coverUrl: await signedAssetUrl(data.metadata?.coverPath, 86400),
-    accessLink: null,
+    accessLink: data.metadata?.accessLink ?? null,
+    registered: false,
+  }
+}
+
+export interface UpdateEventInput {
+  title?: string
+  type?: EventType
+  startsAt?: string
+  priceStars?: number
+  description?: string
+  coverPath?: string | null
+  accessLink?: string
+}
+
+export async function updateEvent(communityId: number, eventId: number, input: UpdateEventInput) {
+  const { data: existing, error: fetchErr } = await sb
+    .from('community_events')
+    .select('*')
+    .eq('community_id', communityId)
+    .eq('id', eventId)
+    .single()
+  if (fetchErr) throw fetchErr
+
+  const existingMetadata = existing.metadata ?? {}
+  const metadata = {
+    description: input.description !== undefined ? input.description : existingMetadata.description ?? '',
+    coverPath: input.coverPath !== undefined ? input.coverPath : existingMetadata.coverPath ?? null,
+    accessLink: input.accessLink !== undefined ? input.accessLink : existingMetadata.accessLink ?? '',
+  }
+
+  const patch: Record<string, unknown> = { metadata }
+  if (input.title !== undefined) patch.title = input.title
+  if (input.type !== undefined) patch.event_type = input.type
+  if (input.startsAt !== undefined) patch.starts_at = input.startsAt
+  if (input.priceStars !== undefined) patch.price_stars = Math.max(0, Math.round(input.priceStars))
+
+  const { data, error } = await sb
+    .from('community_events')
+    .update(patch)
+    .eq('community_id', communityId)
+    .eq('id', eventId)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  const { count } = await sb
+    .from('event_registrations')
+    .select('event_id', { count: 'exact', head: true })
+    .eq('event_id', eventId)
+
+  return {
+    id: data.id,
+    title: data.title,
+    type: data.event_type as EventType,
+    description: data.metadata?.description ?? null,
+    startsAt: data.starts_at,
+    registrations: count ?? 0,
+    priceStars: data.price_stars,
+    coverUrl: await signedAssetUrl(data.metadata?.coverPath, 86400),
+    accessLink: data.metadata?.accessLink ?? null,
     registered: false,
   }
 }

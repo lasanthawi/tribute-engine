@@ -473,6 +473,11 @@ export const api = {
     communityId: number | string,
     body: { name: string; description?: string; priceCents?: number; stars?: number; interval?: string; coverPath?: string | null; buttonText?: string }
   ) => request<{ plan: PlanDto }>(`/api/communities/${communityId}/plans`, { method: 'POST', body: JSON.stringify(body) }),
+  updatePlan: (
+    communityId: number | string,
+    planId: number,
+    body: { name?: string; description?: string; priceCents?: number; interval?: string; coverPath?: string | null; buttonText?: string }
+  ) => request<{ plan: PlanDto }>(`/api/communities/${communityId}/plans`, { method: 'PATCH', body: JSON.stringify({ planId, ...body }) }),
   deletePlan: (communityId: number | string, planId: number) =>
     request<{ ok: boolean; plan: PlanDto }>(`/api/communities/${communityId}/plans?planId=${planId}`, { method: 'DELETE' }),
   sharePlanCard: (communityId: number | string, body: { planId: number; buttonText?: string }) =>
@@ -589,6 +594,11 @@ export const api = {
     body: { title: string; type?: EventDto['type']; startsAt?: string; priceStars?: number; description?: string; coverPath?: string | null; accessLink?: string }
   ) =>
     request<{ event: EventDto }>(`/api/communities/${communityId}/events`, { method: 'POST', body: JSON.stringify(body) }),
+  updateEvent: (
+    communityId: number | string,
+    eventId: number,
+    body: { title?: string; type?: EventDto['type']; startsAt?: string; priceStars?: number; description?: string; coverPath?: string | null; accessLink?: string }
+  ) => request<{ event: EventDto }>(`/api/communities/${communityId}/events`, { method: 'PATCH', body: JSON.stringify({ eventId, ...body }) }),
   deleteEvent: (communityId: number | string, eventId: number) =>
     request<{ ok: boolean; event: EventDto }>(`/api/communities/${communityId}/events?eventId=${eventId}`, { method: 'DELETE' }),
   registerEvent: (communityId: number | string, eventId: number) =>
@@ -623,6 +633,24 @@ export const api = {
     }
   ) =>
     request<{ product: ProductDto }>(`/api/communities/${communityId}/products`, { method: 'POST', body: JSON.stringify(body) }),
+  updateProduct: (
+    communityId: number | string,
+    productId: number,
+    body: {
+      title?: string
+      type?: ProductDto['type']
+      status?: ProductDto['status']
+      priceStars?: number
+      description?: string
+      buttonText?: string
+      coverPath?: string | null
+      deliveryType?: ProductDto['deliveryType']
+      deliveryText?: string
+      deliveryUrl?: string
+      filePath?: string | null
+      fileName?: string | null
+    }
+  ) => request<{ product: ProductDto }>(`/api/communities/${communityId}/products`, { method: 'PATCH', body: JSON.stringify({ productId, ...body }) }),
   deleteProduct: (communityId: number | string, productId: number) =>
     request<{ ok: boolean; product: ProductDto }>(`/api/communities/${communityId}/products?productId=${productId}`, { method: 'DELETE' }),
   shareProductCard: (communityId: number | string, body: { productId: number; buttonText?: string }) =>

@@ -124,6 +124,8 @@ export default function Home() {
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
   const [coverName, setCoverName] = useState<string | null>(null)
   const [createdPlan, setCreatedPlan] = useState<PlanDto | null>(null)
+  const [selectedPlan, setSelectedPlan] = useState<PlanDto | null>(null)
+  const [editingPlanId, setEditingPlanId] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [campaignTitle, setCampaignTitle] = useState('Invite 3 members')
   const [rewardTitle, setRewardTitle] = useState('Founding Member Badge')
@@ -144,6 +146,7 @@ export default function Home() {
   const [productFile, setProductFile] = useState<{ path: string | null; name: string | null }>({ path: null, name: null })
   const [createdProduct, setCreatedProduct] = useState<ProductDto | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<ProductDto | null>(null)
+  const [editingProductId, setEditingProductId] = useState<number | null>(null)
   const [eventTitle, setEventTitle] = useState('Live Community Session')
   const [eventDescription, setEventDescription] = useState('Join us live inside Telegram.')
   const [eventType, setEventType] = useState<EventDto['type']>('webinar')
@@ -153,6 +156,7 @@ export default function Home() {
   const [eventCover, setEventCover] = useState<{ path: string | null; preview: string | null; name: string | null }>({ path: null, preview: null, name: null })
   const [createdEvent, setCreatedEvent] = useState<EventDto | null>(null)
   const [selectedEvent, setSelectedEvent] = useState<EventDto | null>(null)
+  const [editingEventId, setEditingEventId] = useState<number | null>(null)
   const [referralThreshold, setReferralThreshold] = useState('3')
   const [referralReward, setReferralReward] = useState('Unlock bonus content')
   const [referralMetric, setReferralMetric] = useState<'joins' | 'purchases' | 'revenue'>('joins')
@@ -165,6 +169,7 @@ export default function Home() {
   const [wizardCompleted, setWizardCompleted] = useState(false)
   const [shareGuideReturnTo, setShareGuideReturnTo] = useState<Screen>('home')
   const [shareGuideLink, setShareGuideLink] = useState('')
+  const [actionSheet, setActionSheet] = useState<'plan' | 'product' | 'event' | null>(null)
   const routeIdQuery = router.query.id
   const routeCommunityIdQuery = router.query.communityId
   const routePlanQuery = router.query.plan
@@ -294,7 +299,7 @@ export default function Home() {
   }, [toast])
 
   const member = memberProfile?.member ?? data?.members[0]
-  const activePlan = createdPlan ?? data?.plans[0] ?? null
+  const activePlan = selectedPlan ?? createdPlan ?? data?.plans[0] ?? null
   const activeProduct = selectedProduct ?? createdProduct ?? data?.products[0] ?? null
   const activeEvent = selectedEvent ?? createdEvent ?? data?.events[0] ?? null
   const filteredCommunities = useMemo(() => {
@@ -359,6 +364,9 @@ export default function Home() {
 
   function chooseRevenueModel(model: RevenueModel) {
     setPendingModel(model)
+    setEditingPlanId(null)
+    setEditingProductId(null)
+    setEditingEventId(null)
     api.completeOnboarding({ revenueModel: model }).catch(() => undefined)
     if (model === 'referral') {
       setReferralPresetTarget(null)
@@ -428,6 +436,26 @@ export default function Home() {
 
     setSubmitting(true)
     try {
+      if (editingPlanId) {
+        const response = await api.updatePlan(communityId, editingPlanId, {
+          name: body.name,
+          description: body.description,
+          priceCents: body.priceCents,
+          buttonText: body.buttonText,
+          ...(coverPath ? { coverPath } : {}),
+        })
+        const plan = { ...response.plan, name: body.name, description: body.description }
+        setSelectedPlan(plan)
+        setCreatedPlan(null)
+        setEditingPlanId(null)
+        setMembershipTitle(plan.name)
+        setMembershipDescription(plan.description ?? '')
+        await refreshDashboard()
+        setScreen('publish')
+        showToast('Membership updated')
+        return
+      }
+
       const response = await api.createPlan(communityId, body)
       const plan = {
         ...response.plan,
@@ -438,6 +466,7 @@ export default function Home() {
         interval: body.interval,
       }
       setCreatedPlan(plan)
+      setSelectedPlan(null)
 
       const yStars = Number(yearlyStars || 0)
       if (yStars > 0) {
@@ -456,7 +485,7 @@ export default function Home() {
       setScreen('publish')
       showToast('Membership created')
     } catch (error: any) {
-      showToast(error.message || 'Membership creation failed')
+      showToast(error.message || (editingPlanId ? 'Membership update failed' : 'Membership creation failed'))
     } finally {
       setSubmitting(false)
     }
@@ -538,11 +567,38 @@ export default function Home() {
     try {
       await api.deletePlan(communityId, activePlan.id)
       setCreatedPlan((plan) => (plan?.id === activePlan.id ? null : plan))
+      setSelectedPlan(null)
+      setEditingPlanId(null)
       await refreshDashboard()
       setScreen('home')
       showToast('Membership package deleted')
     } catch (error: any) {
       showToast(error.message || 'Delete failed')
+    }
+  }
+
+  async function duplicatePlan() {
+    if (!communityId || !activePlan) return
+    try {
+      const response = await api.createPlan(communityId, {
+        name: `${activePlan.name} (Copy)`,
+        description: activePlan.description ?? '',
+        priceCents: activePlan.priceCents,
+        stars: activePlan.stars,
+        interval: activePlan.interval,
+        coverPath: null,
+        buttonText: activePlan.buttonText ?? 'Subscribe',
+      })
+      setSelectedPlan(response.plan)
+      setCreatedPlan(null)
+      setEditingPlanId(null)
+      setMembershipTitle(response.plan.name)
+      setMembershipDescription(response.plan.description ?? '')
+      await refreshDashboard()
+      setScreen('publish')
+      showToast('Membership duplicated')
+    } catch (error: any) {
+      showToast(error.message || 'Duplicate failed')
     }
   }
 
@@ -567,6 +623,28 @@ export default function Home() {
     if (!communityId || !data || !productTitle.trim() || submitting) return
     setSubmitting(true)
     try {
+      if (editingProductId) {
+        const { product } = await api.updateProduct(communityId, editingProductId, {
+          title: productTitle.trim(),
+          type: productType,
+          description: productDescription.trim(),
+          buttonText: productButtonText.trim() || 'Buy',
+          priceStars: Math.max(0, Number(productPriceStars || 0)),
+          ...(productCover.path ? { coverPath: productCover.path } : {}),
+          deliveryType: productDeliveryType,
+          deliveryText: productDeliveryText.trim(),
+          deliveryUrl: productDeliveryUrl.trim(),
+          ...(productFile.path ? { filePath: productFile.path, fileName: productFile.name } : {}),
+        })
+        setSelectedProduct(product)
+        setCreatedProduct(null)
+        setEditingProductId(null)
+        setData({ ...data, products: data.products.map((p) => (p.id === product.id ? product : p)) })
+        setScreen('productPublish')
+        showToast('Product updated')
+        return
+      }
+
       const { product } = await api.createProduct(communityId, {
         title: productTitle.trim(),
         type: productType,
@@ -586,7 +664,7 @@ export default function Home() {
       setScreen('productPublish')
       showToast('Product created')
     } catch (error: any) {
-      showToast(error.message || 'Product creation failed')
+      showToast(error.message || (editingProductId ? 'Product update failed' : 'Product creation failed'))
     } finally {
       setSubmitting(false)
     }
@@ -605,15 +683,60 @@ export default function Home() {
 
   async function deleteProductOffer() {
     if (!communityId || !activeProduct) return
+    const confirmed = window.confirm(`Delete "${activeProduct.title}"? This product will no longer be offered.`)
+    if (!confirmed) return
+
     try {
       await api.deleteProduct(communityId, activeProduct.id)
       await refreshDashboard()
       setCreatedProduct((product) => (product?.id === activeProduct.id ? null : product))
       setSelectedProduct(null)
+      setEditingProductId(null)
       setScreen('home')
       showToast('Product deleted')
     } catch (error: any) {
       showToast(error.message || 'Delete failed')
+    }
+  }
+
+  async function duplicateProduct() {
+    if (!communityId || !data || !activeProduct) return
+    try {
+      const { product } = await api.createProduct(communityId, {
+        title: `${activeProduct.title} (Copy)`,
+        type: activeProduct.type,
+        description: activeProduct.description ?? '',
+        buttonText: activeProduct.buttonText ?? 'Buy',
+        priceStars: activeProduct.priceStars,
+        coverPath: null,
+        deliveryType: activeProduct.deliveryType,
+        deliveryText: activeProduct.deliveryText ?? '',
+        deliveryUrl: activeProduct.deliveryUrl ?? '',
+        filePath: null,
+        fileName: null,
+      })
+      setCreatedProduct(null)
+      setSelectedProduct(product)
+      setEditingProductId(null)
+      setData({ ...data, products: [product, ...data.products] })
+      setScreen('productPublish')
+      showToast('Product duplicated')
+    } catch (error: any) {
+      showToast(error.message || 'Duplicate failed')
+    }
+  }
+
+  async function toggleProductStatus() {
+    if (!communityId || !data || !activeProduct) return
+    const nextStatus = activeProduct.status === 'active' ? 'draft' : 'active'
+    try {
+      const { product } = await api.updateProduct(communityId, activeProduct.id, { status: nextStatus })
+      setSelectedProduct(product)
+      setCreatedProduct(null)
+      setData({ ...data, products: data.products.map((p) => (p.id === product.id ? product : p)) })
+      showToast(nextStatus === 'active' ? 'Product published' : 'Product moved to draft')
+    } catch (error: any) {
+      showToast(error.message || 'Update failed')
     }
   }
 
@@ -622,6 +745,25 @@ export default function Home() {
     if (!communityId || !data || !eventTitle.trim() || submitting) return
     setSubmitting(true)
     try {
+      if (editingEventId) {
+        const { event: updated } = await api.updateEvent(communityId, editingEventId, {
+          title: eventTitle.trim(),
+          type: eventType,
+          description: eventDescription.trim(),
+          startsAt: new Date(eventStartsAt).toISOString(),
+          priceStars: Math.max(0, Number(eventPriceStars || 0)),
+          ...(eventCover.path ? { coverPath: eventCover.path } : {}),
+          accessLink: eventAccessLink.trim(),
+        })
+        setSelectedEvent(updated)
+        setCreatedEvent(null)
+        setEditingEventId(null)
+        setData({ ...data, events: data.events.map((e) => (e.id === updated.id ? updated : e)) })
+        setScreen('eventPublish')
+        showToast('Event updated')
+        return
+      }
+
       const { event: created } = await api.createEvent(communityId, {
         title: eventTitle.trim(),
         type: eventType,
@@ -637,7 +779,7 @@ export default function Home() {
       setScreen('eventPublish')
       showToast('Event created')
     } catch (error: any) {
-      showToast(error.message || 'Event creation failed')
+      showToast(error.message || (editingEventId ? 'Event update failed' : 'Event creation failed'))
     } finally {
       setSubmitting(false)
     }
@@ -659,15 +801,42 @@ export default function Home() {
 
   async function deleteEventOffer() {
     if (!communityId || !activeEvent) return
+    const confirmed = window.confirm(`Delete "${activeEvent.title}"? Existing registrations are kept, but this event will no longer be offered.`)
+    if (!confirmed) return
+
     try {
       await api.deleteEvent(communityId, activeEvent.id)
       await refreshDashboard()
       setCreatedEvent((event) => (event?.id === activeEvent.id ? null : event))
       setSelectedEvent(null)
+      setEditingEventId(null)
       setScreen('home')
       showToast('Event deleted')
     } catch (error: any) {
       showToast(error.message || 'Delete failed')
+    }
+  }
+
+  async function duplicateEvent() {
+    if (!communityId || !data || !activeEvent) return
+    try {
+      const { event } = await api.createEvent(communityId, {
+        title: `${activeEvent.title} (Copy)`,
+        type: activeEvent.type,
+        startsAt: activeEvent.startsAt,
+        priceStars: activeEvent.priceStars,
+        description: activeEvent.description ?? '',
+        coverPath: null,
+        accessLink: activeEvent.accessLink ?? '',
+      })
+      setCreatedEvent(null)
+      setSelectedEvent(event)
+      setEditingEventId(null)
+      setData({ ...data, events: [event, ...data.events] })
+      setScreen('eventPublish')
+      showToast('Event duplicated')
+    } catch (error: any) {
+      showToast(error.message || 'Duplicate failed')
     }
   }
 
@@ -1376,18 +1545,31 @@ export default function Home() {
             <CommunityHome
               data={data}
               onNavigate={go}
-              onCreateMembership={() => go('createDetails')}
+              onCreateMembership={() => {
+                setEditingPlanId(null)
+                go('createDetails')
+              }}
               onShareCommunity={shareCommunity}
               onSelectModel={chooseRevenueModel}
               onEditProfile={editCommunityProfile}
+              onOpenPlan={(plan) => {
+                setSelectedPlan(plan)
+                setCreatedPlan(null)
+                setEditingPlanId(null)
+                setMembershipTitle(plan.name)
+                setMembershipDescription(plan.description ?? '')
+                go('publish')
+              }}
               onOpenProduct={(product) => {
                 setSelectedProduct(product)
                 setCreatedProduct(null)
+                setEditingProductId(null)
                 go('productPublish')
               }}
               onOpenEvent={(event) => {
                 setSelectedEvent(event)
                 setCreatedEvent(null)
+                setEditingEventId(null)
                 go('eventPublish')
               }}
             />
@@ -1430,8 +1612,14 @@ export default function Home() {
               me={me ?? undefined}
               onToast={showToast}
               onNavigate={go}
-              onCreateEvent={() => go('eventBuilder')}
-              onCreateProduct={() => go('productBuilder')}
+              onCreateEvent={() => {
+                setEditingEventId(null)
+                go('eventBuilder')
+              }}
+              onCreateProduct={() => {
+                setEditingProductId(null)
+                go('productBuilder')
+              }}
               onOpenAiManager={() => go('aiManager')}
               onOpenSettings={() => go('settings')}
               onOpenCommunity={(id) => selectCommunity(id, 'home')}
@@ -1487,7 +1675,20 @@ export default function Home() {
               price={xtrLabel(activeProduct.priceStars)}
               coverUrl={activeProduct.coverUrl ?? productCover.preview}
               primaryLabel="Share Product"
-              onEdit={() => go('productBuilder')}
+              onEdit={() => {
+                setEditingProductId(activeProduct.id)
+                setProductTitle(activeProduct.title)
+                setProductDescription(activeProduct.description ?? '')
+                setProductType(activeProduct.type)
+                setProductPriceStars(String(activeProduct.priceStars ?? 0))
+                setProductButtonText(activeProduct.buttonText ?? 'Buy')
+                setProductDeliveryType(activeProduct.deliveryType ?? 'none')
+                setProductDeliveryText(activeProduct.deliveryText ?? '')
+                setProductDeliveryUrl(activeProduct.deliveryUrl ?? '')
+                setProductCover({ path: null, preview: activeProduct.coverUrl ?? null, name: null })
+                setProductFile({ path: null, name: activeProduct.fileName ?? null })
+                go('productBuilder')
+              }}
               onShare={shareProductCard}
               onGuide={() => {
                 if (communityId) setShareGuideLink(offerStartLink(communityId, 'product', activeProduct.id))
@@ -1495,7 +1696,7 @@ export default function Home() {
                 go('shareGuide')
               }}
               onDelete={deleteProductOffer}
-              onToast={showToast}
+              onMore={() => setActionSheet('product')}
             />
           )}
           {screen === 'eventBuilder' && (
@@ -1527,7 +1728,17 @@ export default function Home() {
               price={xtrLabelOrFree(activeEvent.priceStars ?? 0)}
               coverUrl={activeEvent.coverUrl ?? eventCover.preview}
               primaryLabel="Share Event"
-              onEdit={() => go('eventBuilder')}
+              onEdit={() => {
+                setEditingEventId(activeEvent.id)
+                setEventTitle(activeEvent.title)
+                setEventDescription(activeEvent.description ?? '')
+                setEventType(activeEvent.type)
+                setEventStartsAt(new Date(activeEvent.startsAt).toISOString().slice(0, 16))
+                setEventPriceStars(String(activeEvent.priceStars ?? 0))
+                setEventAccessLink(activeEvent.accessLink ?? '')
+                setEventCover({ path: null, preview: activeEvent.coverUrl ?? null, name: null })
+                go('eventBuilder')
+              }}
               onShare={shareEventCard}
               onGuide={() => {
                 if (communityId) setShareGuideLink(offerStartLink(communityId, 'event', activeEvent.id))
@@ -1535,7 +1746,7 @@ export default function Home() {
                 go('shareGuide')
               }}
               onDelete={deleteEventOffer}
-              onToast={showToast}
+              onMore={() => setActionSheet('event')}
             />
           )}
           {screen === 'referralBuilder' && (
@@ -1597,7 +1808,18 @@ export default function Home() {
               plan={activePlan}
               title={membershipTitle}
               description={membershipDescription}
-              onEdit={() => go('createDetails')}
+              onEdit={() => {
+                if (!activePlan) return
+                setEditingPlanId(activePlan.id)
+                setMembershipTitle(activePlan.name)
+                setMembershipDescription(activePlan.description ?? '')
+                setButtonText(activePlan.buttonText ?? 'Subscribe')
+                setMonthlyStars(String(activePlan.stars || centsToStars(activePlan.priceCents)))
+                setCoverPath(null)
+                setCoverPreview(activePlan.coverUrl ?? null)
+                setCoverName(null)
+                go('createDetails')
+              }}
               coverPreview={activePlan?.coverUrl ?? coverPreview}
               onShare={shareMembershipCard}
               onGuide={() => {
@@ -1612,10 +1834,31 @@ export default function Home() {
               onToggleCommentAccess={toggleCommentAccess}
               autoPost={activePlan ? data.scheduledPosts.find((post) => post.targetType === 'plan' && post.targetId === activePlan.id) ?? null : null}
               onToggleAutoPosting={() => activePlan && toggleAutoPosting('plan', activePlan.id)}
-              onToast={showToast}
+              onMore={() => setActionSheet('plan')}
             />
           )}
         </AppFrame>
+      )}
+      {actionSheet && (
+        <ActionSheet
+          kind={actionSheet}
+          productStatus={actionSheet === 'product' ? activeProduct?.status ?? 'active' : undefined}
+          onDuplicate={() => {
+            setActionSheet(null)
+            if (actionSheet === 'plan') duplicatePlan()
+            if (actionSheet === 'product') duplicateProduct()
+            if (actionSheet === 'event') duplicateEvent()
+          }}
+          onToggleStatus={
+            actionSheet === 'product'
+              ? () => {
+                  setActionSheet(null)
+                  toggleProductStatus()
+                }
+              : undefined
+          }
+          onClose={() => setActionSheet(null)}
+        />
       )}
       {toast && <div className="tg-toast">{toast}</div>}
     </>
@@ -1909,6 +2152,7 @@ function CommunityHome({
   onCreateMembership,
   onShareCommunity,
   onSelectModel,
+  onOpenPlan,
   onOpenProduct,
   onOpenEvent,
   onEditProfile,
@@ -1918,6 +2162,7 @@ function CommunityHome({
   onCreateMembership: () => void
   onShareCommunity: () => void
   onSelectModel: (model: RevenueModel) => void
+  onOpenPlan: (plan: PlanDto) => void
   onOpenProduct: (product: ProductDto) => void
   onOpenEvent: (event: EventDto) => void
   onEditProfile: () => void
@@ -1969,7 +2214,7 @@ function CommunityHome({
             title={plan.name}
             detail={`${plan.subscribers} subscribers`}
             meta={xtrLabel(plan.stars || centsToStars(plan.priceCents))}
-            onClick={() => onNavigate('publish')}
+            onClick={() => onOpenPlan(plan)}
           />
         ))}
         {data.plans.length === 0 && <EmptyBlock title="Transactions will appear here" detail="Create a membership or product to get the money flowing." />}
@@ -2895,7 +3140,7 @@ function RevenuePublishScreen({
   onShare,
   onGuide,
   onDelete,
-  onToast,
+  onMore,
 }: {
   kind: 'product' | 'event'
   title: string
@@ -2907,7 +3152,7 @@ function RevenuePublishScreen({
   onShare: () => void
   onGuide: () => void
   onDelete: () => void
-  onToast: (message: string) => void
+  onMore: () => void
 }) {
   return (
     <section className="tg-screen with-fixed-button">
@@ -2922,8 +3167,8 @@ function RevenuePublishScreen({
       </div>
       <div className="tg-action-grid">
         <ActionTile label="Edit" icon="edit" onClick={onEdit} />
-        <ActionTile label="Share" icon="link" onClick={onShare} />
-        <ActionTile label="More" icon="more" onClick={() => onToast('More options opened')} />
+        <ActionTile label="Share" icon="share" onClick={onShare} />
+        <ActionTile label="More" icon="more" onClick={onMore} />
       </div>
       <ListGroup>
         <ListRow tone="green" icon="share" title="Telegram Card" detail="Share sends a bot message with a Web App button." onClick={onShare} />
@@ -3057,7 +3302,7 @@ function PublishScreen({
   onToggleCommentAccess,
   autoPost,
   onToggleAutoPosting,
-  onToast,
+  onMore,
 }: {
   community: DashboardDto['community']
   plan: PlanDto | null
@@ -3074,7 +3319,7 @@ function PublishScreen({
   onToggleCommentAccess: () => void
   autoPost: ScheduledPostDto | null
   onToggleAutoPosting: () => void
-  onToast: (message: string) => void
+  onMore: () => void
 }) {
   const commentAccessDetail = !commentAccess.linked
     ? 'Link a discussion group to enable'
@@ -3100,8 +3345,8 @@ function PublishScreen({
       </div>
       <div className="tg-action-grid">
         <ActionTile label="Edit" icon="edit" onClick={onEdit} />
-        <ActionTile label="Links" icon="link" onClick={onCopyLink} />
-        <ActionTile label="More" icon="more" onClick={() => onToast('More options opened')} />
+        <ActionTile label="Copy" icon="copy" onClick={onCopyLink} />
+        <ActionTile label="More" icon="more" onClick={onMore} />
       </div>
       <ListGroup>
         <ListRow
@@ -3752,6 +3997,9 @@ type IconName =
   | 'business'
   | 'bot'
   | 'member'
+  | 'edit'
+  | 'copy'
+  | 'more'
 
 const ICON_SVG_PROPS = {
   viewBox: '0 0 24 24',
@@ -3920,6 +4168,28 @@ function RowIcon({ name }: { name: IconName }) {
         <svg {...ICON_SVG_PROPS}>
           <circle cx="12" cy="8" r="4" />
           <path d="M4.5 20.5a7.5 7.5 0 0115 0" />
+        </svg>
+      )
+    case 'edit':
+      return (
+        <svg {...ICON_SVG_PROPS}>
+          <path d="M12 20h8" />
+          <path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+        </svg>
+      )
+    case 'copy':
+      return (
+        <svg {...ICON_SVG_PROPS}>
+          <rect x="9" y="9" width="12" height="12" rx="2.2" />
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+        </svg>
+      )
+    case 'more':
+      return (
+        <svg {...ICON_SVG_PROPS}>
+          <circle cx="5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+          <circle cx="19" cy="12" r="1.3" fill="currentColor" stroke="none" />
         </svg>
       )
     default:
@@ -4118,22 +4388,49 @@ function StoryArt({
   )
 }
 
-function ActionTile({ label, icon, onClick }: { label: string; icon: 'plus' | 'stats' | 'more' | 'edit' | 'link'; onClick: () => void }) {
+function ActionTile({ label, icon, onClick }: { label: string; icon: 'edit' | 'copy' | 'share' | 'more'; onClick: () => void }) {
   return (
     <button className="tg-action-tile" type="button" onClick={onClick}>
-      <IconGlyph icon={icon} />
+      <span className="tg-action-icon" aria-hidden="true">
+        <RowIcon name={icon} />
+      </span>
       <strong>{label}</strong>
     </button>
   )
 }
 
-function IconGlyph({ icon }: { icon: 'plus' | 'stats' | 'more' | 'edit' | 'link' }) {
+function ActionSheet({
+  kind,
+  productStatus,
+  onDuplicate,
+  onToggleStatus,
+  onClose,
+}: {
+  kind: 'plan' | 'product' | 'event'
+  productStatus?: 'draft' | 'active'
+  onDuplicate: () => void
+  onToggleStatus?: () => void
+  onClose: () => void
+}) {
+  const kindLabel = kind === 'plan' ? 'Membership' : kind === 'product' ? 'Product' : 'Event'
   return (
-    <span className={`tg-action-icon ${icon}`} aria-hidden="true">
-      <i />
-      <i />
-      <i />
-    </span>
+    <div className="tg-action-sheet-overlay" onClick={onClose}>
+      <div className="tg-action-sheet" role="dialog" aria-label="More Options" onClick={(event) => event.stopPropagation()}>
+        <h2>More Options</h2>
+        <p>{kindLabel} actions</p>
+        {onToggleStatus && (
+          <button type="button" onClick={onToggleStatus}>
+            {productStatus === 'active' ? 'Move to Draft' : 'Publish'}
+          </button>
+        )}
+        <button type="button" onClick={onDuplicate}>
+          Duplicate {kindLabel}
+        </button>
+        <button type="button" className="cancel" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </div>
   )
 }
 

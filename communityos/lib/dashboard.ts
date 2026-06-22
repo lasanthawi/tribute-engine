@@ -92,8 +92,8 @@ export async function buildDashboard(communityId: number): Promise<DashboardDto 
         },
         () => getAiManager(communityId)
       ),
-      optionalSection('events', [], () => listEvents(communityId)),
-      optionalSection('products', [], () => listProducts(communityId)),
+      optionalSection('events', [], () => listEvents(communityId, undefined, { ownerView: true })),
+      optionalSection('products', [], () => listProducts(communityId, undefined, { ownerView: true })),
       optionalSection('setup', [], () => computeSetup(communityId)),
       optionalSection('avatarUrl', null, () => signedAssetUrl(communityAvatarPath, 86400)),
       optionalSection('commentAccess', { linked: false, discussionBotStatus: null, enabled: true }, () => getCommentAccessStatus(communityId)),

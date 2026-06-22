@@ -27,13 +27,13 @@ export interface CreateProductInput {
   fileName?: string | null
 }
 
-export async function listProducts(communityId: number, userId?: number) {
-  const { data: products, error } = await sb
-    .from('payment_products')
-    .select('*')
-    .eq('community_id', communityId)
-    .neq('status', 'archived')
-    .order('id', { ascending: true })
+export async function listProducts(communityId: number, userId?: number, opts: { ownerView?: boolean } = {}) {
+  // Members only ever see published (active) products — draft is the owner's
+  // private "not ready yet" state, not an access-control hide-from-buyers flag,
+  // so it has to be enforced here rather than left to the client to respect.
+  let query = sb.from('payment_products').select('*').eq('community_id', communityId)
+  query = opts.ownerView ? query.neq('status', 'archived') : query.eq('status', 'active')
+  const { data: products, error } = await query.order('id', { ascending: true })
   if (error) throw error
 
   const ids = (products ?? []).map((p: any) => p.id)
@@ -53,7 +53,10 @@ export async function listProducts(communityId: number, userId?: number) {
   return Promise.all(
     (products ?? []).map(async (product: any) => {
       const metadata = product.metadata ?? {}
-      const isOwned = owned.has(product.id)
+      // ownerView (no purchasing member context, e.g. the community owner's own
+      // dashboard) always sees delivery details for their own product — the
+      // purchase gate below only matters for a member browsing/buying it.
+      const isOwned = opts.ownerView || owned.has(product.id)
       return {
         id: product.id,
         title: product.title,
@@ -108,8 +111,84 @@ export async function createProduct(communityId: number, input: CreateProductInp
     priceStars: data.price_stars,
     coverUrl: await signedAssetUrl(data.metadata?.coverPath, 86400),
     deliveryType: data.metadata?.deliveryType ?? 'none',
-    deliveryText: null,
-    deliveryUrl: null,
+    deliveryText: data.metadata?.deliveryText ?? null,
+    deliveryUrl: data.metadata?.deliveryUrl ?? (await signedAssetUrl(data.metadata?.filePath, 900)),
+    fileName: data.metadata?.fileName ?? null,
+    owned: false,
+  }
+}
+
+export interface UpdateProductInput {
+  title?: string
+  type?: ProductType
+  priceStars?: number
+  status?: 'draft' | 'active'
+  description?: string
+  buttonText?: string
+  coverPath?: string | null
+  deliveryType?: 'file' | 'url' | 'text' | 'none'
+  deliveryText?: string
+  deliveryUrl?: string
+  filePath?: string | null
+  fileName?: string | null
+}
+
+export async function updateProduct(communityId: number, productId: number, input: UpdateProductInput) {
+  const { data: existing, error: fetchErr } = await sb
+    .from('payment_products')
+    .select('*')
+    .eq('community_id', communityId)
+    .eq('id', productId)
+    .single()
+  if (fetchErr) throw fetchErr
+
+  const existingMetadata = existing.metadata ?? {}
+  const metadata = {
+    description: input.description !== undefined ? input.description : existingMetadata.description ?? '',
+    buttonText: input.buttonText !== undefined ? input.buttonText : existingMetadata.buttonText ?? 'Buy',
+    coverPath: input.coverPath !== undefined ? input.coverPath : existingMetadata.coverPath ?? null,
+    deliveryType: input.deliveryType !== undefined ? input.deliveryType : existingMetadata.deliveryType ?? 'none',
+    deliveryText: input.deliveryText !== undefined ? input.deliveryText : existingMetadata.deliveryText ?? '',
+    deliveryUrl: input.deliveryUrl !== undefined ? input.deliveryUrl : existingMetadata.deliveryUrl ?? '',
+    filePath: input.filePath !== undefined ? input.filePath : existingMetadata.filePath ?? null,
+    fileName: input.fileName !== undefined ? input.fileName : existingMetadata.fileName ?? null,
+  }
+
+  const patch: Record<string, unknown> = { metadata }
+  if (input.title !== undefined) patch.title = input.title
+  if (input.type !== undefined) patch.product_type = input.type
+  if (input.priceStars !== undefined) patch.price_stars = Math.max(0, Math.round(input.priceStars))
+  if (input.status !== undefined) patch.status = input.status
+
+  const { data, error } = await sb
+    .from('payment_products')
+    .update(patch)
+    .eq('community_id', communityId)
+    .eq('id', productId)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  const { count } = await sb
+    .from('purchases')
+    .select('id', { count: 'exact', head: true })
+    .eq('community_id', communityId)
+    .eq('product_id', productId)
+    .eq('status', 'paid')
+
+  return {
+    id: data.id,
+    title: data.title,
+    type: data.product_type as ProductType,
+    description: data.metadata?.description ?? null,
+    buttonText: data.metadata?.buttonText ?? null,
+    status: data.status as 'draft' | 'active',
+    purchases: count ?? 0,
+    priceStars: data.price_stars,
+    coverUrl: await signedAssetUrl(data.metadata?.coverPath, 86400),
+    deliveryType: data.metadata?.deliveryType ?? 'none',
+    deliveryText: data.metadata?.deliveryText ?? null,
+    deliveryUrl: data.metadata?.deliveryUrl ?? (await signedAssetUrl(data.metadata?.filePath, 900)),
     fileName: data.metadata?.fileName ?? null,
     owned: false,
   }

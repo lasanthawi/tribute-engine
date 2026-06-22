@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { requireUser } from '@/lib/api-auth'
 import { requireCommunityOwner } from '@/lib/communities'
-import { archiveEvent, createEvent, listEvents, registerEvent } from '@/lib/events'
+import { archiveEvent, createEvent, listEvents, registerEvent, updateEvent } from '@/lib/events'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userId = await requireUser(req, res)
@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'GET') {
       const allowed = await requireCommunityOwner(userId, communityId)
       if (!allowed) return res.status(403).json({ error: 'Forbidden' })
-      return res.status(200).json({ events: await listEvents(communityId, userId) })
+      return res.status(200).json({ events: await listEvents(communityId, userId, { ownerView: true }) })
     }
     if (req.method === 'POST') {
       if (req.body?.action === 'register') {
@@ -41,6 +41,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
       return res.status(201).json({ event })
     }
+    if (req.method === 'PATCH') {
+      const allowed = await requireCommunityOwner(userId, communityId)
+      if (!allowed) return res.status(403).json({ error: 'Forbidden' })
+      const { eventId, title, type, startsAt, priceStars, description, coverPath, accessLink } = req.body ?? {}
+      const id = Number(eventId ?? req.query.eventId)
+      if (!Number.isFinite(id)) return res.status(400).json({ error: 'eventId is required' })
+      const event = await updateEvent(communityId, id, {
+        ...(title !== undefined && { title }),
+        ...(type !== undefined && { type }),
+        ...(startsAt !== undefined && { startsAt }),
+        ...(priceStars !== undefined && { priceStars: Number(priceStars) }),
+        ...(description !== undefined && { description }),
+        ...(coverPath !== undefined && { coverPath }),
+        ...(accessLink !== undefined && { accessLink }),
+      })
+      return res.status(200).json({ event })
+    }
+
     if (req.method === 'DELETE') {
       const allowed = await requireCommunityOwner(userId, communityId)
       if (!allowed) return res.status(403).json({ error: 'Forbidden' })
@@ -49,7 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true, event: await archiveEvent(communityId, eventId) })
     }
 
-    res.setHeader('Allow', ['GET', 'POST', 'DELETE'])
+    res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE'])
     return res.status(405).json({ error: 'Method not allowed' })
   } catch (error) {
     console.error('communities/[id]/events error:', error)
