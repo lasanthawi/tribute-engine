@@ -301,8 +301,24 @@ export async function setTelegramMenuButton(botToken: string, miniAppUrl: string
   if (!res.ok || !body?.ok) throw new Error(`Telegram setChatMenuButton failed: ${res.status} ${body?.description ?? ''}`)
 }
 
+// Without an explicit scope, setMyCommands registers commands under the "default" scope,
+// which is the fallback for every chat type including groups and channels — that's why
+// /start and /help show up as tappable commands in a group's command menu even though the
+// bot never responds to them there. Clear the default scope and register them for private
+// chats only, so they no longer show up in any group or channel a community owner connects.
 export async function setTelegramCommands(botToken: string): Promise<void> {
   if (!botToken) return
+
+  const clearRes = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ commands: [], scope: { type: 'default' } }),
+  })
+  const clearBody = await clearRes.json().catch(() => ({}))
+  if (!clearRes.ok || !clearBody?.ok) {
+    throw new Error(`Telegram setMyCommands (clear default scope) failed: ${clearRes.status} ${clearBody?.description ?? ''}`)
+  }
+
   const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -311,6 +327,7 @@ export async function setTelegramCommands(botToken: string): Promise<void> {
         { command: 'start', description: 'Open CommunityOS' },
         { command: 'help', description: 'How CommunityOS works' },
       ],
+      scope: { type: 'all_private_chats' },
     }),
   })
   const body = await res.json().catch(() => ({}))

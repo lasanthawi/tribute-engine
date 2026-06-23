@@ -153,11 +153,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
 
           if (botIsAdmin) {
+            // DM the admin who connected it — never post this into the chat itself. For a
+            // channel that's a public post visible to every subscriber; for a group it's
+            // internal noise members have no reason to see.
             await sendTelegramMessage(
               BOT_TOKEN,
-              mcm.chat.id,
-              '*CommunityOS connected* ✅\n\nAccess control is active. Paying members will receive invite links automatically.',
-              'Markdown'
+              mcm.from.id,
+              `*CommunityOS connected* ✅\n\n*${mcm.chat.title}* is linked. Paying members will receive invite links automatically.`,
+              'Markdown',
+              inlineKeyboard()
             ).catch((error) => console.error('sendTelegramMessage (connected confirmation) failed:', error))
             await syncCommunityAvatar(communityId, mcm.chat.id).catch((error) => console.error('syncCommunityAvatar failed:', error))
             await syncDiscussionChat(communityId, telegramChatId).catch((error) => console.error('syncDiscussionChat failed:', error))

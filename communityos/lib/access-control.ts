@@ -247,15 +247,26 @@ export async function findCommunityForChat(telegramChatId: string): Promise<numb
     .select('community_id')
     .eq('telegram_chat_id', telegramChatId)
     .maybeSingle()
-  return chat?.community_id ?? null
+  if (chat) return chat.community_id
+
+  // A channel's linked discussion group gets its own separate my_chat_member event when the
+  // bot is promoted there. It isn't a new chat the owner is connecting — it's already recorded
+  // as the channel row's discussion_chat_id — so route it back to that same community instead
+  // of falling through to autoLinkChatToCommunity, which would otherwise treat it as brand new.
+  const { data: discussionChat } = await sb
+    .from('telegram_chats')
+    .select('community_id')
+    .eq('discussion_chat_id', Number(telegramChatId))
+    .maybeSingle()
+  return discussionChat?.community_id ?? null
 }
 
-// When the bot is added as admin to a group, find or create a community to link it to.
-// If the user has exactly one community, attach this chat to it (regardless of how many
-// other chats it already has — telegram_chats is the multi-chat source of truth, the
-// caller upserts the new chat row there). If the user has none, create one. If the user
-// has more than one, it's ambiguous which one this chat belongs to, so the owner must
-// connect it manually from the app.
+// When the bot is added as admin to a group or channel, find or create a community to link
+// it to. If the user has exactly one community, attach this chat to it (regardless of how
+// many other chats it already has — telegram_chats is the multi-chat source of truth, the
+// caller upserts the new chat row there). Otherwise (no communities yet, or several already)
+// create a new one — "Add Community" should never silently do nothing just because the owner
+// already runs more than one.
 export async function autoLinkChatToCommunity(
   telegramUserId: number,
   telegramChatId: string,
@@ -273,28 +284,23 @@ export async function autoLinkChatToCommunity(
     .select('id, telegram_chat_id')
     .eq('owner_id', user.id)
 
-  if (!owned || owned.length === 0) {
-    // No existing community — auto-create a fully initialised one (includes community_members owner row)
-    const community = await createCommunity(user.id, {
-      name: chatTitle || 'My Community',
-      telegramChatId: Number(telegramChatId),
-    })
+  if (owned && owned.length === 1) {
+    // Exactly one community — attach this chat to it. Only backfill the legacy single-chat
+    // column if it's still empty; once a second chat is linked, telegram_chats is the only
+    // accurate record, so we must not keep overwriting the legacy column with the latest chat id.
+    const community = owned[0]
+    if (community.telegram_chat_id === null) {
+      await supabase.from('communities').update({ telegram_chat_id: Number(telegramChatId) }).eq('id', community.id)
+    }
     return community.id
   }
 
-  if (owned.length > 1) {
-    // Multiple communities — can't auto-pick which one this chat belongs to, admin must connect manually
-    return null
-  }
-
-  // Exactly one community — attach this chat to it. Only backfill the legacy single-chat
-  // column if it's still empty; once a second chat is linked, telegram_chats is the only
-  // accurate record, so we must not keep overwriting the legacy column with the latest chat id.
-  const community = owned[0]
-  if (community.telegram_chat_id === null) {
-    await supabase.from('communities').update({ telegram_chat_id: Number(telegramChatId) }).eq('id', community.id)
-  }
-
+  // No existing community, or several already — auto-create a fully initialised one
+  // (includes the community_members owner row) rather than dropping the event.
+  const community = await createCommunity(user.id, {
+    name: chatTitle || 'My Community',
+    telegramChatId: Number(telegramChatId),
+  })
   return community.id
 }
 
