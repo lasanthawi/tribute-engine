@@ -509,27 +509,49 @@ export async function suspendMemberAccess(communityId: number, userId: number) {
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
   const telegramUserId = await getTelegramUserId(userId)
+  let attempted = 0
+  let failed = 0
   if (botToken && telegramUserId) {
     for (const chatId of await connectedChatIds(communityId)) {
+      attempted++
       await banChatMember(botToken, chatId, telegramUserId).catch((error) => {
+        failed++
         console.error('banChatMember failed:', error)
       })
     }
   }
 
-  await logAccessEvent(communityId, 'revoke', 'success', { userId, message: 'Access suspended.' })
+  // Only report success if every connected chat actually banned the member —
+  // a silent "success" here (e.g. the bot lacks restrict_members) would leave
+  // a suspended member with unrevoked Telegram access and no owner-facing signal.
+  const status = attempted > 0 && failed > 0 ? 'failed' : 'success'
+  const message =
+    attempted > 0 && failed > 0
+      ? `Access suspended in database. Telegram removal failed in ${failed}/${attempted} chats — check the bot's admin rights.`
+      : 'Access suspended.'
+  await logAccessEvent(communityId, 'revoke', status, { userId, message })
   return { ok: true as const }
 }
 
 export async function restoreMemberAccess(communityId: number, userId: number) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
   const telegramUserId = await getTelegramUserId(userId)
+  let attempted = 0
+  let failed = 0
   if (botToken && telegramUserId) {
     for (const chatId of await connectedChatIds(communityId)) {
+      attempted++
       await unbanChatMember(botToken, chatId, telegramUserId).catch((error) => {
+        failed++
         console.error('unbanChatMember failed:', error)
       })
     }
+  }
+  if (attempted > 0 && failed > 0) {
+    await logAccessEvent(communityId, 'sync', 'failed', {
+      userId,
+      message: `Telegram unban failed in ${failed}/${attempted} chats — check the bot's admin rights.`,
+    })
   }
   return grantMemberAccess(communityId, userId)
 }
