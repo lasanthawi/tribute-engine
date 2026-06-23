@@ -1,6 +1,6 @@
 export interface TelegramUpdate {
   message?: {
-    chat: { id: number }
+    chat: { id: number; type?: 'private' | 'group' | 'supergroup' | 'channel' }
     from?: { id: number; username?: string; first_name?: string; last_name?: string }
     text?: string
     successful_payment?: {
