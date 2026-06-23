@@ -97,7 +97,12 @@ export async function answerFaqQuestion(communityId: number, question: string): 
     ? `You are a helpful assistant for a Telegram community. Use the following context to answer the member's question. If the context does not cover it, say you are not sure and suggest contacting the community owner.\n\nContext:\n${context}\n\nQuestion: ${question}`
     : `You are a helpful assistant for a Telegram community. Answer the member's question as best you can, and say you are not sure if you do not know.\n\nQuestion: ${question}`
 
-  return generateAiText(prompt, { communityId })
+  try {
+    return await generateAiText(prompt, { communityId })
+  } catch (error) {
+    console.error('generateAiText failed for FAQ question, using fallback answer:', error)
+    return "I'm not able to answer that right now — please try again later or contact the community owner directly."
+  }
 }
 
 export async function listFaqEntries(communityId: number): Promise<FaqEntryDto[]> {

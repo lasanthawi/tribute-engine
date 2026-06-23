@@ -152,6 +152,14 @@ a {
   padding: calc(6px + var(--safe-top)) 14px 4px;
   background: transparent;
   border-bottom: 1px solid var(--tg-separator);
+  transition: background-color 160ms ease;
+}
+
+/* Once the page scrolls past the top, fill the mini bar so it reads as a
+   header sitting above the content instead of content showing through it. */
+.tg-topbar.is-scrolled {
+  background: rgba(239, 239, 244, 0.92);
+  backdrop-filter: blur(18px);
 }
 
 .tg-topbar.centered {

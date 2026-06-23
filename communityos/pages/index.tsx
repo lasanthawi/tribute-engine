@@ -114,6 +114,7 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [loadKey, setLoadKey] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
+  const [addCommunityChooserOpen, setAddCommunityChooserOpen] = useState(false)
   const visibilityListenerRef = useRef<(() => void) | null>(null)
   const [search, setSearch] = useState('')
   const [pendingModel, setPendingModel] = useState<RevenueModel>('membership')
@@ -1387,14 +1388,23 @@ export default function Home() {
     await copyOrOpenTelegramUrl(botUrl(), 'Support chat opened')
   }
 
-  async function handleAddCommunity() {
-    const url = botGroupLink()
+  function openAddCommunityChooser() {
+    setAddCommunityChooserOpen(true)
+  }
+
+  async function handleAddCommunity(kind: 'group' | 'channel' = 'group') {
+    setAddCommunityChooserOpen(false)
+    const url = kind === 'channel' ? botChannelLink() : botGroupLink()
     if (!url) {
       showToast('Set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME first')
       return
     }
     openTelegramLink(url)
-    showToast('Add the bot as admin — your community will appear here')
+    showToast(
+      kind === 'channel'
+        ? 'Pick your channel and keep all requested admin rights enabled — your community will appear here'
+        : 'Add the bot as admin — your community will appear here'
+    )
 
     // Remove any stale listener from a previous tap before adding a new one
     if (visibilityListenerRef.current) {
@@ -1650,7 +1660,7 @@ export default function Home() {
               <AccountHome
                 me={me}
                 onOpenCommunity={(id) => selectCommunity(id, 'home')}
-                onAddCommunity={handleAddCommunity}
+                onAddCommunity={openAddCommunityChooser}
               />
             )}
             {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
@@ -1660,7 +1670,7 @@ export default function Home() {
                 search={search}
                 onSearch={setSearch}
                 onSelect={selectCommunity}
-                onAdd={handleAddCommunity}
+                onAdd={openAddCommunityChooser}
               />
             )}
             {screen === 'more' && me && (
@@ -1680,6 +1690,13 @@ export default function Home() {
               </div>
             )}
           </AppFrame>
+        )}
+        {addCommunityChooserOpen && (
+          <AddCommunityActionSheet
+            onChooseGroup={() => handleAddCommunity('group')}
+            onChooseChannel={() => handleAddCommunity('channel')}
+            onClose={() => setAddCommunityChooserOpen(false)}
+          />
         )}
         {toast && <div className="tg-toast">{toast}</div>}
       </>
@@ -1791,7 +1808,7 @@ export default function Home() {
             <AccountHome
               me={me}
               onOpenCommunity={(id) => selectCommunity(id, 'home')}
-              onAddCommunity={handleAddCommunity}
+              onAddCommunity={openAddCommunityChooser}
             />
           )}
           {screen === 'communities' && (
@@ -1800,7 +1817,7 @@ export default function Home() {
               search={search}
               onSearch={setSearch}
               onSelect={selectCommunity}
-              onAdd={handleAddCommunity}
+              onAdd={openAddCommunityChooser}
             />
           )}
           {screen === 'home' && (
@@ -2166,6 +2183,13 @@ export default function Home() {
           onClose={() => setActionSheet(null)}
         />
       )}
+      {addCommunityChooserOpen && (
+        <AddCommunityActionSheet
+          onChooseGroup={() => handleAddCommunity('group')}
+          onChooseChannel={() => handleAddCommunity('channel')}
+          onClose={() => setAddCommunityChooserOpen(false)}
+        />
+      )}
       {toast && <div className="tg-toast">{toast}</div>}
     </>
   )
@@ -2190,9 +2214,17 @@ function AppFrame({
   onGuide?: () => void
   onMore?: () => void
 }) {
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 2)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
     <main className="tg-app">
-      <header className="tg-topbar">
+      <header className={`tg-topbar${scrolled ? ' is-scrolled' : ''}`}>
         {!hideBack && (
           <button className="tg-nav-button" type="button" onClick={onBack} aria-label="Back">
             Back
@@ -4596,6 +4628,34 @@ function MemberHome({
   )
 }
 
+function AddCommunityActionSheet({
+  onChooseGroup,
+  onChooseChannel,
+  onClose,
+}: {
+  onChooseGroup: () => void
+  onChooseChannel: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="tg-action-sheet-overlay" onClick={onClose}>
+      <div className="tg-action-sheet" role="dialog" aria-label="Add Community" onClick={(event) => event.stopPropagation()}>
+        <h2>Add Community</h2>
+        <p>Connect a Telegram group or a channel. Keep all requested admin rights enabled so access control works.</p>
+        <button type="button" onClick={onChooseGroup}>
+          Add a Group or Supergroup
+        </button>
+        <button type="button" onClick={onChooseChannel}>
+          Add a Channel
+        </button>
+        <button type="button" className="cancel" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function SupportActionSheet({
   onMessageAdmin,
   onMessageBot,
@@ -5288,10 +5348,22 @@ function communityStartLink(communityId: number) {
   return botUrl(`?startapp=community_${communityId}`)
 }
 
+// Pre-fills the admin rights the bot actually uses: invite_users (single-use
+// invite links on grant), restrict_members (ban/unban on suspend, revoke,
+// and restore), manage_chat (baseline chat-management access).
 function botGroupLink() {
   const username = configuredBotUsername()
   if (!username) return ''
-  return `https://t.me/${username}?startgroup=setup&admin=manage_chat+invite_users+pin_messages`
+  return `https://t.me/${username}?startgroup=setup&admin=manage_chat+invite_users+restrict_members`
+}
+
+// startchannel (unlike startgroup) only lists channels the user can manage,
+// and channels additionally need post_messages for the bot's own posts
+// (e.g. the "connected" confirmation) to the channel itself.
+function botChannelLink() {
+  const username = configuredBotUsername()
+  if (!username) return ''
+  return `https://t.me/${username}?startchannel=setup&admin=post_messages+invite_users+restrict_members`
 }
 
 function membershipStartLink(communityId: number, planId: number | string) {

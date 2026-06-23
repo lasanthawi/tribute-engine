@@ -153,12 +153,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
 
           if (botIsAdmin) {
+            // DM the admin who connected it — never post this into the chat itself. For a
+            // channel that's a public post visible to every subscriber; for a group it's
+            // internal noise members have no reason to see.
             await sendTelegramMessage(
               BOT_TOKEN,
-              mcm.chat.id,
-              '*CommunityOS connected* ✅\n\nAccess control is active. Paying members will receive invite links automatically.',
-              'Markdown'
-            )
+              mcm.from.id,
+              `*CommunityOS connected* ✅\n\n*${mcm.chat.title}* is linked. Paying members will receive invite links automatically.`,
+              'Markdown',
+              inlineKeyboard()
+            ).catch((error) => console.error('sendTelegramMessage (connected confirmation) failed:', error))
             await syncCommunityAvatar(communityId, mcm.chat.id).catch((error) => console.error('syncCommunityAvatar failed:', error))
             await syncDiscussionChat(communityId, telegramChatId).catch((error) => console.error('syncDiscussionChat failed:', error))
           }
@@ -173,6 +177,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             chatType: mcm.chat.type as 'group' | 'supergroup' | 'channel',
             botStatus: 'not_connected',
           }).catch(() => undefined)
+        }
+
+        // Telegram's "Add to Group/Channel" picker only promotes to admin when the
+        // adding user already has the right to add admins in that chat — otherwise it
+        // silently adds the bot as a plain member instead, with no error to anyone. DM
+        // the person who added it so they're not left assuming the connection worked.
+        if (!communityId && newStatus === 'member' && mcm.old_chat_member.status !== 'member') {
+          const rightsNeeded =
+            mcm.chat.type === 'channel'
+              ? 'Post Messages, Invite Users via Link, and Ban Users'
+              : 'Invite Users via Link, Ban Users, and Manage Chat'
+          await sendTelegramMessage(
+            BOT_TOKEN,
+            mcm.from.id,
+            `I was added to *${mcm.chat.title}*, but only as a regular member — not an admin.\n\nOpen its Administrators settings and promote me with at least: ${rightsNeeded}. Once I'm an admin there, CommunityOS will connect automatically.`,
+            'Markdown'
+          ).catch((error) => console.error('sendTelegramMessage (promote-to-admin nudge) failed:', error))
         }
 
         // This event may instead describe the bot's membership in a linked discussion
@@ -225,7 +246,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!message?.text || !message.from) return res.status(200).json({ ok: true })
 
-    if (message.text.startsWith('/start')) {
+    // Telegram auto-sends a "/start <payload>" message into a group/channel on the
+    // adding user's behalf right after they add the bot via a startgroup/startchannel
+    // deep link. Without this guard, that triggered a public "Open Mini App" reply
+    // visible to the whole chat — this flow is for the private 1:1 onboarding chat only.
+    if (message.chat.type === 'private' && message.text.startsWith('/start')) {
       const startParam = message.text.split(/\s+/)[1]
       const user = await getOrCreateUser(message.from)
       if (startParam) {

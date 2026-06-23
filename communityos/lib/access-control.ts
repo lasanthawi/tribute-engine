@@ -247,11 +247,26 @@ export async function findCommunityForChat(telegramChatId: string): Promise<numb
     .select('community_id')
     .eq('telegram_chat_id', telegramChatId)
     .maybeSingle()
-  return chat?.community_id ?? null
+  if (chat) return chat.community_id
+
+  // A channel's linked discussion group gets its own separate my_chat_member event when the
+  // bot is promoted there. It isn't a new chat the owner is connecting — it's already recorded
+  // as the channel row's discussion_chat_id — so route it back to that same community instead
+  // of falling through to autoLinkChatToCommunity, which would otherwise treat it as brand new.
+  const { data: discussionChat } = await sb
+    .from('telegram_chats')
+    .select('community_id')
+    .eq('discussion_chat_id', Number(telegramChatId))
+    .maybeSingle()
+  return discussionChat?.community_id ?? null
 }
 
-// When the bot is added as admin to a group, find or create a community to link it to.
-// If the user has exactly one unlinked community, use that. If none, create one.
+// When the bot is added as admin to a group or channel, find or create a community to link
+// it to. If the user has exactly one community, attach this chat to it (regardless of how
+// many other chats it already has — telegram_chats is the multi-chat source of truth, the
+// caller upserts the new chat row there). Otherwise (no communities yet, or several already)
+// create a new one — "Add Community" should never silently do nothing just because the owner
+// already runs more than one.
 export async function autoLinkChatToCommunity(
   telegramUserId: number,
   telegramChatId: string,
@@ -264,34 +279,29 @@ export async function autoLinkChatToCommunity(
     .maybeSingle()
   if (!user) return null
 
-  const { data: unlinked } = await supabase
+  const { data: owned } = await supabase
     .from('communities')
-    .select('id')
+    .select('id, telegram_chat_id')
     .eq('owner_id', user.id)
-    .is('telegram_chat_id', null)
 
-  if (!unlinked || unlinked.length === 0) {
-    // No existing community — auto-create a fully initialised one (includes community_members owner row)
-    const community = await createCommunity(user.id, {
-      name: chatTitle || 'My Community',
-      telegramChatId: Number(telegramChatId),
-    })
+  if (owned && owned.length === 1) {
+    // Exactly one community — attach this chat to it. Only backfill the legacy single-chat
+    // column if it's still empty; once a second chat is linked, telegram_chats is the only
+    // accurate record, so we must not keep overwriting the legacy column with the latest chat id.
+    const community = owned[0]
+    if (community.telegram_chat_id === null) {
+      await supabase.from('communities').update({ telegram_chat_id: Number(telegramChatId) }).eq('id', community.id)
+    }
     return community.id
   }
 
-  if (unlinked.length > 1) {
-    // Multiple unlinked communities — can't auto-pick, admin must connect manually
-    return null
-  }
-
-  // Exactly one unlinked community — link it
-  const communityId = unlinked[0].id
-  await supabase
-    .from('communities')
-    .update({ telegram_chat_id: Number(telegramChatId) })
-    .eq('id', communityId)
-
-  return communityId
+  // No existing community, or several already — auto-create a fully initialised one
+  // (includes the community_members owner row) rather than dropping the event.
+  const community = await createCommunity(user.id, {
+    name: chatTitle || 'My Community',
+    telegramChatId: Number(telegramChatId),
+  })
+  return community.id
 }
 
 export async function listAccessLogs(communityId: number): Promise<AccessLogRow[]> {
@@ -505,27 +515,49 @@ export async function suspendMemberAccess(communityId: number, userId: number) {
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
   const telegramUserId = await getTelegramUserId(userId)
+  let attempted = 0
+  let failed = 0
   if (botToken && telegramUserId) {
     for (const chatId of await connectedChatIds(communityId)) {
+      attempted++
       await banChatMember(botToken, chatId, telegramUserId).catch((error) => {
+        failed++
         console.error('banChatMember failed:', error)
       })
     }
   }
 
-  await logAccessEvent(communityId, 'revoke', 'success', { userId, message: 'Access suspended.' })
+  // Only report success if every connected chat actually banned the member —
+  // a silent "success" here (e.g. the bot lacks restrict_members) would leave
+  // a suspended member with unrevoked Telegram access and no owner-facing signal.
+  const status = attempted > 0 && failed > 0 ? 'failed' : 'success'
+  const message =
+    attempted > 0 && failed > 0
+      ? `Access suspended in database. Telegram removal failed in ${failed}/${attempted} chats — check the bot's admin rights.`
+      : 'Access suspended.'
+  await logAccessEvent(communityId, 'revoke', status, { userId, message })
   return { ok: true as const }
 }
 
 export async function restoreMemberAccess(communityId: number, userId: number) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
   const telegramUserId = await getTelegramUserId(userId)
+  let attempted = 0
+  let failed = 0
   if (botToken && telegramUserId) {
     for (const chatId of await connectedChatIds(communityId)) {
+      attempted++
       await unbanChatMember(botToken, chatId, telegramUserId).catch((error) => {
+        failed++
         console.error('unbanChatMember failed:', error)
       })
     }
+  }
+  if (attempted > 0 && failed > 0) {
+    await logAccessEvent(communityId, 'sync', 'failed', {
+      userId,
+      message: `Telegram unban failed in ${failed}/${attempted} chats — check the bot's admin rights.`,
+    })
   }
   return grantMemberAccess(communityId, userId)
 }
