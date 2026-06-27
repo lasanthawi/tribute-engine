@@ -46,6 +46,17 @@ import {
   StoryArt,
   paymentStatusBadge,
 } from '@/components/ListPrimitives'
+import { AppFrame } from '@/components/AppFrame'
+import {
+  ConnectStatus,
+  ConnectStatusCard,
+  CommunityHeader,
+  NextActionCard,
+  QuickAccessRow,
+  RevenueSnapshotRow,
+} from '@/components/StatusCards'
+import { PreviewCard, UploadBox } from '@/components/UploadPreview'
+import { AddCommunityActionSheet, SupportActionSheet } from '@/components/ActionSheets'
 import { dateShort, initials } from '@/lib/format'
 import { centsToStars, formatUsdApprox, starsToCents } from '@/lib/star-rate'
 import { parseOfferCode, parseReferralCode as parseReferralStartCode } from '@/lib/start-params'
@@ -54,11 +65,6 @@ import { NextAction, computeAccountNextAction, computeNextAction } from '@/lib/n
 type Mode = 'publisher' | 'member'
 type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
 type CheckoutIntent = { kind: 'plan' | 'product' | 'event'; id: number } | null
-type ConnectStatus =
-  | { phase: 'connecting'; kind: 'group' | 'channel' }
-  | { phase: 'success'; name: string }
-  | { phase: 'needs_permissions'; name: string }
-  | { phase: 'timeout'; kind: 'group' | 'channel' }
 type Screen =
   | 'intro'
   | 'start'
@@ -2338,86 +2344,6 @@ export default function Home() {
   )
 }
 
-function AppFrame({
-  children,
-  hideBack,
-  onBack,
-  rightLabel,
-  onRightAction,
-  onProfile,
-  onGuide,
-  onMore,
-}: {
-  children: React.ReactNode
-  hideBack?: boolean
-  onBack?: () => void
-  rightLabel?: string
-  onRightAction?: () => void
-  onProfile?: () => void
-  onGuide?: () => void
-  onMore?: () => void
-}) {
-  const [scrolled, setScrolled] = useState(false)
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 2)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  return (
-    <main className="tg-app">
-      <header className={`tg-topbar${scrolled ? ' is-scrolled' : ''}`}>
-        {!hideBack && (
-          <button className="tg-nav-button" type="button" onClick={onBack} aria-label="Back">
-            Back
-          </button>
-        )}
-        {(onProfile || onGuide || onMore) && (
-          <div className="tg-topbar-actions">
-            {onGuide && (
-              <button
-                className="tg-topbar-icon-button"
-                type="button"
-                onClick={() => { haptic('light'); onGuide() }}
-                aria-label="Guide"
-              >
-                <RowIcon name="guide" />
-              </button>
-            )}
-            {onProfile && (
-              <button
-                className="tg-topbar-icon-button"
-                type="button"
-                onClick={() => { haptic('light'); onProfile() }}
-                aria-label="Profile"
-              >
-                <RowIcon name="member" />
-              </button>
-            )}
-            {onMore && (
-              <button
-                className="tg-topbar-icon-button"
-                type="button"
-                onClick={() => { haptic('light'); onMore() }}
-                aria-label="More"
-              >
-                <RowIcon name="more" />
-              </button>
-            )}
-          </div>
-        )}
-        {rightLabel && onRightAction && (
-          <button className="tg-nav-button tg-nav-button-right" type="button" onClick={onRightAction}>
-            {rightLabel}
-          </button>
-        )}
-      </header>
-      {children}
-    </main>
-  )
-}
-
 function IntroScreen({ index, onBack, onNext }: { index: number; onBack?: () => void; onNext: () => void }) {
   const slide = introSlides[index]
   return (
@@ -2536,149 +2462,6 @@ function nextActionIcon(target: NextAction['target']): IconName {
     default:
       return 'settings'
   }
-}
-
-function NextActionCard({
-  title,
-  detail,
-  cta,
-  icon,
-  onClick,
-}: {
-  title: string
-  detail: string
-  cta: string
-  icon: IconName
-  onClick: () => void
-}) {
-  return (
-    <section className="tg-callout">
-      <div className="tg-next-action-head">
-        <span className="tg-next-action-icon">
-          <RowIcon name={icon} />
-        </span>
-        <span>NEXT ACTION</span>
-      </div>
-      <h2>{title}</h2>
-      <p>{detail}</p>
-      <button
-        type="button"
-        onClick={() => {
-          haptic('medium')
-          onClick()
-        }}
-      >
-        {cta}
-      </button>
-    </section>
-  )
-}
-
-function ConnectStatusCard({
-  status,
-  onDismiss,
-  onRetry,
-}: {
-  status: ConnectStatus
-  onDismiss: () => void
-  onRetry: () => void
-}) {
-  const tone = status.phase === 'success' ? 'success' : status.phase === 'connecting' ? 'info' : 'warning'
-  const title =
-    status.phase === 'connecting'
-      ? `Connecting your ${status.kind}…`
-      : status.phase === 'success'
-      ? `${status.name} connected`
-      : status.phase === 'needs_permissions'
-      ? `${status.name} needs admin rights`
-      : `Still waiting on your ${status.kind}`
-  const detail =
-    status.phase === 'connecting'
-      ? status.kind === 'channel'
-        ? 'Pick your channel and keep all requested admin rights enabled — this card updates automatically.'
-        : 'Add the bot as admin in your group — this card updates automatically.'
-      : status.phase === 'success'
-      ? 'Paying members will receive invite links automatically.'
-      : status.phase === 'needs_permissions'
-      ? 'Promote the bot to admin in Telegram so CommunityOS can manage access.'
-      : "We didn't see a new community yet. If you finished in Telegram, check again."
-
-  return (
-    <section className={`tg-callout tg-connect-status tg-connect-status--${tone}`}>
-      <div className="tg-next-action-head">
-        <span className="tg-next-action-icon">
-          <RowIcon name={status.phase === 'needs_permissions' || status.phase === 'timeout' ? 'access' : 'bot'} />
-        </span>
-        <span>{status.phase === 'connecting' ? 'CONNECTING' : 'TELEGRAM'}</span>
-      </div>
-      <h2>{title}</h2>
-      <p>{detail}</p>
-      <button
-        type="button"
-        onClick={() => {
-          haptic('medium')
-          if (status.phase === 'timeout') onRetry()
-          else onDismiss()
-        }}
-      >
-        {status.phase === 'connecting' ? 'Cancel' : status.phase === 'timeout' ? 'Check again' : 'Dismiss'}
-      </button>
-    </section>
-  )
-}
-
-function RevenueSnapshotRow({
-  items,
-}: {
-  items: { key: string; icon: IconName; label: string; count?: number; onClick: () => void }[]
-}) {
-  return (
-    <div className="tg-revenue-grid">
-      {items.map((item) => (
-        <button
-          key={item.key}
-          className="tg-revenue-card"
-          type="button"
-          onClick={() => {
-            haptic('light')
-            item.onClick()
-          }}
-        >
-          <span className="tg-revenue-icon">
-            <RowIcon name={item.icon} />
-          </span>
-          {typeof item.count === 'number' && <strong>{item.count}</strong>}
-          <small>{item.label}</small>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function QuickAccessRow({
-  items,
-}: {
-  items: { key: string; icon: IconName; label: string; badge?: number; onClick: () => void }[]
-}) {
-  return (
-    <div className="tg-quick-access-row">
-      {items.map((item) => (
-        <button
-          key={item.key}
-          className="tg-quick-access-chip"
-          type="button"
-          onClick={() => {
-            haptic('light')
-            item.onClick()
-          }}
-        >
-          <RowIcon name={item.icon} />
-          <span>{item.label}</span>
-          {typeof item.badge === 'number' && item.badge > 0 && <strong>{item.badge}</strong>}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 function AccountHome({
@@ -2879,33 +2662,6 @@ function CommunityHome({
       )}
 
       <FixedButton label={data.plans.length ? 'Share' : 'Create Membership'} onClick={data.plans.length ? onShareCommunity : onCreateMembership} />
-    </section>
-  )
-}
-
-function CommunityHeader({ data, onEdit }: { data: DashboardDto; onEdit?: () => void }) {
-  return (
-    <section className="tg-community-header">
-      <div className="tg-avatar-wrap">
-        <AvatarMark className="tg-large-avatar" image={data.community.avatarUrl} label={data.community.name} />
-        <button
-          className="tg-header-edit-button"
-          type="button"
-          onClick={() => {
-            haptic('light')
-            onEdit?.()
-          }}
-          title="Edit profile"
-        >
-          ✎
-        </button>
-      </div>
-      <h1>{data.community.name}</h1>
-      <p>{data.metrics.members} members</p>
-      <div className="tg-mini-stats">
-        <span>{data.metrics.monthlyStars.toLocaleString()} XTR</span>
-        <span>{data.metrics.healthScore || data.ai.healthScore}% health</span>
-      </div>
     </section>
   )
 }
@@ -4132,32 +3888,6 @@ function RevenuePublishScreen({
   )
 }
 
-function UploadBox({ label, preview, fileName, accept, onFile }: { label: string; preview?: string | null; fileName?: string | null; accept: string; onFile: (file: File | null) => void }) {
-  return (
-    <label className="tg-upload-card">
-      <input type="file" accept={accept} onChange={(event) => onFile(event.currentTarget.files?.[0] ?? null)} />
-      <div>{preview ? <span className="tg-cover-preview" style={{ backgroundImage: `url(${preview})` }} /> : <span>{label}</span>}</div>
-      {fileName && <small>{fileName}</small>}
-    </label>
-  )
-}
-
-function PreviewCard({ title, description, buttonText, coverUrl }: { title: string; description: string; buttonText: string; coverUrl?: string | null }) {
-  return (
-    <div className="tg-message-preview">
-      <div className={coverUrl ? 'tg-preview-cover has-image' : 'tg-preview-cover'}>
-        {coverUrl ? <span style={{ backgroundImage: `url(${coverUrl})` }} /> : <span>CommunityOS</span>}
-      </div>
-      <div className="tg-preview-body">
-        <small>Telegram preview</small>
-        <strong>{title}</strong>
-        <p>{description}</p>
-        <button type="button">{buttonText}</button>
-      </div>
-    </div>
-  )
-}
-
 function MembershipBuilderScreen({
   title,
   description,
@@ -4846,71 +4576,6 @@ function MemberHome({
         />
       )}
     </section>
-  )
-}
-
-function AddCommunityActionSheet({
-  onChooseGroup,
-  onChooseChannel,
-  onClose,
-}: {
-  onChooseGroup: () => void
-  onChooseChannel: () => void
-  onClose: () => void
-}) {
-  return (
-    <div className="tg-action-sheet-overlay" onClick={onClose}>
-      <div className="tg-action-sheet" role="dialog" aria-label="Add Community" onClick={(event) => event.stopPropagation()}>
-        <h2>Add Community</h2>
-        <p>Connect a Telegram group or a channel. Keep all requested admin rights enabled so access control works.</p>
-        <button type="button" onClick={onChooseGroup}>
-          Add a Group or Supergroup
-        </button>
-        <button type="button" onClick={onChooseChannel}>
-          Add a Channel
-        </button>
-        <button type="button" className="cancel" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function SupportActionSheet({
-  onMessageAdmin,
-  onMessageBot,
-  onOpenChannel,
-  onClose,
-}: {
-  onMessageAdmin?: () => void
-  onMessageBot: () => void
-  onOpenChannel?: () => void
-  onClose: () => void
-}) {
-  return (
-    <div className="tg-action-sheet-overlay" onClick={onClose}>
-      <div className="tg-action-sheet" role="dialog" aria-label="Get Support" onClick={(event) => event.stopPropagation()}>
-        <h2>Get Support</h2>
-        <p>How would you like to reach out?</p>
-        {onMessageAdmin && (
-          <button type="button" onClick={onMessageAdmin}>
-            Message Community Admin
-          </button>
-        )}
-        <button type="button" onClick={onMessageBot}>
-          Message Support Bot
-        </button>
-        {onOpenChannel && (
-          <button type="button" onClick={onOpenChannel}>
-            Open Community Channel
-          </button>
-        )}
-        <button type="button" className="cancel" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
-    </div>
   )
 }
 
