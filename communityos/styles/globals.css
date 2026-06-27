@@ -1398,6 +1398,11 @@ a {
   font-weight: 700;
 }
 
+.tg-action-sheet button.destructive {
+  background: var(--tg-red);
+  color: white;
+}
+
 .tg-loading {
   display: grid;
   place-items: center;

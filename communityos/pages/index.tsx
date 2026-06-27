@@ -28,6 +28,7 @@ import {
   money,
 } from '@/lib/api-client'
 import { copyText, getInitData, getStartParam, haptic, initTelegramShell, openExternalLink, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
+import { ConfirmDialogState, ConfirmSheet } from '@/components/ConfirmSheet'
 import { centsToStars, formatUsdApprox, starsToCents } from '@/lib/star-rate'
 import { parseOfferCode, parseReferralCode as parseReferralStartCode } from '@/lib/start-params'
 import { NextAction, computeAccountNextAction, computeNextAction } from '@/lib/next-action'
@@ -195,6 +196,7 @@ export default function Home() {
   const [shareGuideReturnTo, setShareGuideReturnTo] = useState<Screen>('home')
   const [shareGuideLink, setShareGuideLink] = useState('')
   const [actionSheet, setActionSheet] = useState<'plan' | 'product' | 'event' | null>(null)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
   const routeIdQuery = router.query.id
   const routeCommunityIdQuery = router.query.communityId
   const routePlanQuery = router.query.plan
@@ -343,6 +345,16 @@ export default function Home() {
 
   function showToast(message: string) {
     setToast(message)
+  }
+
+  function requestConfirm(options: ConfirmDialogState) {
+    setConfirmDialog({
+      ...options,
+      onConfirm: () => {
+        setConfirmDialog(null)
+        options.onConfirm()
+      },
+    })
   }
 
   function go(next: Screen) {
@@ -661,20 +673,25 @@ export default function Home() {
       showToast('No membership package selected')
       return
     }
-    const confirmed = window.confirm(`Delete "${activePlan.name}"? Existing subscriptions are kept, but this package will no longer be offered.`)
-    if (!confirmed) return
-
-    try {
-      await api.deletePlan(communityId, activePlan.id)
-      setCreatedPlan((plan) => (plan?.id === activePlan.id ? null : plan))
-      setSelectedPlan(null)
-      setEditingPlanId(null)
-      await refreshDashboard()
-      setScreen('home')
-      showToast('Membership package deleted')
-    } catch (error: any) {
-      showToast(error.message || 'Delete failed')
-    }
+    requestConfirm({
+      title: 'Delete membership package',
+      message: `Delete "${activePlan.name}"? Existing subscriptions are kept, but this package will no longer be offered.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deletePlan(communityId, activePlan.id)
+          setCreatedPlan((plan) => (plan?.id === activePlan.id ? null : plan))
+          setSelectedPlan(null)
+          setEditingPlanId(null)
+          await refreshDashboard()
+          setScreen('home')
+          showToast('Membership package deleted')
+        } catch (error: any) {
+          showToast(error.message || 'Delete failed')
+        }
+      },
+    })
   }
 
   async function duplicatePlan() {
@@ -783,20 +800,25 @@ export default function Home() {
 
   async function deleteProductOffer() {
     if (!communityId || !activeProduct) return
-    const confirmed = window.confirm(`Delete "${activeProduct.title}"? This product will no longer be offered.`)
-    if (!confirmed) return
-
-    try {
-      await api.deleteProduct(communityId, activeProduct.id)
-      await refreshDashboard()
-      setCreatedProduct((product) => (product?.id === activeProduct.id ? null : product))
-      setSelectedProduct(null)
-      setEditingProductId(null)
-      setScreen('home')
-      showToast('Product deleted')
-    } catch (error: any) {
-      showToast(error.message || 'Delete failed')
-    }
+    requestConfirm({
+      title: 'Delete product',
+      message: `Delete "${activeProduct.title}"? This product will no longer be offered.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteProduct(communityId, activeProduct.id)
+          await refreshDashboard()
+          setCreatedProduct((product) => (product?.id === activeProduct.id ? null : product))
+          setSelectedProduct(null)
+          setEditingProductId(null)
+          setScreen('home')
+          showToast('Product deleted')
+        } catch (error: any) {
+          showToast(error.message || 'Delete failed')
+        }
+      },
+    })
   }
 
   async function duplicateProduct() {
@@ -901,20 +923,25 @@ export default function Home() {
 
   async function deleteEventOffer() {
     if (!communityId || !activeEvent) return
-    const confirmed = window.confirm(`Delete "${activeEvent.title}"? Existing registrations are kept, but this event will no longer be offered.`)
-    if (!confirmed) return
-
-    try {
-      await api.deleteEvent(communityId, activeEvent.id)
-      await refreshDashboard()
-      setCreatedEvent((event) => (event?.id === activeEvent.id ? null : event))
-      setSelectedEvent(null)
-      setEditingEventId(null)
-      setScreen('home')
-      showToast('Event deleted')
-    } catch (error: any) {
-      showToast(error.message || 'Delete failed')
-    }
+    requestConfirm({
+      title: 'Delete event',
+      message: `Delete "${activeEvent.title}"? Existing registrations are kept, but this event will no longer be offered.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteEvent(communityId, activeEvent.id)
+          await refreshDashboard()
+          setCreatedEvent((event) => (event?.id === activeEvent.id ? null : event))
+          setSelectedEvent(null)
+          setEditingEventId(null)
+          setScreen('home')
+          showToast('Event deleted')
+        } catch (error: any) {
+          showToast(error.message || 'Delete failed')
+        }
+      },
+    })
   }
 
   async function duplicateEvent() {
@@ -1023,18 +1050,24 @@ export default function Home() {
     if (!data || !communityId) return
     const nextStatus = campaign.status === 'paused' ? 'active' : 'paused'
     const verb = nextStatus === 'paused' ? 'Pause' : 'Resume'
-    if (!window.confirm(`${verb} "${campaign.title}"?`)) return
-    try {
-      const { campaign: updated } = await api.updateReferralCampaign(communityId, campaign.id, nextStatus)
-      setData({
-        ...data,
-        referralCampaigns: data.referralCampaigns.map((row) => (row.id === updated.id ? updated : row)),
-      })
-      haptic('medium')
-      showToast(nextStatus === 'paused' ? 'Campaign paused' : 'Campaign resumed')
-    } catch (error: any) {
-      showToast(error.message || 'Campaign update failed')
-    }
+    requestConfirm({
+      title: `${verb} campaign`,
+      message: `${verb} "${campaign.title}"?`,
+      confirmLabel: verb,
+      onConfirm: async () => {
+        try {
+          const { campaign: updated } = await api.updateReferralCampaign(communityId, campaign.id, nextStatus)
+          setData({
+            ...data,
+            referralCampaigns: data.referralCampaigns.map((row) => (row.id === updated.id ? updated : row)),
+          })
+          haptic('medium')
+          showToast(nextStatus === 'paused' ? 'Campaign paused' : 'Campaign resumed')
+        } catch (error: any) {
+          showToast(error.message || 'Campaign update failed')
+        }
+      },
+    })
   }
 
   function openReferralRewardForPlan(plan: PlanDto | null) {
@@ -1095,15 +1128,21 @@ export default function Home() {
     if (!data || !communityId) return
     const nextStatus = rule.status === 'draft' ? 'active' : 'draft'
     const verb = nextStatus === 'draft' ? 'Pause' : 'Resume'
-    if (!window.confirm(`${verb} "${rule.title}"?`)) return
-    try {
-      const { rule: updated } = await api.updateRewardRule(communityId, rule.id, nextStatus)
-      setData({ ...data, rewardRules: data.rewardRules.map((row) => (row.id === updated.id ? updated : row)) })
-      haptic('medium')
-      showToast(nextStatus === 'draft' ? 'Reward rule paused' : 'Reward rule resumed')
-    } catch (error: any) {
-      showToast(error.message || 'Reward rule update failed')
-    }
+    requestConfirm({
+      title: `${verb} reward rule`,
+      message: `${verb} "${rule.title}"?`,
+      confirmLabel: verb,
+      onConfirm: async () => {
+        try {
+          const { rule: updated } = await api.updateRewardRule(communityId, rule.id, nextStatus)
+          setData({ ...data, rewardRules: data.rewardRules.map((row) => (row.id === updated.id ? updated : row)) })
+          haptic('medium')
+          showToast(nextStatus === 'draft' ? 'Reward rule paused' : 'Reward rule resumed')
+        } catch (error: any) {
+          showToast(error.message || 'Reward rule update failed')
+        }
+      },
+    })
   }
 
   async function createCatalogReward(event: FormEvent) {
@@ -1201,16 +1240,23 @@ export default function Home() {
 
   async function deleteFaqEntry(faq: FaqEntryDto) {
     if (!communityId) return
-    if (!window.confirm(`Delete the FAQ entry "${faq.question}"?`)) return
-    try {
-      await api.deleteFaqEntry(communityId, faq.id)
-      setFaqEntries((entries) => (entries ?? []).filter((row) => row.id !== faq.id))
-      setData((current) => (current ? { ...current, ai: { ...current.ai, faqCount: Math.max(0, current.ai.faqCount - 1) } } : current))
-      haptic('medium')
-      showToast('FAQ entry deleted')
-    } catch (error: any) {
-      showToast(error.message || 'FAQ deletion failed')
-    }
+    requestConfirm({
+      title: 'Delete FAQ entry',
+      message: `Delete the FAQ entry "${faq.question}"?`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteFaqEntry(communityId, faq.id)
+          setFaqEntries((entries) => (entries ?? []).filter((row) => row.id !== faq.id))
+          setData((current) => (current ? { ...current, ai: { ...current.ai, faqCount: Math.max(0, current.ai.faqCount - 1) } } : current))
+          haptic('medium')
+          showToast('FAQ entry deleted')
+        } catch (error: any) {
+          showToast(error.message || 'FAQ deletion failed')
+        }
+      },
+    })
   }
 
   async function createKnowledgeSource(event: FormEvent) {
@@ -1232,15 +1278,22 @@ export default function Home() {
 
   async function deleteKnowledgeSource(source: KnowledgeSourceDto) {
     if (!communityId) return
-    if (!window.confirm(`Delete the knowledge source "${source.title}"?`)) return
-    try {
-      await api.deleteKnowledgeSource(communityId, source.id)
-      setKnowledgeSources((sources) => (sources ?? []).filter((row) => row.id !== source.id))
-      haptic('medium')
-      showToast('Knowledge source deleted')
-    } catch (error: any) {
-      showToast(error.message || 'Knowledge source deletion failed')
-    }
+    requestConfirm({
+      title: 'Delete knowledge source',
+      message: `Delete the knowledge source "${source.title}"?`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteKnowledgeSource(communityId, source.id)
+          setKnowledgeSources((sources) => (sources ?? []).filter((row) => row.id !== source.id))
+          haptic('medium')
+          showToast('Knowledge source deleted')
+        } catch (error: any) {
+          showToast(error.message || 'Knowledge source deletion failed')
+        }
+      },
+    })
   }
 
   async function updateCommunitySetting(partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) {
@@ -1278,20 +1331,24 @@ export default function Home() {
       showToast('Promote the bot to admin in your discussion group first')
       return
     }
-    if (!window.confirm(`Turn ${next ? 'on' : 'off'} comment access? This applies to your whole channel, not just this item.`)) {
-      return
-    }
-    try {
-      const result = await api.setCommentAccess(communityId, next)
-      if (!result.ok) {
-        showToast(result.reason || 'Comment access update failed')
-        return
-      }
-      setData({ ...data, commentAccess: { ...data.commentAccess, enabled: next } })
-      showToast(`Comment access turned ${next ? 'on' : 'off'} for your whole channel`)
-    } catch (error: any) {
-      showToast(error.message || 'Comment access update failed')
-    }
+    requestConfirm({
+      title: 'Comment access',
+      message: `Turn ${next ? 'on' : 'off'} comment access? This applies to your whole channel, not just this item.`,
+      confirmLabel: next ? 'Turn on' : 'Turn off',
+      onConfirm: async () => {
+        try {
+          const result = await api.setCommentAccess(communityId, next)
+          if (!result.ok) {
+            showToast(result.reason || 'Comment access update failed')
+            return
+          }
+          setData({ ...data, commentAccess: { ...data.commentAccess, enabled: next } })
+          showToast(`Comment access turned ${next ? 'on' : 'off'} for your whole channel`)
+        } catch (error: any) {
+          showToast(error.message || 'Comment access update failed')
+        }
+      },
+    })
   }
 
   async function toggleAutoPosting(targetType: 'plan' | 'product' | 'event', targetId: number) {
@@ -1603,15 +1660,21 @@ export default function Home() {
 
   async function cancelSubscription(subscription: SubscriptionDto) {
     if (!communityId) return
-    const confirmed = window.confirm(`Cancel ${subscription.planName ?? 'this subscription'}? Access will be revoked.`)
-    if (!confirmed) return
-    try {
-      await api.cancelSubscription(communityId, subscription.id)
-      await refreshMemberDashboard()
-      showToast('Subscription cancelled')
-    } catch (error: any) {
-      showToast(error.message || 'Subscription cancellation failed')
-    }
+    requestConfirm({
+      title: 'Cancel subscription',
+      message: `Cancel ${subscription.planName ?? 'this subscription'}? Access will be revoked.`,
+      confirmLabel: 'Cancel subscription',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.cancelSubscription(communityId, subscription.id)
+          await refreshMemberDashboard()
+          showToast('Subscription cancelled')
+        } catch (error: any) {
+          showToast(error.message || 'Subscription cancellation failed')
+        }
+      },
+    })
   }
 
   async function claimReward(rewardId: number) {
@@ -1667,6 +1730,7 @@ export default function Home() {
             )}
           </section>
         </main>
+        {confirmDialog && <ConfirmSheet {...confirmDialog} onClose={() => setConfirmDialog(null)} />}
         {toast && <div className="tg-toast">{toast}</div>}
       </>
     )
@@ -1749,6 +1813,7 @@ export default function Home() {
             onClose={() => setAddCommunityChooserOpen(false)}
           />
         )}
+        {confirmDialog && <ConfirmSheet {...confirmDialog} onClose={() => setConfirmDialog(null)} />}
         {toast && <div className="tg-toast">{toast}</div>}
       </>
     )
@@ -1978,7 +2043,12 @@ export default function Home() {
             />
           )}
           {screen === 'settings' && (
-            <SettingsScreen data={data} onUpdateSetting={updateCommunitySetting} onUpdateStatus={updateCommunityStatus} />
+            <SettingsScreen
+              data={data}
+              onUpdateSetting={updateCommunitySetting}
+              onUpdateStatus={updateCommunityStatus}
+              onRequestConfirm={requestConfirm}
+            />
           )}
           {screen === 'monetization' && me && <MonetizationScreen me={me} />}
           {screen === 'aiManager' && (
@@ -2244,6 +2314,7 @@ export default function Home() {
           onClose={() => setAddCommunityChooserOpen(false)}
         />
       )}
+      {confirmDialog && <ConfirmSheet {...confirmDialog} onClose={() => setConfirmDialog(null)} />}
       {toast && <div className="tg-toast">{toast}</div>}
     </>
   )
@@ -3323,10 +3394,12 @@ function SettingsScreen({
   data,
   onUpdateSetting,
   onUpdateStatus,
+  onRequestConfirm,
 }: {
   data: DashboardDto
   onUpdateSetting: (partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) => void
   onUpdateStatus: (status: 'active' | 'paused' | 'archived') => void
+  onRequestConfirm: (options: ConfirmDialogState) => void
 }) {
   const settings = data.community.settings ?? { starsCheckoutEnabled: true, notificationsEnabled: true }
   const status = data.community.status
@@ -3342,7 +3415,12 @@ function SettingsScreen({
             type="button"
             onClick={() => {
               haptic('medium')
-              if (window.confirm('Reactivate this community? Members will regain access immediately.')) onUpdateStatus('active')
+              onRequestConfirm({
+                title: 'Reactivate community',
+                message: 'Reactivate this community? Members will regain access immediately.',
+                confirmLabel: 'Reactivate',
+                onConfirm: () => onUpdateStatus('active'),
+              })
             }}
           >
             Reactivate community
@@ -3382,26 +3460,30 @@ function SettingsScreen({
               icon="settings"
               title="Pause community"
               detail="Temporarily block new member access. You can reactivate anytime."
-              onClick={() => {
-                if (window.confirm('Pause this community? Members will lose access to new content until you reactivate it.')) {
-                  onUpdateStatus('paused')
-                }
-              }}
+              onClick={() =>
+                onRequestConfirm({
+                  title: 'Pause community',
+                  message: 'Pause this community? Members will lose access to new content until you reactivate it.',
+                  confirmLabel: 'Pause',
+                  onConfirm: () => onUpdateStatus('paused'),
+                })
+              }
             />
             <ListRow
               tone="red"
               icon="delete"
               title="Archive community"
               detail="Hide this community and stop all member access."
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Archive this community? This stops all member access and hides it from your account. This is hard to undo — only continue if you are sure.'
-                  )
-                ) {
-                  onUpdateStatus('archived')
-                }
-              }}
+              onClick={() =>
+                onRequestConfirm({
+                  title: 'Archive community',
+                  message:
+                    'Archive this community? This stops all member access and hides it from your account. This is hard to undo — only continue if you are sure.',
+                  confirmLabel: 'Archive',
+                  destructive: true,
+                  onConfirm: () => onUpdateStatus('archived'),
+                })
+              }
             />
           </ListGroup>
         </>
