@@ -35,6 +35,11 @@ import { NextAction, computeAccountNextAction, computeNextAction } from '@/lib/n
 type Mode = 'publisher' | 'member'
 type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
 type CheckoutIntent = { kind: 'plan' | 'product' | 'event'; id: number } | null
+type ConnectStatus =
+  | { phase: 'connecting'; kind: 'group' | 'channel' }
+  | { phase: 'success'; name: string }
+  | { phase: 'needs_permissions'; name: string }
+  | { phase: 'timeout'; kind: 'group' | 'channel' }
 type Screen =
   | 'intro'
   | 'start'
@@ -115,7 +120,9 @@ export default function Home() {
   const [loadKey, setLoadKey] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const [addCommunityChooserOpen, setAddCommunityChooserOpen] = useState(false)
+  const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null)
   const visibilityListenerRef = useRef<(() => void) | null>(null)
+  const connectPollRef = useRef(0)
   const [search, setSearch] = useState('')
   const [pendingModel, setPendingModel] = useState<RevenueModel>('membership')
   const [membershipTitle, setMembershipTitle] = useState('Premium Circle')
@@ -315,6 +322,12 @@ export default function Home() {
     const timeout = window.setTimeout(() => setToast(null), Math.min(5000, Math.max(1800, toast.length * 60)))
     return () => window.clearTimeout(timeout)
   }, [toast])
+
+  useEffect(() => {
+    if (connectStatus?.phase !== 'success') return
+    const timeout = window.setTimeout(() => setConnectStatus(null), 6000)
+    return () => window.clearTimeout(timeout)
+  }, [connectStatus])
 
   const member = memberProfile?.member ?? data?.members[0]
   const activePlan = selectedPlan ?? createdPlan ?? data?.plans[0] ?? null
@@ -1392,6 +1405,47 @@ export default function Home() {
     setAddCommunityChooserOpen(true)
   }
 
+  function dismissConnectStatus() {
+    connectPollRef.current += 1
+    setConnectStatus(null)
+  }
+
+  function retryConnectCheck() {
+    if (connectStatus?.phase !== 'timeout') return
+    const kind = connectStatus.kind
+    const existingIds = new Set((me?.communities ?? []).map((community) => community.id))
+    const generation = (connectPollRef.current += 1)
+    setConnectStatus({ phase: 'connecting', kind })
+    pollForNewCommunity(existingIds, kind, generation)
+  }
+
+  async function pollForNewCommunity(existingIds: Set<number>, kind: 'group' | 'channel', generation: number) {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      if (connectPollRef.current !== generation) return
+      try {
+        const meData = await api.getMe()
+        setMe(meData)
+        setOwnedCommunities(meData.communities)
+        const added = meData.communities.find((community) => !existingIds.has(community.id))
+        if (added) {
+          let nextStatus: ConnectStatus = { phase: 'success', name: added.name }
+          try {
+            const dashboard = await api.getDashboard(added.id)
+            const chats = dashboard.chats ?? []
+            const hasAdmin = chats.some((chat) => chat.botStatus === 'admin')
+            const needsPermissions = chats.some((chat) => chat.botStatus === 'missing_permissions')
+            if (!hasAdmin && needsPermissions) nextStatus = { phase: 'needs_permissions', name: added.name }
+          } catch {}
+          if (connectPollRef.current === generation) setConnectStatus(nextStatus)
+          return
+        }
+      } catch {}
+    }
+    if (connectPollRef.current === generation) setConnectStatus({ phase: 'timeout', kind })
+  }
+
   async function handleAddCommunity(kind: 'group' | 'channel' = 'group') {
     setAddCommunityChooserOpen(false)
     const url = kind === 'channel' ? botChannelLink() : botGroupLink()
@@ -1400,11 +1454,10 @@ export default function Home() {
       return
     }
     openTelegramLink(url)
-    showToast(
-      kind === 'channel'
-        ? 'Pick your channel and keep all requested admin rights enabled — your community will appear here'
-        : 'Add the bot as admin — your community will appear here'
-    )
+
+    const existingIds = new Set((me?.communities ?? []).map((community) => community.id))
+    const generation = (connectPollRef.current += 1)
+    setConnectStatus({ phase: 'connecting', kind })
 
     // Remove any stale listener from a previous tap before adding a new one
     if (visibilityListenerRef.current) {
@@ -1415,12 +1468,7 @@ export default function Home() {
       if (document.hidden) return
       document.removeEventListener('visibilitychange', onReturn)
       visibilityListenerRef.current = null
-      try {
-        const meData = await api.getMe()
-        setMe(meData)
-        setOwnedCommunities(meData.communities)
-        if (meData.communities.length > 0) showToast('Community connected')
-      } catch {}
+      await pollForNewCommunity(existingIds, kind, generation)
     }
 
     visibilityListenerRef.current = onReturn
@@ -1661,6 +1709,9 @@ export default function Home() {
                 me={me}
                 onOpenCommunity={(id) => selectCommunity(id, 'home')}
                 onAddCommunity={openAddCommunityChooser}
+                connectStatus={connectStatus}
+                onDismissConnectStatus={dismissConnectStatus}
+                onRetryConnectStatus={retryConnectCheck}
               />
             )}
             {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
@@ -1809,6 +1860,9 @@ export default function Home() {
               me={me}
               onOpenCommunity={(id) => selectCommunity(id, 'home')}
               onAddCommunity={openAddCommunityChooser}
+              connectStatus={connectStatus}
+              onDismissConnectStatus={dismissConnectStatus}
+              onRetryConnectStatus={retryConnectCheck}
             />
           )}
           {screen === 'communities' && (
@@ -2431,6 +2485,59 @@ function NextActionCard({
   )
 }
 
+function ConnectStatusCard({
+  status,
+  onDismiss,
+  onRetry,
+}: {
+  status: ConnectStatus
+  onDismiss: () => void
+  onRetry: () => void
+}) {
+  const tone = status.phase === 'success' ? 'success' : status.phase === 'connecting' ? 'info' : 'warning'
+  const title =
+    status.phase === 'connecting'
+      ? `Connecting your ${status.kind}…`
+      : status.phase === 'success'
+      ? `${status.name} connected`
+      : status.phase === 'needs_permissions'
+      ? `${status.name} needs admin rights`
+      : `Still waiting on your ${status.kind}`
+  const detail =
+    status.phase === 'connecting'
+      ? status.kind === 'channel'
+        ? 'Pick your channel and keep all requested admin rights enabled — this card updates automatically.'
+        : 'Add the bot as admin in your group — this card updates automatically.'
+      : status.phase === 'success'
+      ? 'Paying members will receive invite links automatically.'
+      : status.phase === 'needs_permissions'
+      ? 'Promote the bot to admin in Telegram so CommunityOS can manage access.'
+      : "We didn't see a new community yet. If you finished in Telegram, check again."
+
+  return (
+    <section className={`tg-callout tg-connect-status tg-connect-status--${tone}`}>
+      <div className="tg-next-action-head">
+        <span className="tg-next-action-icon">
+          <RowIcon name={status.phase === 'needs_permissions' || status.phase === 'timeout' ? 'access' : 'bot'} />
+        </span>
+        <span>{status.phase === 'connecting' ? 'CONNECTING' : 'TELEGRAM'}</span>
+      </div>
+      <h2>{title}</h2>
+      <p>{detail}</p>
+      <button
+        type="button"
+        onClick={() => {
+          haptic('medium')
+          if (status.phase === 'timeout') onRetry()
+          else onDismiss()
+        }}
+      >
+        {status.phase === 'connecting' ? 'Cancel' : status.phase === 'timeout' ? 'Check again' : 'Dismiss'}
+      </button>
+    </section>
+  )
+}
+
 function RevenueSnapshotRow({
   items,
 }: {
@@ -2489,10 +2596,16 @@ function AccountHome({
   me,
   onOpenCommunity,
   onAddCommunity,
+  connectStatus,
+  onDismissConnectStatus,
+  onRetryConnectStatus,
 }: {
   me: MeDto
   onOpenCommunity: (id: number) => void
   onAddCommunity: () => void
+  connectStatus?: ConnectStatus | null
+  onDismissConnectStatus?: () => void
+  onRetryConnectStatus?: () => void
 }) {
   const nextAction = computeAccountNextAction(me)
   return (
@@ -2508,6 +2621,14 @@ function AccountHome({
           <span>{me.accountStats.accessIssues > 0 ? `${me.accountStats.accessIssues} access issue(s)` : 'Access all clear'}</span>
         </div>
       </div>
+
+      {connectStatus && (
+        <ConnectStatusCard
+          status={connectStatus}
+          onDismiss={() => onDismissConnectStatus?.()}
+          onRetry={() => onRetryConnectStatus?.()}
+        />
+      )}
 
       {nextAction && (
         <NextActionCard

@@ -831,6 +831,36 @@ a {
   font-weight: 800;
 }
 
+.tg-connect-status--success {
+  border-color: rgba(52, 199, 89, 0.18);
+  box-shadow: 0 0 16px rgba(52, 199, 89, 0.16);
+}
+
+.tg-connect-status--success .tg-next-action-icon,
+.tg-connect-status--success span {
+  color: var(--tg-green);
+}
+
+.tg-connect-status--success button {
+  background: rgba(52, 199, 89, 0.14);
+  color: var(--tg-green);
+}
+
+.tg-connect-status--warning {
+  border-color: rgba(255, 159, 10, 0.2);
+  box-shadow: 0 0 16px rgba(255, 159, 10, 0.16);
+}
+
+.tg-connect-status--warning .tg-next-action-icon,
+.tg-connect-status--warning span {
+  color: var(--tg-amber);
+}
+
+.tg-connect-status--warning button {
+  background: rgba(255, 159, 10, 0.14);
+  color: var(--tg-amber);
+}
+
 .tg-empty-block {
   display: grid;
   gap: 7px;
