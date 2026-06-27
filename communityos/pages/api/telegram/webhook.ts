@@ -137,8 +137,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const botRemoved = newStatus === 'left' || newStatus === 'kicked'
 
       if (mcm.chat.type !== 'private') {
+        // Telegram's "Add to Group/Channel" picker only promotes to admin when the
+        // adding user already has the right to add admins in that chat — otherwise it
+        // silently adds the bot as a plain member instead, with no error to anyone.
+        const justAddedAsMember = newStatus === 'member' && mcm.old_chat_member.status !== 'member'
+
         let communityId = await findCommunityForChat(telegramChatId)
-        if (!communityId && botIsAdmin) {
+        if (!communityId && (botIsAdmin || justAddedAsMember)) {
           communityId = await autoLinkChatToCommunity(mcm.from.id, telegramChatId, mcm.chat.title)
         }
 
@@ -149,7 +154,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             title: mcm.chat.title,
             handle: mcm.chat.username ?? null,
             chatType: mcm.chat.type as 'group' | 'supergroup' | 'channel',
-            botStatus: botIsAdmin ? 'admin' : 'not_connected',
+            botStatus: botIsAdmin ? 'admin' : justAddedAsMember ? 'missing_permissions' : 'not_connected',
           })
 
           if (botIsAdmin) {
@@ -179,11 +184,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }).catch(() => undefined)
         }
 
-        // Telegram's "Add to Group/Channel" picker only promotes to admin when the
-        // adding user already has the right to add admins in that chat — otherwise it
-        // silently adds the bot as a plain member instead, with no error to anyone. DM
-        // the person who added it so they're not left assuming the connection worked.
-        if (!communityId && newStatus === 'member' && mcm.old_chat_member.status !== 'member') {
+        // DM the person who added the bot as a plain member so they're not left assuming
+        // the connection worked — this fires regardless of whether the dashboard row above
+        // could be created, since it's about real Telegram permissions, not DB state.
+        if (justAddedAsMember) {
           const rightsNeeded =
             mcm.chat.type === 'channel'
               ? 'Post Messages, Invite Users via Link, and Ban Users'

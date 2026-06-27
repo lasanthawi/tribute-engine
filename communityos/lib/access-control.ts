@@ -67,7 +67,7 @@ export async function upsertTelegramChat(opts: {
   title: string
   handle?: string | null
   chatType: 'group' | 'supergroup' | 'channel'
-  botStatus: 'admin' | 'not_connected'
+  botStatus: 'admin' | 'missing_permissions' | 'not_connected'
 }) {
   const { error } = await sb.from('telegram_chats').upsert(
     {
