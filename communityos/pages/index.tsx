@@ -57,56 +57,15 @@ import {
 } from '@/components/StatusCards'
 import { PreviewCard, UploadBox } from '@/components/UploadPreview'
 import { AddCommunityActionSheet, SupportActionSheet } from '@/components/ActionSheets'
+import { CommunityPicker, IntroScreen, StartPicker } from '@/components/OnboardingScreens'
 import { dateShort, initials } from '@/lib/format'
+import { RevenueModel, Screen, introSlides } from '@/lib/screens'
 import { centsToStars, formatUsdApprox, starsToCents } from '@/lib/star-rate'
 import { parseOfferCode, parseReferralCode as parseReferralStartCode } from '@/lib/start-params'
 import { NextAction, computeAccountNextAction, computeNextAction } from '@/lib/next-action'
 
 type Mode = 'publisher' | 'member'
-type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
 type CheckoutIntent = { kind: 'plan' | 'product' | 'event'; id: number } | null
-type Screen =
-  | 'intro'
-  | 'start'
-  | 'account'
-  | 'communities'
-  | 'home'
-  | 'members'
-  | 'access'
-  | 'growth'
-  | 'rewards'
-  | 'more'
-  | 'createDetails'
-  | 'publish'
-  | 'shareGuide'
-  | 'productBuilder'
-  | 'productPublish'
-  | 'eventBuilder'
-  | 'eventPublish'
-  | 'referralBuilder'
-  | 'communityProfile'
-  | 'offerWizard'
-  | 'aiManager'
-  | 'settings'
-  | 'monetization'
-
-const introSlides = [
-  {
-    title: 'Run your Telegram community like a business',
-    text: 'Memberships, products, events, referrals, and access control in one Mini App.',
-    icon: 'business' as IconName,
-  },
-  {
-    title: 'Sell access without manual admin work',
-    text: 'Telegram Stars payments, renewal tracking, and invite links stay connected.',
-    icon: 'stars' as IconName,
-  },
-  {
-    title: 'The bot manages access for you',
-    text: 'Approve members, revoke expired access, and share offers directly inside Telegram.',
-    icon: 'bot' as IconName,
-  },
-]
 
 function xtrLabel(stars: number): string {
   return `${stars.toLocaleString()} XTR (${formatUsdApprox(stars)})`
@@ -2341,94 +2300,6 @@ export default function Home() {
       {confirmDialog && <ConfirmSheet {...confirmDialog} onClose={() => setConfirmDialog(null)} />}
       {toast && <div className="tg-toast">{toast}</div>}
     </>
-  )
-}
-
-function IntroScreen({ index, onBack, onNext }: { index: number; onBack?: () => void; onNext: () => void }) {
-  const slide = introSlides[index]
-  return (
-    <main className="tg-story">
-      <header className="tg-story-topbar">
-        {onBack && (
-          <button type="button" onClick={onBack}>
-            Back
-          </button>
-        )}
-      </header>
-      <div className="tg-progress-bars" aria-label={`Slide ${index + 1} of ${introSlides.length}`}>
-        {introSlides.map((item, itemIndex) => (
-          <span key={item.title} className={itemIndex <= index ? 'active' : ''} />
-        ))}
-      </div>
-      <section className="tg-story-content">
-        <h1>{slide.title}</h1>
-        <p>{slide.text}</p>
-        <StoryArt label={slide.title} icon={slide.icon} />
-      </section>
-      <footer className="tg-story-footer">
-        <button type="button" onClick={onNext}>
-          {index === introSlides.length - 1 ? 'Start' : 'Next'}
-        </button>
-      </footer>
-    </main>
-  )
-}
-
-function StartPicker({ onSelect, onSelectModel }: { onSelect: (screen: Screen) => void; onSelectModel: (model: RevenueModel) => void }) {
-  return (
-    <section className="tg-screen centered">
-      <div className="tg-hero-mark">CO</div>
-      <h1>Where would you like to start?</h1>
-      <p className="tg-subtitle">Pick the first thing you want to launch. You can add other formats later.</p>
-      <ListGroup>
-        <ListRow tone="blue" icon="membership" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelectModel('membership')} />
-        <ListRow tone="red" icon="product" title="Digital Product" detail="Sell courses, files, downloads, or guides." onClick={() => onSelectModel('product')} />
-        <ListRow tone="purple" icon="event" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelectModel('event')} />
-        <ListRow tone="green" icon="referral" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelectModel('referral')} />
-        <ListRow tone="amber" icon="ai" title="AI Community Manager" detail="Automate FAQ, welcome messages, and reports." onClick={() => onSelectModel('ai')} />
-      </ListGroup>
-      <button className="tg-link-button" type="button" onClick={() => onSelect('communities')}>
-        I will choose later
-      </button>
-    </section>
-  )
-}
-
-function CommunityPicker({
-  communities,
-  search,
-  onSearch,
-  onSelect,
-  onAdd,
-}: {
-  communities: DashboardDto['community'][]
-  search: string
-  onSearch: (value: string) => void
-  onSelect: (id: number) => void
-  onAdd: () => void
-}) {
-  return (
-    <section className="tg-screen with-fixed-button">
-      <h1 className="tg-left-title">Channels and Groups</h1>
-      <label className="tg-search">
-        <span>Search</span>
-        <input value={search} onChange={(event) => onSearch(event.target.value)} aria-label="Search communities" />
-      </label>
-      <ListGroup>
-        {communities.map((community) => (
-          <ListRow
-            key={community.id}
-            avatar={initials(community.name)}
-            image={community.avatarUrl}
-            title={community.name}
-            detail={`${community.status === 'active' ? 'Active' : 'Setup'} community`}
-            onClick={() => onSelect(community.id)}
-          />
-        ))}
-        {communities.length === 0 && <EmptyBlock title="No communities found" detail="Connect a Telegram group or channel to continue." />}
-      </ListGroup>
-      <FixedButton label="Add" onClick={onAdd} />
-    </section>
   )
 }
 
