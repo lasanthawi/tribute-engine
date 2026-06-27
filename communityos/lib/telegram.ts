@@ -111,6 +111,18 @@ export async function getChat(botToken: string, chatId: number | string): Promis
   }
 }
 
+export async function getChatMember(botToken: string, chatId: number | string, userId: number | string): Promise<{ status: string } | null> {
+  if (!botToken) return null
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/getChatMember`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, user_id: userId }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.ok) throw new Error(`Telegram getChatMember failed: ${res.status} ${body?.description ?? ''}`)
+  return { status: body.result?.status }
+}
+
 export async function getFile(botToken: string, fileId: string): Promise<string | null> {
   if (!botToken) return null
   const res = await fetch(`https://api.telegram.org/bot${botToken}/getFile`, {

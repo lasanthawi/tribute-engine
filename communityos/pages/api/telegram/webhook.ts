@@ -4,16 +4,17 @@ import {
   autoLinkChatToCommunity,
   findCommunityForChat,
   grantMemberAccess,
+  markDiscussionGroupRemoved,
   recordJoinRequest,
   syncCommunityAvatar,
-  syncDiscussionBotStatus,
   syncDiscussionChat,
+  syncDiscussionGroupStatus,
   upsertTelegramChat,
 } from '@/lib/access-control'
 import { findInvoiceByPayload, recordSuccessfulPayment } from '@/lib/payments'
 import { recordClickByCode, registerReferredJoin } from '@/lib/referrals'
 import { parseOfferCode } from '@/lib/start-params'
-import { answerPreCheckoutQuery, sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
+import { answerPreCheckoutQuery, getChat, sendTelegramMessage, TelegramUpdate } from '@/lib/telegram'
 import { getOrCreateUser } from '@/lib/telegram-auth'
 import { supabase } from '@/lib/supabase'
 
@@ -142,6 +143,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // silently adds the bot as a plain member instead, with no error to anyone.
         const justAddedAsMember = newStatus === 'member' && mcm.old_chat_member.status !== 'member'
 
+        // A discussion group fires its own my_chat_member event, separate from its parent
+        // channel's — and it can arrive before that channel is ever connected. Route it
+        // straight to the parent's discussion_* columns so it's never (mis)treated as a
+        // standalone community/chat, no matter which one the owner connects first.
+        if (mcm.chat.type === 'group' || mcm.chat.type === 'supergroup') {
+          const chatInfo = await getChat(BOT_TOKEN, mcm.chat.id).catch(() => null)
+          if (chatInfo?.linkedChatId) {
+            await syncDiscussionGroupStatus(
+              chatInfo.linkedChatId,
+              mcm.chat.id,
+              botIsAdmin ? 'admin' : botRemoved ? 'not_connected' : 'missing_permissions'
+            ).catch((error) => console.error('syncDiscussionGroupStatus failed:', error))
+            return res.status(200).json({ ok: true })
+          }
+
+          // Once removed, the bot can no longer call getChat on this chat, so the
+          // linkedChatId lookup above can't run — fall back to the discussion_chat_id
+          // pointer already recorded on the parent channel's row.
+          if (botRemoved) {
+            const wasDiscussionGroup = await markDiscussionGroupRemoved(mcm.chat.id).catch(() => false)
+            if (wasDiscussionGroup) return res.status(200).json({ ok: true })
+          }
+        }
+
         let communityId = await findCommunityForChat(telegramChatId)
         if (!communityId && (botIsAdmin || justAddedAsMember)) {
           communityId = await autoLinkChatToCommunity(mcm.from.id, telegramChatId, mcm.chat.title)
@@ -199,13 +224,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             'Markdown'
           ).catch((error) => console.error('sendTelegramMessage (promote-to-admin nudge) failed:', error))
         }
-
-        // This event may instead describe the bot's membership in a linked discussion
-        // group, which has no direct community_id of its own — match it back to whichever
-        // channel row already recorded this chat as its discussion_chat_id.
-        await syncDiscussionBotStatus(telegramChatId, botIsAdmin ? 'admin' : botRemoved ? 'not_connected' : 'missing_permissions').catch(
-          (error) => console.error('syncDiscussionBotStatus failed:', error)
-        )
       }
 
       return res.status(200).json({ ok: true })
