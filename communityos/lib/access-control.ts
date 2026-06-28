@@ -1,7 +1,7 @@
 import { AccessLogRow, sb, supabase } from './supabase'
 import type { CommentAccessDto, JoinRequestDto, TelegramChatDto } from './api-client'
 import { ASSET_BUCKET, ensureAssetBucket } from './assets'
-import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, getChat, getFile, setChatPermissions, unbanChatMember } from './telegram'
+import { approveChatJoinRequest, banChatMember, createChatInviteLink, declineChatJoinRequest, getChat, getChatMember, getFile, setChatPermissions, unbanChatMember } from './telegram'
 import { createCommunity, getCommunity } from './communities'
 import { activateCommunityReferral } from './referrals'
 import { sendWelcomeMessage } from './notifications'
@@ -67,7 +67,7 @@ export async function upsertTelegramChat(opts: {
   title: string
   handle?: string | null
   chatType: 'group' | 'supergroup' | 'channel'
-  botStatus: 'admin' | 'not_connected'
+  botStatus: 'admin' | 'missing_permissions' | 'not_connected'
 }) {
   const { error } = await sb.from('telegram_chats').upsert(
     {
@@ -153,29 +153,79 @@ export async function ensureCommunityAvatar(community: {
 
 // Telegram only exposes a linked discussion group on the channel's own getChat
 // response (`linked_chat_id`). Call this whenever a channel is (re)confirmed
-// as admin-connected so Comment Access knows which group to moderate.
+// as admin-connected so Comment Access knows which group to moderate. Also
+// live-checks the bot's actual membership in that group right now (via the
+// bot's own id, decoded from its token) rather than relying on a separate
+// my_chat_member event for the group — that event may have already fired
+// (and been dropped, see syncDiscussionGroupStatus) before this channel's
+// community even existed, so replaying history can't be trusted here.
 export async function syncDiscussionChat(communityId: number, telegramChatId: string): Promise<void> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN || ''
   if (!botToken) return
   const chat = await getChat(botToken, telegramChatId)
   if (!chat?.linkedChatId) return
+
+  const botId = Number(botToken.split(':')[0]) || null
+  let discussionBotStatus: 'admin' | 'missing_permissions' | 'not_connected' = 'not_connected'
+  if (botId) {
+    const member = await getChatMember(botToken, chat.linkedChatId, botId).catch(() => null)
+    discussionBotStatus =
+      member?.status === 'administrator' || member?.status === 'creator'
+        ? 'admin'
+        : member?.status === 'member'
+        ? 'missing_permissions'
+        : 'not_connected'
+  }
+
   const { error } = await sb
     .from('telegram_chats')
-    .update({ discussion_chat_id: chat.linkedChatId })
+    .update({ discussion_chat_id: chat.linkedChatId, discussion_bot_status: discussionBotStatus })
     .eq('community_id', communityId)
     .eq('telegram_chat_id', telegramChatId)
   if (error) throw error
 }
 
-// The bot's own membership in a discussion group arrives as a separate
-// my_chat_member event for that group's chat id — match it back to whichever
-// channel row already recorded it as discussion_chat_id.
-export async function syncDiscussionBotStatus(
-  telegramChatId: string,
+// A discussion group fires its own my_chat_member event when the bot is added there,
+// separate from the channel's event — and it can arrive before the channel is ever
+// connected to CommunityOS. Route it straight to the parent channel's row (found via
+// the channel's own chat id, which Telegram's getChat on the group also exposes as
+// linked_chat_id) instead of letting the generic chat handler treat the group as a
+// new standalone community/chat. Returns false when the parent channel isn't connected
+// yet — in that case there's nothing to persist; syncDiscussionChat picks this group up
+// for real (with a live status check) once the channel itself is connected.
+export async function syncDiscussionGroupStatus(
+  parentChannelChatId: number,
+  discussionChatId: number,
   status: 'admin' | 'missing_permissions' | 'not_connected'
-): Promise<void> {
-  const { error } = await sb.from('telegram_chats').update({ discussion_bot_status: status }).eq('discussion_chat_id', Number(telegramChatId))
+): Promise<boolean> {
+  const { data: parentChat } = await sb
+    .from('telegram_chats')
+    .select('community_id')
+    .eq('telegram_chat_id', String(parentChannelChatId))
+    .maybeSingle()
+  if (!parentChat) return false
+
+  const { error } = await sb
+    .from('telegram_chats')
+    .update({ discussion_chat_id: discussionChatId, discussion_bot_status: status })
+    .eq('community_id', parentChat.community_id)
+    .eq('telegram_chat_id', String(parentChannelChatId))
   if (error) throw error
+  return true
+}
+
+// Once the bot is kicked/leaves a discussion group, it loses access to call getChat on it,
+// so syncDiscussionGroupStatus's linked_chat_id lookup can't run on the way out. Fall back
+// to matching by the already-recorded discussion_chat_id pointer instead. Returns false
+// (a clean no-op) for a group that was never actually linked as anyone's discussion group.
+export async function markDiscussionGroupRemoved(discussionChatId: number): Promise<boolean> {
+  const { data, error } = await sb
+    .from('telegram_chats')
+    .update({ discussion_bot_status: 'not_connected' })
+    .eq('discussion_chat_id', discussionChatId)
+    .select('id')
+  if (error) throw error
+  return (data?.length ?? 0) > 0
 }
 
 export async function getCommentAccessStatus(communityId: number): Promise<CommentAccessDto> {

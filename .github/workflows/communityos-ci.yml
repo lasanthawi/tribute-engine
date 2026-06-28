@@ -1,0 +1,33 @@
+name: CommunityOS CI
+
+on:
+  pull_request:
+    paths:
+      - 'communityos/**'
+      - '.github/workflows/communityos-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'communityos/**'
+      - '.github/workflows/communityos-ci.yml'
+
+jobs:
+  typecheck-and-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: communityos
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: communityos/package-lock.json
+
+      - run: npm ci
+
+      - run: npx tsc --noEmit
+
+      - run: npm run build

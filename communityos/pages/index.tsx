@@ -28,55 +28,44 @@ import {
   money,
 } from '@/lib/api-client'
 import { copyText, getInitData, getStartParam, haptic, initTelegramShell, openExternalLink, openInvoiceLink, openTelegramLink } from '@/lib/telegram-webapp'
+import { ConfirmDialogState, ConfirmSheet } from '@/components/ConfirmSheet'
+import { IconName, RowIcon } from '@/components/icons'
+import {
+  ActionSheet,
+  ActionTile,
+  AvatarMark,
+  ChatRow,
+  CheckoutPrompt,
+  EmptyBlock,
+  FixedButton,
+  JoinRequestRow,
+  ListGroup,
+  ListRow,
+  MemberRow,
+  SectionLabel,
+  StoryArt,
+  paymentStatusBadge,
+} from '@/components/ListPrimitives'
+import { AppFrame } from '@/components/AppFrame'
+import {
+  ConnectStatus,
+  ConnectStatusCard,
+  CommunityHeader,
+  NextActionCard,
+  QuickAccessRow,
+  RevenueSnapshotRow,
+} from '@/components/StatusCards'
+import { PreviewCard, UploadBox } from '@/components/UploadPreview'
+import { AddCommunityActionSheet, SupportActionSheet } from '@/components/ActionSheets'
+import { CommunityPicker, IntroScreen, StartPicker } from '@/components/OnboardingScreens'
+import { dateShort, initials } from '@/lib/format'
+import { RevenueModel, Screen, introSlides } from '@/lib/screens'
 import { centsToStars, formatUsdApprox, starsToCents } from '@/lib/star-rate'
 import { parseOfferCode, parseReferralCode as parseReferralStartCode } from '@/lib/start-params'
 import { NextAction, computeAccountNextAction, computeNextAction } from '@/lib/next-action'
 
 type Mode = 'publisher' | 'member'
-type RevenueModel = 'membership' | 'product' | 'event' | 'referral' | 'ai'
 type CheckoutIntent = { kind: 'plan' | 'product' | 'event'; id: number } | null
-type Screen =
-  | 'intro'
-  | 'start'
-  | 'account'
-  | 'communities'
-  | 'home'
-  | 'members'
-  | 'access'
-  | 'growth'
-  | 'rewards'
-  | 'more'
-  | 'createDetails'
-  | 'publish'
-  | 'shareGuide'
-  | 'productBuilder'
-  | 'productPublish'
-  | 'eventBuilder'
-  | 'eventPublish'
-  | 'referralBuilder'
-  | 'communityProfile'
-  | 'offerWizard'
-  | 'aiManager'
-  | 'settings'
-  | 'monetization'
-
-const introSlides = [
-  {
-    title: 'Run your Telegram community like a business',
-    text: 'Memberships, products, events, referrals, and access control in one Mini App.',
-    icon: 'business' as IconName,
-  },
-  {
-    title: 'Sell access without manual admin work',
-    text: 'Telegram Stars payments, renewal tracking, and invite links stay connected.',
-    icon: 'stars' as IconName,
-  },
-  {
-    title: 'The bot manages access for you',
-    text: 'Approve members, revoke expired access, and share offers directly inside Telegram.',
-    icon: 'bot' as IconName,
-  },
-]
 
 function xtrLabel(stars: number): string {
   return `${stars.toLocaleString()} XTR (${formatUsdApprox(stars)})`
@@ -115,7 +104,9 @@ export default function Home() {
   const [loadKey, setLoadKey] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const [addCommunityChooserOpen, setAddCommunityChooserOpen] = useState(false)
+  const [connectStatus, setConnectStatus] = useState<ConnectStatus | null>(null)
   const visibilityListenerRef = useRef<(() => void) | null>(null)
+  const connectPollRef = useRef(0)
   const [search, setSearch] = useState('')
   const [pendingModel, setPendingModel] = useState<RevenueModel>('membership')
   const [membershipTitle, setMembershipTitle] = useState('Premium Circle')
@@ -188,6 +179,7 @@ export default function Home() {
   const [shareGuideReturnTo, setShareGuideReturnTo] = useState<Screen>('home')
   const [shareGuideLink, setShareGuideLink] = useState('')
   const [actionSheet, setActionSheet] = useState<'plan' | 'product' | 'event' | null>(null)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
   const routeIdQuery = router.query.id
   const routeCommunityIdQuery = router.query.communityId
   const routePlanQuery = router.query.plan
@@ -316,6 +308,12 @@ export default function Home() {
     return () => window.clearTimeout(timeout)
   }, [toast])
 
+  useEffect(() => {
+    if (connectStatus?.phase !== 'success') return
+    const timeout = window.setTimeout(() => setConnectStatus(null), 6000)
+    return () => window.clearTimeout(timeout)
+  }, [connectStatus])
+
   const member = memberProfile?.member ?? data?.members[0]
   const activePlan = selectedPlan ?? createdPlan ?? data?.plans[0] ?? null
   const activeProduct = selectedProduct ?? createdProduct ?? data?.products[0] ?? null
@@ -330,6 +328,16 @@ export default function Home() {
 
   function showToast(message: string) {
     setToast(message)
+  }
+
+  function requestConfirm(options: ConfirmDialogState) {
+    setConfirmDialog({
+      ...options,
+      onConfirm: () => {
+        setConfirmDialog(null)
+        options.onConfirm()
+      },
+    })
   }
 
   function go(next: Screen) {
@@ -648,20 +656,25 @@ export default function Home() {
       showToast('No membership package selected')
       return
     }
-    const confirmed = window.confirm(`Delete "${activePlan.name}"? Existing subscriptions are kept, but this package will no longer be offered.`)
-    if (!confirmed) return
-
-    try {
-      await api.deletePlan(communityId, activePlan.id)
-      setCreatedPlan((plan) => (plan?.id === activePlan.id ? null : plan))
-      setSelectedPlan(null)
-      setEditingPlanId(null)
-      await refreshDashboard()
-      setScreen('home')
-      showToast('Membership package deleted')
-    } catch (error: any) {
-      showToast(error.message || 'Delete failed')
-    }
+    requestConfirm({
+      title: 'Delete membership package',
+      message: `Delete "${activePlan.name}"? Existing subscriptions are kept, but this package will no longer be offered.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deletePlan(communityId, activePlan.id)
+          setCreatedPlan((plan) => (plan?.id === activePlan.id ? null : plan))
+          setSelectedPlan(null)
+          setEditingPlanId(null)
+          await refreshDashboard()
+          setScreen('home')
+          showToast('Membership package deleted')
+        } catch (error: any) {
+          showToast(error.message || 'Delete failed')
+        }
+      },
+    })
   }
 
   async function duplicatePlan() {
@@ -770,20 +783,25 @@ export default function Home() {
 
   async function deleteProductOffer() {
     if (!communityId || !activeProduct) return
-    const confirmed = window.confirm(`Delete "${activeProduct.title}"? This product will no longer be offered.`)
-    if (!confirmed) return
-
-    try {
-      await api.deleteProduct(communityId, activeProduct.id)
-      await refreshDashboard()
-      setCreatedProduct((product) => (product?.id === activeProduct.id ? null : product))
-      setSelectedProduct(null)
-      setEditingProductId(null)
-      setScreen('home')
-      showToast('Product deleted')
-    } catch (error: any) {
-      showToast(error.message || 'Delete failed')
-    }
+    requestConfirm({
+      title: 'Delete product',
+      message: `Delete "${activeProduct.title}"? This product will no longer be offered.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteProduct(communityId, activeProduct.id)
+          await refreshDashboard()
+          setCreatedProduct((product) => (product?.id === activeProduct.id ? null : product))
+          setSelectedProduct(null)
+          setEditingProductId(null)
+          setScreen('home')
+          showToast('Product deleted')
+        } catch (error: any) {
+          showToast(error.message || 'Delete failed')
+        }
+      },
+    })
   }
 
   async function duplicateProduct() {
@@ -888,20 +906,25 @@ export default function Home() {
 
   async function deleteEventOffer() {
     if (!communityId || !activeEvent) return
-    const confirmed = window.confirm(`Delete "${activeEvent.title}"? Existing registrations are kept, but this event will no longer be offered.`)
-    if (!confirmed) return
-
-    try {
-      await api.deleteEvent(communityId, activeEvent.id)
-      await refreshDashboard()
-      setCreatedEvent((event) => (event?.id === activeEvent.id ? null : event))
-      setSelectedEvent(null)
-      setEditingEventId(null)
-      setScreen('home')
-      showToast('Event deleted')
-    } catch (error: any) {
-      showToast(error.message || 'Delete failed')
-    }
+    requestConfirm({
+      title: 'Delete event',
+      message: `Delete "${activeEvent.title}"? Existing registrations are kept, but this event will no longer be offered.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteEvent(communityId, activeEvent.id)
+          await refreshDashboard()
+          setCreatedEvent((event) => (event?.id === activeEvent.id ? null : event))
+          setSelectedEvent(null)
+          setEditingEventId(null)
+          setScreen('home')
+          showToast('Event deleted')
+        } catch (error: any) {
+          showToast(error.message || 'Delete failed')
+        }
+      },
+    })
   }
 
   async function duplicateEvent() {
@@ -1010,18 +1033,24 @@ export default function Home() {
     if (!data || !communityId) return
     const nextStatus = campaign.status === 'paused' ? 'active' : 'paused'
     const verb = nextStatus === 'paused' ? 'Pause' : 'Resume'
-    if (!window.confirm(`${verb} "${campaign.title}"?`)) return
-    try {
-      const { campaign: updated } = await api.updateReferralCampaign(communityId, campaign.id, nextStatus)
-      setData({
-        ...data,
-        referralCampaigns: data.referralCampaigns.map((row) => (row.id === updated.id ? updated : row)),
-      })
-      haptic('medium')
-      showToast(nextStatus === 'paused' ? 'Campaign paused' : 'Campaign resumed')
-    } catch (error: any) {
-      showToast(error.message || 'Campaign update failed')
-    }
+    requestConfirm({
+      title: `${verb} campaign`,
+      message: `${verb} "${campaign.title}"?`,
+      confirmLabel: verb,
+      onConfirm: async () => {
+        try {
+          const { campaign: updated } = await api.updateReferralCampaign(communityId, campaign.id, nextStatus)
+          setData({
+            ...data,
+            referralCampaigns: data.referralCampaigns.map((row) => (row.id === updated.id ? updated : row)),
+          })
+          haptic('medium')
+          showToast(nextStatus === 'paused' ? 'Campaign paused' : 'Campaign resumed')
+        } catch (error: any) {
+          showToast(error.message || 'Campaign update failed')
+        }
+      },
+    })
   }
 
   function openReferralRewardForPlan(plan: PlanDto | null) {
@@ -1082,15 +1111,21 @@ export default function Home() {
     if (!data || !communityId) return
     const nextStatus = rule.status === 'draft' ? 'active' : 'draft'
     const verb = nextStatus === 'draft' ? 'Pause' : 'Resume'
-    if (!window.confirm(`${verb} "${rule.title}"?`)) return
-    try {
-      const { rule: updated } = await api.updateRewardRule(communityId, rule.id, nextStatus)
-      setData({ ...data, rewardRules: data.rewardRules.map((row) => (row.id === updated.id ? updated : row)) })
-      haptic('medium')
-      showToast(nextStatus === 'draft' ? 'Reward rule paused' : 'Reward rule resumed')
-    } catch (error: any) {
-      showToast(error.message || 'Reward rule update failed')
-    }
+    requestConfirm({
+      title: `${verb} reward rule`,
+      message: `${verb} "${rule.title}"?`,
+      confirmLabel: verb,
+      onConfirm: async () => {
+        try {
+          const { rule: updated } = await api.updateRewardRule(communityId, rule.id, nextStatus)
+          setData({ ...data, rewardRules: data.rewardRules.map((row) => (row.id === updated.id ? updated : row)) })
+          haptic('medium')
+          showToast(nextStatus === 'draft' ? 'Reward rule paused' : 'Reward rule resumed')
+        } catch (error: any) {
+          showToast(error.message || 'Reward rule update failed')
+        }
+      },
+    })
   }
 
   async function createCatalogReward(event: FormEvent) {
@@ -1188,16 +1223,23 @@ export default function Home() {
 
   async function deleteFaqEntry(faq: FaqEntryDto) {
     if (!communityId) return
-    if (!window.confirm(`Delete the FAQ entry "${faq.question}"?`)) return
-    try {
-      await api.deleteFaqEntry(communityId, faq.id)
-      setFaqEntries((entries) => (entries ?? []).filter((row) => row.id !== faq.id))
-      setData((current) => (current ? { ...current, ai: { ...current.ai, faqCount: Math.max(0, current.ai.faqCount - 1) } } : current))
-      haptic('medium')
-      showToast('FAQ entry deleted')
-    } catch (error: any) {
-      showToast(error.message || 'FAQ deletion failed')
-    }
+    requestConfirm({
+      title: 'Delete FAQ entry',
+      message: `Delete the FAQ entry "${faq.question}"?`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteFaqEntry(communityId, faq.id)
+          setFaqEntries((entries) => (entries ?? []).filter((row) => row.id !== faq.id))
+          setData((current) => (current ? { ...current, ai: { ...current.ai, faqCount: Math.max(0, current.ai.faqCount - 1) } } : current))
+          haptic('medium')
+          showToast('FAQ entry deleted')
+        } catch (error: any) {
+          showToast(error.message || 'FAQ deletion failed')
+        }
+      },
+    })
   }
 
   async function createKnowledgeSource(event: FormEvent) {
@@ -1219,15 +1261,22 @@ export default function Home() {
 
   async function deleteKnowledgeSource(source: KnowledgeSourceDto) {
     if (!communityId) return
-    if (!window.confirm(`Delete the knowledge source "${source.title}"?`)) return
-    try {
-      await api.deleteKnowledgeSource(communityId, source.id)
-      setKnowledgeSources((sources) => (sources ?? []).filter((row) => row.id !== source.id))
-      haptic('medium')
-      showToast('Knowledge source deleted')
-    } catch (error: any) {
-      showToast(error.message || 'Knowledge source deletion failed')
-    }
+    requestConfirm({
+      title: 'Delete knowledge source',
+      message: `Delete the knowledge source "${source.title}"?`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteKnowledgeSource(communityId, source.id)
+          setKnowledgeSources((sources) => (sources ?? []).filter((row) => row.id !== source.id))
+          haptic('medium')
+          showToast('Knowledge source deleted')
+        } catch (error: any) {
+          showToast(error.message || 'Knowledge source deletion failed')
+        }
+      },
+    })
   }
 
   async function updateCommunitySetting(partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) {
@@ -1265,20 +1314,24 @@ export default function Home() {
       showToast('Promote the bot to admin in your discussion group first')
       return
     }
-    if (!window.confirm(`Turn ${next ? 'on' : 'off'} comment access? This applies to your whole channel, not just this item.`)) {
-      return
-    }
-    try {
-      const result = await api.setCommentAccess(communityId, next)
-      if (!result.ok) {
-        showToast(result.reason || 'Comment access update failed')
-        return
-      }
-      setData({ ...data, commentAccess: { ...data.commentAccess, enabled: next } })
-      showToast(`Comment access turned ${next ? 'on' : 'off'} for your whole channel`)
-    } catch (error: any) {
-      showToast(error.message || 'Comment access update failed')
-    }
+    requestConfirm({
+      title: 'Comment access',
+      message: `Turn ${next ? 'on' : 'off'} comment access? This applies to your whole channel, not just this item.`,
+      confirmLabel: next ? 'Turn on' : 'Turn off',
+      onConfirm: async () => {
+        try {
+          const result = await api.setCommentAccess(communityId, next)
+          if (!result.ok) {
+            showToast(result.reason || 'Comment access update failed')
+            return
+          }
+          setData({ ...data, commentAccess: { ...data.commentAccess, enabled: next } })
+          showToast(`Comment access turned ${next ? 'on' : 'off'} for your whole channel`)
+        } catch (error: any) {
+          showToast(error.message || 'Comment access update failed')
+        }
+      },
+    })
   }
 
   async function toggleAutoPosting(targetType: 'plan' | 'product' | 'event', targetId: number) {
@@ -1392,6 +1445,47 @@ export default function Home() {
     setAddCommunityChooserOpen(true)
   }
 
+  function dismissConnectStatus() {
+    connectPollRef.current += 1
+    setConnectStatus(null)
+  }
+
+  function retryConnectCheck() {
+    if (connectStatus?.phase !== 'timeout') return
+    const kind = connectStatus.kind
+    const existingIds = new Set((me?.communities ?? []).map((community) => community.id))
+    const generation = (connectPollRef.current += 1)
+    setConnectStatus({ phase: 'connecting', kind })
+    pollForNewCommunity(existingIds, kind, generation)
+  }
+
+  async function pollForNewCommunity(existingIds: Set<number>, kind: 'group' | 'channel', generation: number) {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      if (connectPollRef.current !== generation) return
+      try {
+        const meData = await api.getMe()
+        setMe(meData)
+        setOwnedCommunities(meData.communities)
+        const added = meData.communities.find((community) => !existingIds.has(community.id))
+        if (added) {
+          let nextStatus: ConnectStatus = { phase: 'success', name: added.name }
+          try {
+            const dashboard = await api.getDashboard(added.id)
+            const chats = dashboard.chats ?? []
+            const hasAdmin = chats.some((chat) => chat.botStatus === 'admin')
+            const needsPermissions = chats.some((chat) => chat.botStatus === 'missing_permissions')
+            if (!hasAdmin && needsPermissions) nextStatus = { phase: 'needs_permissions', name: added.name }
+          } catch {}
+          if (connectPollRef.current === generation) setConnectStatus(nextStatus)
+          return
+        }
+      } catch {}
+    }
+    if (connectPollRef.current === generation) setConnectStatus({ phase: 'timeout', kind })
+  }
+
   async function handleAddCommunity(kind: 'group' | 'channel' = 'group') {
     setAddCommunityChooserOpen(false)
     const url = kind === 'channel' ? botChannelLink() : botGroupLink()
@@ -1400,11 +1494,10 @@ export default function Home() {
       return
     }
     openTelegramLink(url)
-    showToast(
-      kind === 'channel'
-        ? 'Pick your channel and keep all requested admin rights enabled — your community will appear here'
-        : 'Add the bot as admin — your community will appear here'
-    )
+
+    const existingIds = new Set((me?.communities ?? []).map((community) => community.id))
+    const generation = (connectPollRef.current += 1)
+    setConnectStatus({ phase: 'connecting', kind })
 
     // Remove any stale listener from a previous tap before adding a new one
     if (visibilityListenerRef.current) {
@@ -1415,12 +1508,7 @@ export default function Home() {
       if (document.hidden) return
       document.removeEventListener('visibilitychange', onReturn)
       visibilityListenerRef.current = null
-      try {
-        const meData = await api.getMe()
-        setMe(meData)
-        setOwnedCommunities(meData.communities)
-        if (meData.communities.length > 0) showToast('Community connected')
-      } catch {}
+      await pollForNewCommunity(existingIds, kind, generation)
     }
 
     visibilityListenerRef.current = onReturn
@@ -1555,15 +1643,21 @@ export default function Home() {
 
   async function cancelSubscription(subscription: SubscriptionDto) {
     if (!communityId) return
-    const confirmed = window.confirm(`Cancel ${subscription.planName ?? 'this subscription'}? Access will be revoked.`)
-    if (!confirmed) return
-    try {
-      await api.cancelSubscription(communityId, subscription.id)
-      await refreshMemberDashboard()
-      showToast('Subscription cancelled')
-    } catch (error: any) {
-      showToast(error.message || 'Subscription cancellation failed')
-    }
+    requestConfirm({
+      title: 'Cancel subscription',
+      message: `Cancel ${subscription.planName ?? 'this subscription'}? Access will be revoked.`,
+      confirmLabel: 'Cancel subscription',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await api.cancelSubscription(communityId, subscription.id)
+          await refreshMemberDashboard()
+          showToast('Subscription cancelled')
+        } catch (error: any) {
+          showToast(error.message || 'Subscription cancellation failed')
+        }
+      },
+    })
   }
 
   async function claimReward(rewardId: number) {
@@ -1619,6 +1713,7 @@ export default function Home() {
             )}
           </section>
         </main>
+        {confirmDialog && <ConfirmSheet {...confirmDialog} onClose={() => setConfirmDialog(null)} />}
         {toast && <div className="tg-toast">{toast}</div>}
       </>
     )
@@ -1661,6 +1756,9 @@ export default function Home() {
                 me={me}
                 onOpenCommunity={(id) => selectCommunity(id, 'home')}
                 onAddCommunity={openAddCommunityChooser}
+                connectStatus={connectStatus}
+                onDismissConnectStatus={dismissConnectStatus}
+                onRetryConnectStatus={retryConnectCheck}
               />
             )}
             {screen === 'start' && <StartPicker onSelect={go} onSelectModel={chooseRevenueModel} />}
@@ -1698,6 +1796,7 @@ export default function Home() {
             onClose={() => setAddCommunityChooserOpen(false)}
           />
         )}
+        {confirmDialog && <ConfirmSheet {...confirmDialog} onClose={() => setConfirmDialog(null)} />}
         {toast && <div className="tg-toast">{toast}</div>}
       </>
     )
@@ -1809,6 +1908,9 @@ export default function Home() {
               me={me}
               onOpenCommunity={(id) => selectCommunity(id, 'home')}
               onAddCommunity={openAddCommunityChooser}
+              connectStatus={connectStatus}
+              onDismissConnectStatus={dismissConnectStatus}
+              onRetryConnectStatus={retryConnectCheck}
             />
           )}
           {screen === 'communities' && (
@@ -1924,7 +2026,12 @@ export default function Home() {
             />
           )}
           {screen === 'settings' && (
-            <SettingsScreen data={data} onUpdateSetting={updateCommunitySetting} onUpdateStatus={updateCommunityStatus} />
+            <SettingsScreen
+              data={data}
+              onUpdateSetting={updateCommunitySetting}
+              onUpdateStatus={updateCommunityStatus}
+              onRequestConfirm={requestConfirm}
+            />
           )}
           {screen === 'monetization' && me && <MonetizationScreen me={me} />}
           {screen === 'aiManager' && (
@@ -2190,176 +2297,9 @@ export default function Home() {
           onClose={() => setAddCommunityChooserOpen(false)}
         />
       )}
+      {confirmDialog && <ConfirmSheet {...confirmDialog} onClose={() => setConfirmDialog(null)} />}
       {toast && <div className="tg-toast">{toast}</div>}
     </>
-  )
-}
-
-function AppFrame({
-  children,
-  hideBack,
-  onBack,
-  rightLabel,
-  onRightAction,
-  onProfile,
-  onGuide,
-  onMore,
-}: {
-  children: React.ReactNode
-  hideBack?: boolean
-  onBack?: () => void
-  rightLabel?: string
-  onRightAction?: () => void
-  onProfile?: () => void
-  onGuide?: () => void
-  onMore?: () => void
-}) {
-  const [scrolled, setScrolled] = useState(false)
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 2)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  return (
-    <main className="tg-app">
-      <header className={`tg-topbar${scrolled ? ' is-scrolled' : ''}`}>
-        {!hideBack && (
-          <button className="tg-nav-button" type="button" onClick={onBack} aria-label="Back">
-            Back
-          </button>
-        )}
-        {(onProfile || onGuide || onMore) && (
-          <div className="tg-topbar-actions">
-            {onGuide && (
-              <button
-                className="tg-topbar-icon-button"
-                type="button"
-                onClick={() => { haptic('light'); onGuide() }}
-                aria-label="Guide"
-              >
-                <RowIcon name="guide" />
-              </button>
-            )}
-            {onProfile && (
-              <button
-                className="tg-topbar-icon-button"
-                type="button"
-                onClick={() => { haptic('light'); onProfile() }}
-                aria-label="Profile"
-              >
-                <RowIcon name="member" />
-              </button>
-            )}
-            {onMore && (
-              <button
-                className="tg-topbar-icon-button"
-                type="button"
-                onClick={() => { haptic('light'); onMore() }}
-                aria-label="More"
-              >
-                <RowIcon name="more" />
-              </button>
-            )}
-          </div>
-        )}
-        {rightLabel && onRightAction && (
-          <button className="tg-nav-button tg-nav-button-right" type="button" onClick={onRightAction}>
-            {rightLabel}
-          </button>
-        )}
-      </header>
-      {children}
-    </main>
-  )
-}
-
-function IntroScreen({ index, onBack, onNext }: { index: number; onBack?: () => void; onNext: () => void }) {
-  const slide = introSlides[index]
-  return (
-    <main className="tg-story">
-      <header className="tg-story-topbar">
-        {onBack && (
-          <button type="button" onClick={onBack}>
-            Back
-          </button>
-        )}
-      </header>
-      <div className="tg-progress-bars" aria-label={`Slide ${index + 1} of ${introSlides.length}`}>
-        {introSlides.map((item, itemIndex) => (
-          <span key={item.title} className={itemIndex <= index ? 'active' : ''} />
-        ))}
-      </div>
-      <section className="tg-story-content">
-        <h1>{slide.title}</h1>
-        <p>{slide.text}</p>
-        <StoryArt label={slide.title} icon={slide.icon} />
-      </section>
-      <footer className="tg-story-footer">
-        <button type="button" onClick={onNext}>
-          {index === introSlides.length - 1 ? 'Start' : 'Next'}
-        </button>
-      </footer>
-    </main>
-  )
-}
-
-function StartPicker({ onSelect, onSelectModel }: { onSelect: (screen: Screen) => void; onSelectModel: (model: RevenueModel) => void }) {
-  return (
-    <section className="tg-screen centered">
-      <div className="tg-hero-mark">CO</div>
-      <h1>Where would you like to start?</h1>
-      <p className="tg-subtitle">Pick the first thing you want to launch. You can add other formats later.</p>
-      <ListGroup>
-        <ListRow tone="blue" icon="membership" title="Paid Membership" detail="Sell access to a private group or channel." onClick={() => onSelectModel('membership')} />
-        <ListRow tone="red" icon="product" title="Digital Product" detail="Sell courses, files, downloads, or guides." onClick={() => onSelectModel('product')} />
-        <ListRow tone="purple" icon="event" title="Event or AMA" detail="Sell tickets or manage registrations." onClick={() => onSelectModel('event')} />
-        <ListRow tone="green" icon="referral" title="Referral Rewards" detail="Reward members for inviting others." onClick={() => onSelectModel('referral')} />
-        <ListRow tone="amber" icon="ai" title="AI Community Manager" detail="Automate FAQ, welcome messages, and reports." onClick={() => onSelectModel('ai')} />
-      </ListGroup>
-      <button className="tg-link-button" type="button" onClick={() => onSelect('communities')}>
-        I will choose later
-      </button>
-    </section>
-  )
-}
-
-function CommunityPicker({
-  communities,
-  search,
-  onSearch,
-  onSelect,
-  onAdd,
-}: {
-  communities: DashboardDto['community'][]
-  search: string
-  onSearch: (value: string) => void
-  onSelect: (id: number) => void
-  onAdd: () => void
-}) {
-  return (
-    <section className="tg-screen with-fixed-button">
-      <h1 className="tg-left-title">Channels and Groups</h1>
-      <label className="tg-search">
-        <span>Search</span>
-        <input value={search} onChange={(event) => onSearch(event.target.value)} aria-label="Search communities" />
-      </label>
-      <ListGroup>
-        {communities.map((community) => (
-          <ListRow
-            key={community.id}
-            avatar={initials(community.name)}
-            image={community.avatarUrl}
-            title={community.name}
-            detail={`${community.status === 'active' ? 'Active' : 'Setup'} community`}
-            onClick={() => onSelect(community.id)}
-          />
-        ))}
-        {communities.length === 0 && <EmptyBlock title="No communities found" detail="Connect a Telegram group or channel to continue." />}
-      </ListGroup>
-      <FixedButton label="Add" onClick={onAdd} />
-    </section>
   )
 }
 
@@ -2395,104 +2335,20 @@ function nextActionIcon(target: NextAction['target']): IconName {
   }
 }
 
-function NextActionCard({
-  title,
-  detail,
-  cta,
-  icon,
-  onClick,
-}: {
-  title: string
-  detail: string
-  cta: string
-  icon: IconName
-  onClick: () => void
-}) {
-  return (
-    <section className="tg-callout">
-      <div className="tg-next-action-head">
-        <span className="tg-next-action-icon">
-          <RowIcon name={icon} />
-        </span>
-        <span>NEXT ACTION</span>
-      </div>
-      <h2>{title}</h2>
-      <p>{detail}</p>
-      <button
-        type="button"
-        onClick={() => {
-          haptic('medium')
-          onClick()
-        }}
-      >
-        {cta}
-      </button>
-    </section>
-  )
-}
-
-function RevenueSnapshotRow({
-  items,
-}: {
-  items: { key: string; icon: IconName; label: string; count?: number; onClick: () => void }[]
-}) {
-  return (
-    <div className="tg-revenue-grid">
-      {items.map((item) => (
-        <button
-          key={item.key}
-          className="tg-revenue-card"
-          type="button"
-          onClick={() => {
-            haptic('light')
-            item.onClick()
-          }}
-        >
-          <span className="tg-revenue-icon">
-            <RowIcon name={item.icon} />
-          </span>
-          {typeof item.count === 'number' && <strong>{item.count}</strong>}
-          <small>{item.label}</small>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function QuickAccessRow({
-  items,
-}: {
-  items: { key: string; icon: IconName; label: string; badge?: number; onClick: () => void }[]
-}) {
-  return (
-    <div className="tg-quick-access-row">
-      {items.map((item) => (
-        <button
-          key={item.key}
-          className="tg-quick-access-chip"
-          type="button"
-          onClick={() => {
-            haptic('light')
-            item.onClick()
-          }}
-        >
-          <RowIcon name={item.icon} />
-          <span>{item.label}</span>
-          {typeof item.badge === 'number' && item.badge > 0 && <strong>{item.badge}</strong>}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function AccountHome({
   me,
   onOpenCommunity,
   onAddCommunity,
+  connectStatus,
+  onDismissConnectStatus,
+  onRetryConnectStatus,
 }: {
   me: MeDto
   onOpenCommunity: (id: number) => void
   onAddCommunity: () => void
+  connectStatus?: ConnectStatus | null
+  onDismissConnectStatus?: () => void
+  onRetryConnectStatus?: () => void
 }) {
   const nextAction = computeAccountNextAction(me)
   return (
@@ -2508,6 +2364,14 @@ function AccountHome({
           <span>{me.accountStats.accessIssues > 0 ? `${me.accountStats.accessIssues} access issue(s)` : 'Access all clear'}</span>
         </div>
       </div>
+
+      {connectStatus && (
+        <ConnectStatusCard
+          status={connectStatus}
+          onDismiss={() => onDismissConnectStatus?.()}
+          onRetry={() => onRetryConnectStatus?.()}
+        />
+      )}
 
       {nextAction && (
         <NextActionCard
@@ -2669,33 +2533,6 @@ function CommunityHome({
       )}
 
       <FixedButton label={data.plans.length ? 'Share' : 'Create Membership'} onClick={data.plans.length ? onShareCommunity : onCreateMembership} />
-    </section>
-  )
-}
-
-function CommunityHeader({ data, onEdit }: { data: DashboardDto; onEdit?: () => void }) {
-  return (
-    <section className="tg-community-header">
-      <div className="tg-avatar-wrap">
-        <AvatarMark className="tg-large-avatar" image={data.community.avatarUrl} label={data.community.name} />
-        <button
-          className="tg-header-edit-button"
-          type="button"
-          onClick={() => {
-            haptic('light')
-            onEdit?.()
-          }}
-          title="Edit profile"
-        >
-          ✎
-        </button>
-      </div>
-      <h1>{data.community.name}</h1>
-      <p>{data.metrics.members} members</p>
-      <div className="tg-mini-stats">
-        <span>{data.metrics.monthlyStars.toLocaleString()} XTR</span>
-        <span>{data.metrics.healthScore || data.ai.healthScore}% health</span>
-      </div>
     </section>
   )
 }
@@ -3202,10 +3039,12 @@ function SettingsScreen({
   data,
   onUpdateSetting,
   onUpdateStatus,
+  onRequestConfirm,
 }: {
   data: DashboardDto
   onUpdateSetting: (partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) => void
   onUpdateStatus: (status: 'active' | 'paused' | 'archived') => void
+  onRequestConfirm: (options: ConfirmDialogState) => void
 }) {
   const settings = data.community.settings ?? { starsCheckoutEnabled: true, notificationsEnabled: true }
   const status = data.community.status
@@ -3221,7 +3060,12 @@ function SettingsScreen({
             type="button"
             onClick={() => {
               haptic('medium')
-              if (window.confirm('Reactivate this community? Members will regain access immediately.')) onUpdateStatus('active')
+              onRequestConfirm({
+                title: 'Reactivate community',
+                message: 'Reactivate this community? Members will regain access immediately.',
+                confirmLabel: 'Reactivate',
+                onConfirm: () => onUpdateStatus('active'),
+              })
             }}
           >
             Reactivate community
@@ -3261,26 +3105,30 @@ function SettingsScreen({
               icon="settings"
               title="Pause community"
               detail="Temporarily block new member access. You can reactivate anytime."
-              onClick={() => {
-                if (window.confirm('Pause this community? Members will lose access to new content until you reactivate it.')) {
-                  onUpdateStatus('paused')
-                }
-              }}
+              onClick={() =>
+                onRequestConfirm({
+                  title: 'Pause community',
+                  message: 'Pause this community? Members will lose access to new content until you reactivate it.',
+                  confirmLabel: 'Pause',
+                  onConfirm: () => onUpdateStatus('paused'),
+                })
+              }
             />
             <ListRow
               tone="red"
               icon="delete"
               title="Archive community"
               detail="Hide this community and stop all member access."
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Archive this community? This stops all member access and hides it from your account. This is hard to undo — only continue if you are sure.'
-                  )
-                ) {
-                  onUpdateStatus('archived')
-                }
-              }}
+              onClick={() =>
+                onRequestConfirm({
+                  title: 'Archive community',
+                  message:
+                    'Archive this community? This stops all member access and hides it from your account. This is hard to undo — only continue if you are sure.',
+                  confirmLabel: 'Archive',
+                  destructive: true,
+                  onConfirm: () => onUpdateStatus('archived'),
+                })
+              }
             />
           </ListGroup>
         </>
@@ -3908,32 +3756,6 @@ function RevenuePublishScreen({
       </ListGroup>
       <FixedButton label={primaryLabel} onClick={onShare} />
     </section>
-  )
-}
-
-function UploadBox({ label, preview, fileName, accept, onFile }: { label: string; preview?: string | null; fileName?: string | null; accept: string; onFile: (file: File | null) => void }) {
-  return (
-    <label className="tg-upload-card">
-      <input type="file" accept={accept} onChange={(event) => onFile(event.currentTarget.files?.[0] ?? null)} />
-      <div>{preview ? <span className="tg-cover-preview" style={{ backgroundImage: `url(${preview})` }} /> : <span>{label}</span>}</div>
-      {fileName && <small>{fileName}</small>}
-    </label>
-  )
-}
-
-function PreviewCard({ title, description, buttonText, coverUrl }: { title: string; description: string; buttonText: string; coverUrl?: string | null }) {
-  return (
-    <div className="tg-message-preview">
-      <div className={coverUrl ? 'tg-preview-cover has-image' : 'tg-preview-cover'}>
-        {coverUrl ? <span style={{ backgroundImage: `url(${coverUrl})` }} /> : <span>CommunityOS</span>}
-      </div>
-      <div className="tg-preview-body">
-        <small>Telegram preview</small>
-        <strong>{title}</strong>
-        <p>{description}</p>
-        <button type="button">{buttonText}</button>
-      </div>
-    </div>
   )
 }
 
@@ -4628,637 +4450,6 @@ function MemberHome({
   )
 }
 
-function AddCommunityActionSheet({
-  onChooseGroup,
-  onChooseChannel,
-  onClose,
-}: {
-  onChooseGroup: () => void
-  onChooseChannel: () => void
-  onClose: () => void
-}) {
-  return (
-    <div className="tg-action-sheet-overlay" onClick={onClose}>
-      <div className="tg-action-sheet" role="dialog" aria-label="Add Community" onClick={(event) => event.stopPropagation()}>
-        <h2>Add Community</h2>
-        <p>Connect a Telegram group or a channel. Keep all requested admin rights enabled so access control works.</p>
-        <button type="button" onClick={onChooseGroup}>
-          Add a Group or Supergroup
-        </button>
-        <button type="button" onClick={onChooseChannel}>
-          Add a Channel
-        </button>
-        <button type="button" className="cancel" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function SupportActionSheet({
-  onMessageAdmin,
-  onMessageBot,
-  onOpenChannel,
-  onClose,
-}: {
-  onMessageAdmin?: () => void
-  onMessageBot: () => void
-  onOpenChannel?: () => void
-  onClose: () => void
-}) {
-  return (
-    <div className="tg-action-sheet-overlay" onClick={onClose}>
-      <div className="tg-action-sheet" role="dialog" aria-label="Get Support" onClick={(event) => event.stopPropagation()}>
-        <h2>Get Support</h2>
-        <p>How would you like to reach out?</p>
-        {onMessageAdmin && (
-          <button type="button" onClick={onMessageAdmin}>
-            Message Community Admin
-          </button>
-        )}
-        <button type="button" onClick={onMessageBot}>
-          Message Support Bot
-        </button>
-        {onOpenChannel && (
-          <button type="button" onClick={onOpenChannel}>
-            Open Community Channel
-          </button>
-        )}
-        <button type="button" className="cancel" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function ListGroup({ children }: { children: React.ReactNode }) {
-  return <div className="tg-list-group">{children}</div>
-}
-
-function CheckoutPrompt({
-  tone,
-  eyebrow,
-  title,
-  detail,
-  secondary,
-  imageUrl,
-  meta,
-  cta,
-  onClick,
-}: {
-  tone: 'blue' | 'red' | 'purple' | 'green' | 'amber'
-  eyebrow: string
-  title: string
-  detail: string
-  secondary?: string | null
-  imageUrl?: string | null
-  meta: string
-  cta: string
-  onClick: () => void
-}) {
-  return (
-    <section className={`tg-checkout-prompt ${tone}`}>
-      <div className="tg-checkout-prompt-body">
-        {imageUrl && <span className="tg-checkout-prompt-thumb" style={{ backgroundImage: `url(${imageUrl})` }} />}
-        <div>
-          <small>{eyebrow}</small>
-          <h2>{title}</h2>
-          <p>{detail}</p>
-          {secondary && <span className="tg-checkout-prompt-secondary">{secondary}</span>}
-        </div>
-      </div>
-      <strong>{meta}</strong>
-      <button type="button" onClick={onClick}>
-        {cta}
-      </button>
-    </section>
-  )
-}
-
-type IconName =
-  | 'membership'
-  | 'product'
-  | 'event'
-  | 'referral'
-  | 'ai'
-  | 'stars'
-  | 'access'
-  | 'growth'
-  | 'rewards'
-  | 'settings'
-  | 'share'
-  | 'delete'
-  | 'comment'
-  | 'autopost'
-  | 'subscription'
-  | 'channel'
-  | 'group'
-  | 'business'
-  | 'bot'
-  | 'member'
-  | 'edit'
-  | 'copy'
-  | 'more'
-  | 'guide'
-
-const ICON_SVG_PROPS = {
-  viewBox: '0 0 24 24',
-  fill: 'none' as const,
-  stroke: 'currentColor',
-  strokeWidth: 1.75,
-  strokeLinecap: 'round' as const,
-  strokeLinejoin: 'round' as const,
-}
-
-function RowIcon({ name }: { name: IconName }) {
-  switch (name) {
-    case 'membership':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <rect x="2.5" y="5.5" width="19" height="13" rx="2.5" />
-          <path d="M2.5 10h19" />
-          <path d="M6 14.5h5" />
-        </svg>
-      )
-    case 'product':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M21 7.5v9l-9 5-9-5v-9l9-5 9 5z" />
-          <path d="M3 7.5l9 5 9-5" />
-          <path d="M12 12.5V21.5" />
-        </svg>
-      )
-    case 'event':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <rect x="3.5" y="5" width="17" height="16" rx="2.5" />
-          <path d="M8 3v4M16 3v4M3.5 9.5h17" />
-          <circle cx="12" cy="14.5" r="1.2" fill="currentColor" stroke="none" />
-        </svg>
-      )
-    case 'referral':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="18" cy="5" r="2.6" />
-          <circle cx="6" cy="12" r="2.6" />
-          <circle cx="18" cy="19" r="2.6" />
-          <path d="M8.4 10.6l7.2-4.2M8.4 13.4l7.2 4.2" />
-        </svg>
-      )
-    case 'ai':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3z" />
-          <path d="M5 16v3M3.5 17.5h3" />
-        </svg>
-      )
-    case 'stars':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M12 3.5l2.6 5.3 5.9.8-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.8L12 3.5z" />
-        </svg>
-      )
-    case 'access':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M12 3l7 3v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6l7-3z" />
-          <path d="M9 12l2 2 4-4.5" />
-        </svg>
-      )
-    case 'growth':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M3 17l6-6.5 4 3.5 7-8" />
-          <path d="M15 6h5v5" />
-        </svg>
-      )
-    case 'rewards':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="12" cy="8.5" r="5.2" />
-          <path d="M9 13l-1.4 7.5L12 18l4.4 2.5L15 13" />
-        </svg>
-      )
-    case 'settings':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M4 7h7M15 7h5" />
-          <circle cx="13" cy="7" r="1.8" fill="currentColor" stroke="none" />
-          <path d="M4 12h3M11 12h9" />
-          <circle cx="9" cy="12" r="1.8" fill="currentColor" stroke="none" />
-          <path d="M4 17h10M18 17h2" />
-          <circle cx="16" cy="17" r="1.8" fill="currentColor" stroke="none" />
-        </svg>
-      )
-    case 'share':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M21 3L10.5 13.5" />
-          <path d="M21 3L14 21l-3.5-7.5L3 10 21 3z" />
-        </svg>
-      )
-    case 'delete':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M4 6.5h16" />
-          <path d="M18 6.5l-.8 13a2 2 0 01-2 1.9H8.8a2 2 0 01-2-1.9l-.8-13" />
-          <path d="M9.5 6.5V4.8a1.3 1.3 0 011.3-1.3h2.4a1.3 1.3 0 011.3 1.3v1.7" />
-          <path d="M10.3 10.5v6.5M13.7 10.5v6.5" />
-        </svg>
-      )
-    case 'comment':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M21 11.5a8.4 8.4 0 01-1.2 4.4 8.5 8.5 0 01-7.3 4.1 8.4 8.4 0 01-4.4-1.2L3 21l2.2-5.1A8.4 8.4 0 014 11.5 8.5 8.5 0 0112.5 3a8.5 8.5 0 018.5 8.5z" />
-        </svg>
-      )
-    case 'autopost':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3.5 2" />
-        </svg>
-      )
-    case 'subscription':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M17 2l4 4-4 4" />
-          <path d="M3 11v-1a4 4 0 014-4h14" />
-          <path d="M7 22l-4-4 4-4" />
-          <path d="M21 13v1a4 4 0 01-4 4H3" />
-        </svg>
-      )
-    case 'channel':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M3 10.5l16-5v13l-16-5v-3z" />
-          <path d="M10.5 15.5a3 3 0 105.5-1.6" />
-        </svg>
-      )
-    case 'group':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="9" cy="8" r="3.3" />
-          <path d="M3.5 19.5a5.7 5.7 0 0111 0" />
-          <path d="M15.5 8.3a3.3 3.3 0 010 6.4" />
-          <path d="M16 14.7a5.6 5.6 0 014.5 4.8" />
-        </svg>
-      )
-    case 'business':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M5 21V5.2a1 1 0 011-1h7.4a1 1 0 011 1V21" />
-          <path d="M14.4 9.5H19a1 1 0 011 1V21" />
-          <path d="M3 21h18" />
-          <path d="M8.5 8h1M8.5 11.5h1M8.5 15h1" />
-        </svg>
-      )
-    case 'bot':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <rect x="4.5" y="8.5" width="15" height="11" rx="2.5" />
-          <path d="M12 8.5V5" />
-          <circle cx="12" cy="3.5" r="1" fill="currentColor" stroke="none" />
-          <path d="M2.5 13.5h2M19.5 13.5h2" />
-          <path d="M9 13.5v1.6M15 13.5v1.6" />
-        </svg>
-      )
-    case 'member':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="12" cy="8" r="4" />
-          <path d="M4.5 20.5a7.5 7.5 0 0115 0" />
-        </svg>
-      )
-    case 'edit':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <path d="M12 20h8" />
-          <path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-        </svg>
-      )
-    case 'copy':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <rect x="9" y="9" width="12" height="12" rx="2.2" />
-          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-        </svg>
-      )
-    case 'more':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="5" cy="12" r="1.3" fill="currentColor" stroke="none" />
-          <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
-          <circle cx="19" cy="12" r="1.3" fill="currentColor" stroke="none" />
-        </svg>
-      )
-    case 'guide':
-      return (
-        <svg {...ICON_SVG_PROPS}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M9.6 9.4a2.4 2.4 0 114 1.8c-1 .9-1.6 1.5-1.6 2.7" />
-          <circle cx="12" cy="17.2" r="1" fill="currentColor" stroke="none" />
-        </svg>
-      )
-    default:
-      return null
-  }
-}
-
-function ListRow({
-  title,
-  detail,
-  meta,
-  icon,
-  avatar,
-  image,
-  tone = 'blue',
-  onClick,
-}: {
-  title: string
-  detail?: string
-  meta?: string
-  icon?: IconName
-  avatar?: string
-  image?: string | null
-  tone?: 'blue' | 'red' | 'purple' | 'green' | 'amber'
-  onClick?: () => void
-}) {
-  const content = (
-    <>
-      {image ? (
-        <span className="tg-row-icon-image" style={{ backgroundImage: `url(${image})` }} />
-      ) : avatar ? (
-        <span className={`tg-row-icon ${tone}`}>{avatar}</span>
-      ) : icon ? (
-        <span className={`tg-row-glyph ${tone}`}>
-          <RowIcon name={icon} />
-        </span>
-      ) : null}
-      <span className="tg-row-main">
-        <strong>{title}</strong>
-        {detail && <small>{detail}</small>}
-      </span>
-      {meta && <em>{meta}</em>}
-      {onClick && <b aria-hidden="true">›</b>}
-    </>
-  )
-
-  if (onClick) {
-    return (
-      <button
-        className="tg-list-row"
-        type="button"
-        onClick={() => {
-          haptic('light')
-          onClick()
-        }}
-      >
-        {content}
-      </button>
-    )
-  }
-
-  return <div className="tg-list-row">{content}</div>
-}
-
-function paymentStatusBadge(status: string): { label: string; tone: 'green' | 'amber' | 'muted' } | null {
-  switch (status) {
-    case 'active':
-    case 'trialing':
-      return { label: 'Paid', tone: 'green' }
-    case 'past_due':
-      return { label: 'Pending', tone: 'amber' }
-    case 'expired':
-    case 'cancelled':
-      return { label: 'Unpaid', tone: 'muted' }
-    default:
-      return null
-  }
-}
-
-function MemberRow({
-  member,
-  onGrant,
-  onRevoke,
-  onSuspend,
-  onRestore,
-  compact,
-}: {
-  member: MemberRowDto
-  onGrant: () => void
-  onRevoke: () => void
-  onSuspend?: () => void
-  onRestore?: () => void
-  compact?: boolean
-}) {
-  const payment = paymentStatusBadge(member.subscriptionStatus)
-  return (
-    <article className={`tg-member-row ${compact ? 'compact' : ''}`}>
-      <span className="tg-row-glyph blue">
-        <RowIcon name="member" />
-      </span>
-      <div>
-        <strong>@{member.username}</strong>
-        <small>
-          {member.planName ?? 'No plan'} · {member.accessStatus} · {member.xp} XP
-        </small>
-        {payment && <span className={`tg-status-chip ${payment.tone}`}>{payment.label}</span>}
-      </div>
-      <div className="tg-member-actions">
-        {member.accessStatus === 'granted' ? (
-          <>
-            <button type="button" onClick={onSuspend ?? onRevoke}>Suspend</button>
-            <button type="button" onClick={onRevoke}>Remove</button>
-          </>
-        ) : member.accessStatus === 'suspended' ? (
-          <>
-            <button type="button" onClick={onRestore ?? onGrant}>Restore</button>
-            <button type="button" onClick={onRevoke}>Remove</button>
-          </>
-        ) : (
-          <>
-            <button type="button" onClick={onGrant}>Grant</button>
-            <button type="button" onClick={onRevoke}>Remove</button>
-          </>
-        )}
-      </div>
-    </article>
-  )
-}
-
-function JoinRequestRow({
-  request,
-  onApprove,
-  onDecline,
-}: {
-  request: DashboardDto['joinRequests'][number]
-  onApprove: () => void
-  onDecline: () => void
-}) {
-  return (
-    <article className="tg-member-row compact">
-      <span className="tg-row-glyph green">
-        <RowIcon name="member" />
-      </span>
-      <div>
-        <strong>@{request.username ?? request.telegramUserId}</strong>
-        <small>
-          Join request · {request.referralCode ? `ref ${request.referralCode}` : dateShort(request.createdAt)}
-        </small>
-      </div>
-      <div className="tg-member-actions">
-        <button type="button" onClick={onApprove}>Approve</button>
-        <button type="button" onClick={onDecline}>Decline</button>
-      </div>
-    </article>
-  )
-}
-
-function ChatRow({ chat, image }: { chat: TelegramChatDto; image?: string | null }) {
-  const status = chat.botStatus === 'admin' ? 'Ready' : chat.botStatus === 'missing_permissions' ? 'Needs permissions' : 'Not connected'
-  return (
-    <ListRow
-      tone={chat.botStatus === 'admin' ? 'green' : 'amber'}
-      icon={chat.type === 'channel' ? 'channel' : 'group'}
-      image={image}
-      title={chat.title}
-      detail={`${chat.type}. ${chat.activeMembers} active members`}
-      meta={status}
-    />
-  )
-}
-
-function AvatarMark({ className, image, label }: { className: string; image?: string | null; label: string }) {
-  return (
-    <span className={`${className} ${image ? 'has-image' : ''}`}>
-      {image ? <img src={image} alt="" /> : initials(label)}
-    </span>
-  )
-}
-
-function StoryArt({
-  label,
-  compact,
-  imageUrl,
-  icon,
-}: {
-  label: string
-  compact?: boolean
-  imageUrl?: string | null
-  icon?: IconName
-}) {
-  return (
-    <div className={`tg-story-art ${compact ? 'compact' : ''}`} aria-hidden="true">
-      <span className={`tg-story-art-card ${imageUrl ? 'has-image' : ''} ${!imageUrl && icon ? 'has-icon' : ''}`}>
-        {imageUrl ? (
-          <img src={imageUrl} alt="" />
-        ) : icon ? (
-          <RowIcon name={icon} />
-        ) : (
-          <><i /><b>{label}</b></>
-        )}
-      </span>
-    </div>
-  )
-}
-
-function ActionTile({ label, icon, onClick }: { label: string; icon: 'edit' | 'copy' | 'share' | 'more'; onClick: () => void }) {
-  return (
-    <button
-      className="tg-action-tile"
-      type="button"
-      onClick={() => {
-        haptic('light')
-        onClick()
-      }}
-    >
-      <span className="tg-action-icon" aria-hidden="true">
-        <RowIcon name={icon} />
-      </span>
-      <strong>{label}</strong>
-    </button>
-  )
-}
-
-function ActionSheet({
-  kind,
-  productStatus,
-  onDuplicate,
-  onToggleStatus,
-  onClose,
-}: {
-  kind: 'plan' | 'product' | 'event'
-  productStatus?: 'draft' | 'active'
-  onDuplicate: () => void
-  onToggleStatus?: () => void
-  onClose: () => void
-}) {
-  const kindLabel = kind === 'plan' ? 'Membership' : kind === 'product' ? 'Product' : 'Event'
-  return (
-    <div className="tg-action-sheet-overlay" onClick={onClose}>
-      <div className="tg-action-sheet" role="dialog" aria-label="More Options" onClick={(event) => event.stopPropagation()}>
-        <h2>More Options</h2>
-        <p>{kindLabel} actions</p>
-        {onToggleStatus && (
-          <button type="button" onClick={onToggleStatus}>
-            {productStatus === 'active' ? 'Move to Draft' : 'Publish'}
-          </button>
-        )}
-        <button type="button" onClick={onDuplicate}>
-          Duplicate {kindLabel}
-        </button>
-        <button type="button" className="cancel" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function FixedButton({
-  label,
-  onClick,
-  submit,
-  disabled,
-}: {
-  label: string
-  onClick?: () => void
-  submit?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <div className="tg-fixed-button">
-      <button
-        type={submit ? 'submit' : 'button'}
-        onClick={() => {
-          haptic('medium')
-          onClick?.()
-        }}
-        disabled={disabled}
-      >
-        {disabled && <span className="tg-button-spinner" aria-hidden="true" />}
-        {disabled ? 'Working…' : label}
-      </button>
-    </div>
-  )
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <h2 className="tg-section-label">{children}</h2>
-}
-
-function EmptyBlock({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="tg-empty-block">
-      <strong>{title}</strong>
-      <p>{detail}</p>
-    </div>
-  )
-}
-
 function screenForModel(model: RevenueModel): Screen {
   if (model === 'product') return 'productBuilder'
   if (model === 'event') return 'eventBuilder'
@@ -5399,15 +4590,3 @@ function dashboardFromMemberProfile(profile: MemberProfileDto): DashboardDto {
   }
 }
 
-function initials(value: string) {
-  return value
-    .split(/[\s_@-]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || 'CO'
-}
-
-function dateShort(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
