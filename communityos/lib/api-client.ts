@@ -509,6 +509,10 @@ export const api = {
     }),
   addMember: (communityId: number | string, body: { userId: number; source?: string }) =>
     request<{ member: unknown }>(`/api/communities/${communityId}/members`, { method: 'POST', body: JSON.stringify(body) }),
+  addAdmin: (communityId: number | string, userId: number) =>
+    request<{ member: unknown }>(`/api/communities/${communityId}/admins`, { method: 'POST', body: JSON.stringify({ userId }) }),
+  removeAdmin: (communityId: number | string, userId: number) =>
+    request<{ member: unknown }>(`/api/communities/${communityId}/admins`, { method: 'DELETE', body: JSON.stringify({ userId }) }),
   grantAccess: (communityId: number | string, userId: number) =>
     request<{ ok: boolean; inviteLink?: string | null }>(`/api/communities/${communityId}/access`, {
       method: 'POST',

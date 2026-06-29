@@ -1,4 +1,5 @@
 import type { DashboardDto, MeDto } from './api-client'
+import { pickPrimary } from './format'
 
 export type NextActionTarget = 'access' | 'growth' | 'rewards' | 'more' | 'members' | 'share' | 'setup'
 
@@ -22,7 +23,7 @@ export function computeNextAction(data: DashboardDto): NextAction | null {
     return { title: topAction.title, detail: topAction.detail, cta: 'Review', target: topAction.target }
   }
 
-  const latest = data.plans[0]?.name ?? data.products[0]?.title ?? data.events[0]?.title ?? null
+  const latest = pickPrimary(data.plans)?.name ?? pickPrimary(data.products)?.title ?? data.events[0]?.title ?? null
   if (latest) {
     return { title: `Share ${latest}`, detail: 'Send it to your Telegram audience to bring in joins or sales.', cta: 'Share', target: 'share' }
   }

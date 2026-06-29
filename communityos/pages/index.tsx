@@ -58,7 +58,8 @@ import {
 import { PreviewCard, UploadBox } from '@/components/UploadPreview'
 import { AddCommunityActionSheet, SupportActionSheet } from '@/components/ActionSheets'
 import { CommunityPicker, IntroScreen, StartPicker } from '@/components/OnboardingScreens'
-import { dateShort, initials } from '@/lib/format'
+import { SettingsScreen } from '@/components/SettingsScreen'
+import { dateShort, initials, pickPrimary } from '@/lib/format'
 import { RevenueModel, Screen, introSlides } from '@/lib/screens'
 import { centsToStars, formatUsdApprox, starsToCents } from '@/lib/star-rate'
 import { parseOfferCode, parseReferralCode as parseReferralStartCode } from '@/lib/start-params'
@@ -315,8 +316,8 @@ export default function Home() {
   }, [connectStatus])
 
   const member = memberProfile?.member ?? data?.members[0]
-  const activePlan = selectedPlan ?? createdPlan ?? data?.plans[0] ?? null
-  const activeProduct = selectedProduct ?? createdProduct ?? data?.products[0] ?? null
+  const activePlan = selectedPlan ?? createdPlan ?? pickPrimary(data?.plans ?? [])
+  const activeProduct = selectedProduct ?? createdProduct ?? pickPrimary(data?.products ?? [])
   const activeEvent = selectedEvent ?? createdEvent ?? data?.events[0] ?? null
   const filteredCommunities = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -535,7 +536,7 @@ export default function Home() {
                 buttonText: body.buttonText,
                 ...(coverPath ? { coverPath } : {}),
               })
-              .catch(() => undefined)
+              .catch(() => showToast("Couldn't update the annual plan to match — update it separately"))
           }
         }
 
@@ -573,7 +574,7 @@ export default function Home() {
           interval: 'year',
           coverPath,
           buttonText: buttonText.trim() || 'Subscribe',
-        }).catch(() => undefined)
+        }).catch(() => showToast("Annual price wasn't created — add it separately"))
       }
 
       await refreshDashboard()
@@ -1300,6 +1301,28 @@ export default function Home() {
       )
     } catch (error: any) {
       showToast(error.message || 'Status update failed')
+    }
+  }
+
+  async function promoteToAdmin(userId: number) {
+    if (!data || !communityId) return
+    try {
+      await api.addAdmin(communityId, userId)
+      setData({ ...data, members: data.members.map((member) => (member.id === userId ? { ...member, role: 'admin' } : member)) })
+      showToast('Admin added')
+    } catch (error: any) {
+      showToast(error.message || 'Could not add admin')
+    }
+  }
+
+  async function demoteAdmin(userId: number) {
+    if (!data || !communityId) return
+    try {
+      await api.removeAdmin(communityId, userId)
+      setData({ ...data, members: data.members.map((member) => (member.id === userId ? { ...member, role: 'member' } : member)) })
+      showToast('Admin removed')
+    } catch (error: any) {
+      showToast(error.message || 'Could not remove admin')
     }
   }
 
@@ -2030,6 +2053,8 @@ export default function Home() {
               data={data}
               onUpdateSetting={updateCommunitySetting}
               onUpdateStatus={updateCommunityStatus}
+              onPromoteAdmin={promoteToAdmin}
+              onDemoteAdmin={demoteAdmin}
               onRequestConfirm={requestConfirm}
             />
           )}
@@ -3031,108 +3056,6 @@ function MonetizationScreen({ me }: { me: MeDto }) {
       <p style={{ opacity: 0.6, fontSize: 13, padding: '0 16px 16px' }}>
         Commission is deducted the moment a payment is confirmed, so your balance always reflects exactly what&apos;s yours to withdraw.
       </p>
-    </section>
-  )
-}
-
-function SettingsScreen({
-  data,
-  onUpdateSetting,
-  onUpdateStatus,
-  onRequestConfirm,
-}: {
-  data: DashboardDto
-  onUpdateSetting: (partial: Partial<{ starsCheckoutEnabled: boolean; notificationsEnabled: boolean }>) => void
-  onUpdateStatus: (status: 'active' | 'paused' | 'archived') => void
-  onRequestConfirm: (options: ConfirmDialogState) => void
-}) {
-  const settings = data.community.settings ?? { starsCheckoutEnabled: true, notificationsEnabled: true }
-  const status = data.community.status
-  return (
-    <section className="tg-screen">
-      <h1 className="tg-left-title">Settings</h1>
-      {status !== 'active' && (
-        <section className="tg-callout">
-          <span>{status === 'archived' ? 'ARCHIVED' : 'PAUSED'}</span>
-          <h2>{status === 'archived' ? 'This community is archived' : 'This community is paused'}</h2>
-          <p>Members can&apos;t access new content until you reactivate it.</p>
-          <button
-            type="button"
-            onClick={() => {
-              haptic('medium')
-              onRequestConfirm({
-                title: 'Reactivate community',
-                message: 'Reactivate this community? Members will regain access immediately.',
-                confirmLabel: 'Reactivate',
-                onConfirm: () => onUpdateStatus('active'),
-              })
-            }}
-          >
-            Reactivate community
-          </button>
-        </section>
-      )}
-      <SectionLabel>Bot connection</SectionLabel>
-      <ListGroup>
-        {data.chats.map((chat) => <ChatRow key={chat.id} chat={chat} image={data.community.avatarUrl} />)}
-        {data.chats.length === 0 && <EmptyBlock title="No group connected" detail="Add the bot as admin in a Telegram group or channel, then share a membership to confirm the connection." />}
-      </ListGroup>
-      <SectionLabel>Checkout and notifications</SectionLabel>
-      <ListGroup>
-        <ListRow
-          tone={settings.starsCheckoutEnabled ? 'green' : 'amber'}
-          icon="stars"
-          title="Stars checkout"
-          detail="Let members pay with Telegram Stars"
-          meta={settings.starsCheckoutEnabled ? 'on' : 'off'}
-          onClick={() => onUpdateSetting({ starsCheckoutEnabled: !settings.starsCheckoutEnabled })}
-        />
-        <ListRow
-          tone={settings.notificationsEnabled ? 'green' : 'amber'}
-          icon="comment"
-          title="Notifications"
-          detail="Bot messages for renewals, access changes, and join requests"
-          meta={settings.notificationsEnabled ? 'on' : 'off'}
-          onClick={() => onUpdateSetting({ notificationsEnabled: !settings.notificationsEnabled })}
-        />
-      </ListGroup>
-      {status === 'active' && (
-        <>
-          <SectionLabel>Danger zone</SectionLabel>
-          <ListGroup>
-            <ListRow
-              tone="amber"
-              icon="settings"
-              title="Pause community"
-              detail="Temporarily block new member access. You can reactivate anytime."
-              onClick={() =>
-                onRequestConfirm({
-                  title: 'Pause community',
-                  message: 'Pause this community? Members will lose access to new content until you reactivate it.',
-                  confirmLabel: 'Pause',
-                  onConfirm: () => onUpdateStatus('paused'),
-                })
-              }
-            />
-            <ListRow
-              tone="red"
-              icon="delete"
-              title="Archive community"
-              detail="Hide this community and stop all member access."
-              onClick={() =>
-                onRequestConfirm({
-                  title: 'Archive community',
-                  message:
-                    'Archive this community? This stops all member access and hides it from your account. This is hard to undo — only continue if you are sure.',
-                  confirmLabel: 'Archive',
-                  destructive: true,
-                  onConfirm: () => onUpdateStatus('archived'),
-                })
-              }
-            />
-          </ListGroup>
-        </>
-      )}
     </section>
   )
 }
@@ -4215,10 +4138,11 @@ function MemberHome({
   const checkoutMissing = checkoutIntent && !checkoutPlan && !checkoutProduct && !checkoutEvent
   const [supportOpen, setSupportOpen] = useState(false)
   const adminUsername = data.community.ownerUsername
-  const channelUrl = data.community.telegramInviteUrl || (data.chats[0]?.handle ? `https://t.me/${data.chats[0].handle}` : null)
+  const channelChat = data.chats.find((chat) => chat.type === 'channel') ?? data.chats[0]
+  const channelUrl = data.community.telegramInviteUrl || (channelChat?.handle ? `https://t.me/${channelChat.handle}` : null)
   const openSupportLink = (url: string, message: string) => {
     setSupportOpen(false)
-    copyText(url).catch(() => undefined)
+    copyText(url).catch(() => onToast("Couldn't copy link"))
     openTelegramLink(url)
     onToast(message)
   }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { haptic } from '@/lib/telegram-webapp'
+import { haptic, hideBackButton, showBackButton } from '@/lib/telegram-webapp'
 import { RowIcon } from '@/components/icons'
 
 export function AppFrame({
@@ -28,6 +28,15 @@ export function AppFrame({
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  useEffect(() => {
+    if (hideBack || !onBack) {
+      hideBackButton()
+      return
+    }
+    showBackButton(onBack)
+    return () => hideBackButton()
+  }, [hideBack, onBack])
 
   return (
     <main className="tg-app">

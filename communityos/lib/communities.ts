@@ -71,6 +71,20 @@ export async function requireCommunityOwner(userId: number, communityId: number)
   return !!data
 }
 
+export async function requireOwnerOrAdmin(userId: number, communityId: number): Promise<boolean> {
+  if (await requireCommunityOwner(userId, communityId)) return true
+  const { data, error } = await supabase
+    .from('community_members')
+    .select('id')
+    .eq('community_id', communityId)
+    .eq('user_id', userId)
+    .eq('role', 'admin')
+    .eq('access_status', 'granted')
+    .maybeSingle()
+  if (error) throw error
+  return !!data
+}
+
 export async function ensureMember(
   communityId: number,
   userId: number,

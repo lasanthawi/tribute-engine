@@ -1,10 +1,14 @@
 :root {
-  --tg-blue: #0a84ff;
-  --tg-blue-dark: #0070d9;
-  --tg-bg: #efeff4;
-  --tg-card: #ffffff;
-  --tg-text: #111114;
-  --tg-muted: #8a8a93;
+  /* Telegram's telegram-web-app.js injects --tg-theme-* vars on this same root
+     once the WebApp is ready, so these fall back to the original light-mode
+     hex values outside Telegram (e.g. local/browser preview) and otherwise
+     track the client's active theme, light or dark. */
+  --tg-blue: var(--tg-theme-button-color, #0a84ff);
+  --tg-blue-dark: var(--tg-theme-button-color, #0070d9);
+  --tg-bg: var(--tg-theme-secondary-bg-color, #efeff4);
+  --tg-card: var(--tg-theme-bg-color, #ffffff);
+  --tg-text: var(--tg-theme-text-color, #111114);
+  --tg-muted: var(--tg-theme-hint-color, #8a8a93);
   --tg-separator: rgba(60, 60, 67, 0.16);
   --tg-green: #34c759;
   --tg-red: #ff3b30;
@@ -134,7 +138,7 @@ a {
   gap: 10px;
   min-height: 40px;
   padding: calc(8px + var(--safe-top)) 16px 8px;
-  background: rgba(239, 239, 244, 0.92);
+  background: color-mix(in srgb, var(--tg-bg) 92%, transparent);
   backdrop-filter: blur(18px);
 }
 
@@ -158,7 +162,7 @@ a {
 /* Once the page scrolls past the top, fill the mini bar so it reads as a
    header sitting above the content instead of content showing through it. */
 .tg-topbar.is-scrolled {
-  background: rgba(239, 239, 244, 0.92);
+  background: color-mix(in srgb, var(--tg-bg) 92%, transparent);
   backdrop-filter: blur(18px);
 }
 
@@ -166,7 +170,7 @@ a {
   justify-content: center;
   min-height: 40px;
   padding: calc(8px + var(--safe-top)) 16px 8px;
-  background: rgba(239, 239, 244, 0.92);
+  background: color-mix(in srgb, var(--tg-bg) 92%, transparent);
   backdrop-filter: blur(18px);
 }
 
@@ -1316,7 +1320,7 @@ a {
   transform: translateX(-50%);
   padding: 12px 22px calc(12px + var(--safe-bottom));
   border-top: 1px solid rgba(60, 60, 67, 0.12);
-  background: rgba(239, 239, 244, 0.94);
+  background: color-mix(in srgb, var(--tg-bg) 94%, transparent);
   backdrop-filter: blur(18px);
 }
 

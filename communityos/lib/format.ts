@@ -10,3 +10,9 @@ export function initials(value: string) {
 export function dateShort(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
+
+// Picks the most relevant item from a list ordered by something other than recency
+// (e.g. price or id) — prefers an active item over just taking the first one.
+export function pickPrimary<T extends { status?: string }>(items: T[]): T | null {
+  return items.find((item) => item.status === 'active') ?? items[0] ?? null
+}

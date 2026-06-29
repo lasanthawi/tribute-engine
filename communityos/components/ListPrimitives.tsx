@@ -1,6 +1,7 @@
+import { useEffect } from 'react'
 import { DashboardDto, MemberRowDto, TelegramChatDto } from '@/lib/api-client'
 import { dateShort, initials } from '@/lib/format'
-import { haptic } from '@/lib/telegram-webapp'
+import { haptic, hideMainButton, setMainButton } from '@/lib/telegram-webapp'
 import { IconName, RowIcon } from '@/components/icons'
 
 export function ListGroup({ children }: { children: React.ReactNode }) {
@@ -309,6 +310,25 @@ export function FixedButton({
   submit?: boolean
   disabled?: boolean
 }) {
+  // Only mirror to Telegram's native MainButton when we have a direct click
+  // handler — submit-only buttons rely on native <form> submission, which the
+  // MainButton (rendered outside the WebView DOM) can't trigger.
+  useEffect(() => {
+    if (!onClick) {
+      hideMainButton()
+      return
+    }
+    setMainButton({
+      text: disabled ? 'Working…' : label,
+      onClick: () => {
+        haptic('medium')
+        onClick()
+      },
+      active: !disabled,
+    })
+    return () => hideMainButton()
+  }, [label, onClick, disabled])
+
   return (
     <div className="tg-fixed-button">
       <button
